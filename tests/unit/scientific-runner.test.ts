@@ -14,9 +14,11 @@ function fixturePath(...segments: string[]): string {
 
 function createRuntime() {
   const contexts = new Map<TargetKind, ScientificWorkflowContext>();
+  const executedActions = new Map<TargetKind, Array<Record<string, unknown>>>();
 
   return {
     contexts,
+    executedActions,
     runtime: {
       clearWorkflowContext(target: TargetKind) {
         contexts.delete(target);
@@ -25,6 +27,7 @@ function createRuntime() {
         contexts.set(target, context);
       },
       async executeActions(target: TargetKind, actions: Array<Record<string, unknown>>, dryRun?: boolean) {
+        executedActions.set(target, [...(executedActions.get(target) ?? []), ...actions]);
         return actionResultSchema.parse({
           target,
           commandsExecuted: actions.map((action) => String(action.type ?? "unknown")),
@@ -97,6 +100,33 @@ describe("scientific workflow runner", () => {
     expect(result.referenceHints.designCandidate2).toBeDefined();
     expect(result.metrics.find((metric) => metric.label === "Top Rosetta score")).toBeDefined();
     expect(result.actionsExecuted).toContain("layout");
+  });
+
+  it("uses a guaranteed-visible camera handle for ChimeraX Rosetta interface reviews", async () => {
+    const { runtime, executedActions } = createRuntime();
+    const request = scientificWorkflowRequestSchema.parse({
+      target: "chimerax",
+      workflow: "rosetta_interface_packing_review",
+      dryRun: true,
+      presentationMode: "demo",
+      inputs: {
+        bundlePath: fixturePath("rosetta_demo"),
+        scorefilePath: fixturePath("rosetta_demo", "score.sc"),
+        referencePath: fixturePath("rosetta_demo", "reference_scaffold.pdb"),
+        topN: 2,
+      },
+    });
+
+    await runScientificWorkflow(request, runtime);
+
+    const cameraAction = executedActions.get("chimerax")?.find((action) => action.type === "camera");
+    expect(cameraAction).toMatchObject({
+      type: "camera",
+      action: "comparison_frame",
+      selection: {
+        reference: "topDesign",
+      },
+    });
   });
 
   it("rejects non-JSON PAE inputs", async () => {

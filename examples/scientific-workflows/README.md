@@ -9,6 +9,19 @@ Use it from the UI `Scientific Launch` rail, or pass the workflow explicitly to 
 - Examples: `--uniprot`, `--model`, `--experimental`, `--pae`, `--map`, `--bundle`, `--scorefile`, `--top-n`
 - Keep `Push To Talk` as the default until the first clean live turn is complete.
 
+## Validated Local Showcases
+
+These are the strongest local-data rehearsals to run before a live demo or voice session:
+
+- `npm run showcase:pymol:overlay`
+- `npm run showcase:pymol:cryo`
+- `npm run showcase:pymol:rosetta`
+- `npm run showcase:chimerax:overlay`
+- `npm run showcase:chimerax:map`
+- `npm run showcase:chimerax:rosetta`
+
+Run `npm run verify:showcases` to rehearse the full AlphaFold, cryo, and Rosetta showcase matrix on both targets.
+
 ## AlphaFold Confidence Review
 
 Start from a confidence-colored prediction, isolate uncertain loops, and keep the scene ready for a fast PTT demo.

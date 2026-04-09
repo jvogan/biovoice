@@ -768,7 +768,7 @@ function buildRosettaStageActions(
 
   if (workflow === "rosetta_top_design_compare") {
     actions.push({ type: "layout", mode: "tile" });
-  } else if (hasRosettaFocusHandle(workflow)) {
+  } else if (workflow !== "rosetta_interface_packing_review" && hasRosettaFocusHandle(workflow)) {
     actions.push(
       { type: "style", selection: { reference: pickRosettaFocusHandle(workflow, resolved) }, atoms: "stick" },
       { type: "color", color: "deeppink", selection: { reference: pickRosettaFocusHandle(workflow, resolved) } },
@@ -778,7 +778,7 @@ function buildRosettaStageActions(
   actions.push({
     type: "camera",
     action: workflow === "rosetta_ligand_redesign_review" ? "pocket_frame" : "comparison_frame",
-    selection: { reference: pickRosettaFocusHandle(workflow, resolved) },
+    selection: { reference: pickRosettaCameraHandle(workflow, resolved) },
     amount: presentationMode === "publication" ? 16 : 12,
   });
 
@@ -1098,6 +1098,13 @@ function pickRosettaFocusHandle(workflow: ScientificWorkflowKind, resolved: Rose
     return "designPanel";
   }
   return "mutatedShell";
+}
+
+function pickRosettaCameraHandle(workflow: ScientificWorkflowKind, resolved: RosettaResolvedInputs): string {
+  if (workflow === "rosetta_interface_packing_review") {
+    return resolved.interfaceChains?.[0] ? "partnerA" : "topDesign";
+  }
+  return pickRosettaFocusHandle(workflow, resolved);
 }
 
 function hasRosettaFocusHandle(workflow: ScientificWorkflowKind): boolean {
