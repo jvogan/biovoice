@@ -1,0 +1,19 @@
+{
+  "id": "pymol-selection-and-storyboarding",
+  "title": "Selection and Storyboarding",
+  "sampleData": [
+    {
+      "id": "1hsg",
+      "kind": "local",
+      "label": "HIV protease with inhibitor",
+      "localPath": "./examples/data/local/1hsg.pdb",
+      "remoteUrl": "https://files.rcsb.org/download/1HSG.pdb"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

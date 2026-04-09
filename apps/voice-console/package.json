@@ -1,0 +1,12 @@
+{
+  "name": "@biovoice/app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5173 --strictPort",
+    "dev:server": "tsx server/server.ts",
+    "build": "vite build --config vite.config.ts && tsup server/server.ts --format esm --out-dir dist-server --clean --sourcemap",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit"
+  }
+}

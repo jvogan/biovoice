@@ -1,0 +1,29 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+title: "BioVoice: Real-time voice control for molecular visualization"
+type: software
+version: 0.1.0
+date-released: "2026-04-09"
+license: MIT
+authors:
+  - family-names: Vogan
+    given-names: Jacob
+url: "https://github.com/jvogan/biovoice"
+repository-code: "https://github.com/jvogan/biovoice"
+keywords:
+  - pymol
+  - chimerax
+  - voice-control
+  - molecular-visualization
+  - structural-biology
+  - alphafold
+  - rosetta
+  - openai-realtime
+  - bioinformatics
+abstract: >-
+  BioVoice is a real-time voice interface for structural biology
+  visualization. It connects PyMOL and ChimeraX to the OpenAI
+  Realtime API via WebRTC, enabling hands-free control of molecular
+  visualization through natural language. Includes 18 curated demo
+  workflows for AlphaFold, Rosetta, cryo-EM, and general structural
+  biology presentations.

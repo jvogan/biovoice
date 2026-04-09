@@ -1,0 +1,19 @@
+{
+  "id": "pymol-alphafold-confidence-sweep",
+  "title": "AlphaFold Confidence Sweep",
+  "sampleData": [
+    {
+      "id": "Q9H255",
+      "kind": "alphafold",
+      "label": "AlphaFold model Q9H255",
+      "localPath": "./examples/data/local/af-q9h255.pdb",
+      "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-Q9H255-F1-model_v4.pdb"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

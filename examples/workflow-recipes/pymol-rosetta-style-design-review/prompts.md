@@ -1,0 +1,54 @@
+# Rosetta-Style Design Review Prompts
+
+## Starter Prompts
+- Run a Rosetta-style scaffold-versus-design review in PyMOL.
+- Use semantic handles so the scientist can say scaffold, design, changed shell, or whole complex without naming objects manually.
+- Store one overview, one remodeled-shell close-up, and one exploded comparison before the export.
+
+## Reusable Spoken Utterances
+- Open the scaffold and the design candidate and keep the scaffold quiet.
+- Align the design to the scaffold before we talk about the remodeled shell.
+- Highlight residues 118 through 160 on both models and keep the design warmer.
+- Pull the design candidate to the right for the exploded comparison without moving the scaffold.
+- Store one scene for the global comparison, one for the remodeled shell, and one for the exploded view.
+- Use the semantic handles so I can say scaffold, design, or partner instead of object names.
+- Tell me the alignment RMSD after the scaffold-versus-design overlay locks in.
+- Export the design-review still once the side-by-side frame looks editorial.
+- If I say the whole complex, keep both models visible and move only the design candidate.
+- Bring the design back on top of the scaffold after the exploded shot if I ask for it.
+- Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.
+- If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.
+- Keep the whole complex fixed and slide only the predicted partner to the right.
+- Rotate just the comparison partner around its own center instead of moving the camera.
+- When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.
+- For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.
+- Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.
+- For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.
+- For a design-style review, align the new model to the starting scaffold and isolate only the changed shell.
+- Rotate the binder away from the receptor and then bring it back into the interface frame for the explanation.
+- If the scientist calls one partner the scaffold and the other the design, inspect state first and use the semantic handle instead of guessing object names.
+- Move just the design candidate or just the binder instead of spinning the entire scene when the comparison needs to stay anchored.
+- Keep the scaffold anchored, pull the design candidate outward, and preserve the interface camera for the return shot.
+- Explode the binder from the receptor, then snap back to the packed interface without losing the saved view.
+- If you need a single-atom measurement on a multichain design complex, switch to scaffoldChainA, designChainA, or another chain-specific semantic handle before measuring.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.

@@ -1,0 +1,26 @@
+{
+  "id": "pymol-cryo-atomic-handoff",
+  "title": "Cryo-Atomic Handoff",
+  "sampleData": [
+    {
+      "id": "8wj1",
+      "kind": "local",
+      "label": "Human oxy hemoglobin cryo-EM model",
+      "localPath": "./examples/data/local/8wj1.cif",
+      "remoteUrl": "https://files.rcsb.org/download/8WJ1.cif"
+    },
+    {
+      "id": "EMD-37575",
+      "kind": "local",
+      "label": "Human oxy hemoglobin cryo-EM map",
+      "localPath": "./examples/data/local/emd_37575.map",
+      "remoteUrl": "https://ftp.ebi.ac.uk/pub/databases/emdb/structures/EMD-37575/map/emd_37575.map.gz"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

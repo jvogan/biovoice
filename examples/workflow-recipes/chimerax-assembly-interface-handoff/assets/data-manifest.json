@@ -1,0 +1,19 @@
+{
+  "id": "chimerax-assembly-interface-handoff",
+  "title": "Assembly-To-Interface Handoff",
+  "sampleData": [
+    {
+      "id": "8wj1",
+      "kind": "local",
+      "label": "Human oxy hemoglobin cryo-EM model",
+      "localPath": "./examples/data/local/8wj1.cif",
+      "remoteUrl": "https://files.rcsb.org/download/8WJ1.cif"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

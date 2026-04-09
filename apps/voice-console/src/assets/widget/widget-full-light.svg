@@ -1,0 +1,206 @@
+<svg width="320" height="458" viewBox="0 0 320 458" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
+  <defs>
+    <linearGradient id="shell-body" x1="160" y1="0" x2="160" y2="458">
+      <stop offset="0%" stop-color="#F2EBDD" />
+      <stop offset="58%" stop-color="#EBE2D3" />
+      <stop offset="100%" stop-color="#DDD4C3" />
+    </linearGradient>
+    <linearGradient id="panel-surface" x1="160" y1="30" x2="160" y2="98">
+      <stop offset="0%" stop-color="#F4ECDC" />
+      <stop offset="100%" stop-color="#E7DDCD" />
+    </linearGradient>
+    <linearGradient id="hero-shell" x1="160" y1="104" x2="160" y2="238">
+      <stop offset="0%" stop-color="#F4ECDC" />
+      <stop offset="100%" stop-color="#E7DDCD" />
+    </linearGradient>
+    <linearGradient id="readout-surface" x1="160" y1="338" x2="160" y2="412">
+      <stop offset="0%" stop-color="#F1E7D7" />
+      <stop offset="100%" stop-color="#E4D9C6" />
+    </linearGradient>
+    <linearGradient id="button-face" x1="0" y1="0" x2="0" y2="60">
+      <stop offset="0%" stop-color="#E9DDCB" />
+      <stop offset="100%" stop-color="#D8CCBA" />
+    </linearGradient>
+    <linearGradient id="button-core" x1="0" y1="4" x2="0" y2="56">
+      <stop offset="0%" stop-color="#EFE5D4" />
+      <stop offset="100%" stop-color="#D6C8B4" />
+    </linearGradient>
+    <linearGradient id="window-face" x1="0" y1="0" x2="0" y2="28">
+      <stop offset="0%" stop-color="#F6EEDD" />
+      <stop offset="100%" stop-color="#DCCFBB" />
+    </linearGradient>
+    <radialGradient id="hero-core" cx="50%" cy="36%" r="72%">
+      <stop offset="0%" stop-color="#EFE5D4" />
+      <stop offset="65%" stop-color="#D6C8B4" />
+      <stop offset="100%" stop-color="#D8CCBA" />
+    </radialGradient>
+    <radialGradient id="button-shine" cx="50%" cy="28%" r="78%">
+      <stop offset="0%" stop-color="white" stop-opacity="0.18" />
+      <stop offset="45%" stop-color="white" stop-opacity="0.05" />
+      <stop offset="100%" stop-color="black" stop-opacity="0.14" />
+    </radialGradient>
+    <radialGradient id="hero-glow" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" stop-color="rgba(49, 151, 149, 0.14)" />
+      <stop offset="100%" stop-color="transparent" />
+    </radialGradient>
+    <linearGradient id="shell-stroke" x1="0" y1="0" x2="0" y2="458">
+      <stop offset="0%" stop-color="rgba(255,255,255,0.82)" />
+      <stop offset="100%" stop-color="rgba(109,92,66,0.18)" />
+    </linearGradient>
+    <filter id="shell-shadow" x="-10%" y="-10%" width="124%" height="128%">
+      <feMorphology in="SourceAlpha" radius="0.5" result="spread"/>
+      <feGaussianBlur in="spread" stdDeviation="6.5"/>
+      <feOffset dy="10"/>
+      <feColorMatrix type="matrix" values="0 0 0 0 0 0 0 0 0 0 0 0 0 0.22 0"/>
+      <feBlend in="SourceGraphic" mode="normal"/>
+    </filter>
+    <filter id="panel-inset" x="-6%" y="-12%" width="112%" height="124%">
+      <feOffset dy="1.5"/>
+      <feGaussianBlur stdDeviation="2.4" result="blur"/>
+      <feComposite operator="out" in="SourceAlpha" in2="blur" result="inverse"/>
+      <feFlood flood-color="black" flood-opacity="0.38" result="shadow"/>
+      <feComposite operator="in" in="shadow" in2="inverse" result="inner"/>
+      <feComposite operator="over" in="inner" in2="SourceGraphic"/>
+    </filter>
+    <filter id="button-shadow" x="-32%" y="-32%" width="164%" height="186%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="1.2" result="contact-blur"/>
+      <feOffset in="contact-blur" dy="1.4" result="contact-offset"/>
+      <feColorMatrix in="contact-offset" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.18 0" result="contact-shadow"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="4.2" result="ambient-blur"/>
+      <feOffset in="ambient-blur" dy="7" result="ambient-offset"/>
+      <feColorMatrix in="ambient-offset" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.22 0" result="ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="ambient-shadow"/>
+        <feMergeNode in="contact-shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="hero-shadow" x="-36%" y="-36%" width="172%" height="188%">
+      <feGaussianBlur in="SourceAlpha" stdDeviation="2.2" result="hero-contact-blur"/>
+      <feOffset in="hero-contact-blur" dy="2.5" result="hero-contact-offset"/>
+      <feColorMatrix in="hero-contact-offset" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.16 0" result="hero-contact-shadow"/>
+      <feGaussianBlur in="SourceAlpha" stdDeviation="7" result="hero-ambient-blur"/>
+      <feOffset in="hero-ambient-blur" dy="11" result="hero-ambient-offset"/>
+      <feColorMatrix in="hero-ambient-offset" type="matrix" values="0 0 0 0 0  0 0 0 0 0  0 0 0 0 0  0 0 0 0.26 0" result="hero-ambient-shadow"/>
+      <feMerge>
+        <feMergeNode in="hero-ambient-shadow"/>
+        <feMergeNode in="hero-contact-shadow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect id="shell" x="0" y="0" width="320" height="458" rx="32" fill="url(#shell-body)" filter="url(#shell-shadow)" stroke="url(#shell-stroke)" stroke-width="1.02" />
+  <rect x="5" y="5" width="310" height="448" rx="27" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.22" stroke-width="0.85" />
+  <path d="M20 18C54 14 108 12 166 12C221 12 268 14 296 18" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.24" stroke-width="1.05" stroke-linecap="round" />
+  <path d="M22 30H298" stroke="rgba(255,255,255,0.44)" stroke-width="0.9" stroke-linecap="round" />
+  <rect id="drag-handle" x="12" y="8" width="224" height="28" fill="transparent" cursor="grab" />
+
+  <g filter="url(#panel-inset)">
+    <rect x="10" y="30" width="300" height="68" rx="18" fill="url(#panel-surface)" />
+  </g>
+  <rect x="14" y="34" width="292" height="60" rx="15" fill="rgba(49, 151, 149, 0.05)" />
+  <rect x="14.5" y="34.5" width="291" height="59" rx="14.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.11" stroke-width="0.9" />
+  <path d="M26 40H294" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.16" stroke-width="1" stroke-linecap="round" />
+  <text x="68" y="50" font-family="monospace" font-size="8.8" font-weight="700" letter-spacing="1.5" fill="#6F7D97" opacity="0.92">ACTIVE APP</text>
+
+  <g id="theme-switch" transform="translate(14, 54)" cursor="pointer">
+    <rect id="theme-switch-track" width="46" height="22" rx="11" fill="#D6C8B4" stroke="rgba(109,92,66,0.18)" />
+    <rect x="1.5" y="1.5" width="43" height="19" rx="9.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.28" />
+    <path d="M9 11H15" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.24" stroke-linecap="round" />
+    <path d="M31 11H37" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.24" stroke-linecap="round" />
+    <circle id="theme-switch-knob" cx="11" cy="11" r="8" fill="#C2871F" />
+    <circle cx="11" cy="11" r="7.5" fill="url(#button-shine)" opacity="0.78" />
+  </g>
+
+  <text id="app-name" x="68" y="75" font-family="monospace" font-size="20.8" font-weight="900" fill="#243044">PyMOL 3.0</text>
+  <circle id="status-led" cx="286" cy="65" r="4.9" fill="#D95E5E" />
+  <text id="status-label" x="-140" y="-140" font-family="monospace" font-size="10" font-weight="bold" fill="#D95E5E" opacity="0">OFFLINE</text>
+
+  <g id="window-actions" transform="translate(236, 8)">
+    <rect width="68" height="30" rx="15" fill="url(#window-face)" stroke="rgba(109,92,66,0.18)" stroke-width="0.9" filter="url(#panel-inset)" />
+    <rect x="1.2" y="1.2" width="65.6" height="27.6" rx="13.8" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.18" stroke-width="0.82" />
+    <path d="M34 5V25" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.2" stroke-width="0.82" />
+    <path d="M8 7H60" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.16" stroke-width="0.9" stroke-linecap="round" />
+    <g id="btn-minimize" cursor="pointer">
+      <rect x="5" y="5" width="22" height="20" rx="10" fill="url(#window-face)" stroke="rgba(255,255,255,0.82)" stroke-width="0.72" />
+      <path d="M10 9.5H22" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.18" stroke-width="0.8" stroke-linecap="round" />
+      <path d="M11.5 15H20.5" stroke="#243044" stroke-width="1.75" stroke-linecap="round" />
+    </g>
+    <g id="btn-close" cursor="pointer">
+      <rect x="41" y="5" width="22" height="20" rx="10" fill="url(#window-face)" stroke="rgba(255,255,255,0.82)" stroke-width="0.72" />
+      <path d="M46 9.5H58" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.18" stroke-width="0.8" stroke-linecap="round" />
+      <path d="M48.9 10.6L55.1 17.4M55.1 10.6L48.9 17.4" stroke="#D95E5E" stroke-width="1.75" stroke-linecap="round" />
+    </g>
+  </g>
+
+  <g id="hero-button" transform="translate(160, 170)">
+    <circle r="72" fill="url(#hero-glow)" opacity="0.42" />
+    <circle r="66" fill="url(#hero-shell)" filter="url(#panel-inset)" />
+    <circle r="58" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.16" stroke-width="1.1" />
+    <g id="btn-talk" cursor="pointer" filter="url(#hero-shadow)">
+      <circle r="52" fill="url(#hero-core)" />
+      <circle r="52" fill="url(#button-shine)" opacity="0.88" />
+      <circle r="47" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.12" stroke-width="1.1" />
+      <circle r="41.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.06" stroke-width="0.9" />
+      <circle id="talk-active-ring" r="44" fill="none" stroke="#319795" stroke-width="4" opacity="0.18" />
+      <path id="mic-icon" d="M0 -16C-4.4 -16 -8 -12.4 -8 -8V8C-8 12.4 -4.4 16 0 16C4.4 16 8 12.4 8 8V-8C8 -12.4 4.4 -16 0 -16Z" stroke="#6F7D97" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M-12 4V8.5C-12 14.5 -7 19.5 0 19.5C7 19.5 12 14.5 12 8.5V4" stroke="#6F7D97" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round" />
+      <path d="M0 19.5V26M-7 26H7" stroke="#6F7D97" stroke-width="2.9" stroke-linecap="round" stroke-linejoin="round" />
+      <line x1="-17" y1="17" x2="17" y2="-17" stroke="#D95E5E" stroke-width="3" stroke-linecap="round" id="mic-mute-line" />
+    </g>
+    <circle cx="-50" cy="-44" r="1.8" fill="rgba(109,92,66,0.18)" opacity="0.52" />
+    <circle cx="50" cy="-44" r="1.8" fill="rgba(109,92,66,0.18)" opacity="0.52" />
+    <circle cx="-50" cy="44" r="1.8" fill="rgba(109,92,66,0.18)" opacity="0.52" />
+    <circle cx="50" cy="44" r="1.8" fill="rgba(109,92,66,0.18)" opacity="0.52" />
+  </g>
+
+  <g id="secondary-actions" transform="translate(30, 248)">
+    <g id="btn-power" transform="translate(0, 0)" cursor="pointer" filter="url(#button-shadow)">
+      <rect width="60" height="60" rx="16" fill="url(#button-face)" />
+      <rect x="3" y="3" width="54" height="54" rx="13.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.08" stroke-width="0.9" />
+      <path d="M8 13C15 10 24 8 30 8C37 8 45 10 52 13" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.28" stroke-width="1" stroke-linecap="round" />
+      <path d="M10 50C17 53 24 54 30 54C36 54 43 53 50 50" stroke="rgba(109,92,66,0.18)" stroke-opacity="0.28" stroke-width="1" stroke-linecap="round" />
+      <circle cx="30" cy="24" r="10" stroke="#243044" stroke-width="2.45" stroke-dasharray="45 14" />
+      <line x1="30" y1="14" x2="30" y2="24" stroke="#243044" stroke-width="2.45" stroke-linecap="round" />
+      <text id="label-power" x="30" y="82" text-anchor="middle" font-family="monospace" font-size="12" fill="#6F7D97">POWER</text>
+    </g>
+    <g id="btn-hold" transform="translate(100, 0)" cursor="pointer" filter="url(#button-shadow)">
+      <rect width="60" height="60" rx="16" fill="url(#button-face)" />
+      <rect x="3" y="3" width="54" height="54" rx="13.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.08" stroke-width="0.9" />
+      <path d="M8 13C15 10 24 8 30 8C37 8 45 10 52 13" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.28" stroke-width="1" stroke-linecap="round" />
+      <path d="M10 50C17 53 24 54 30 54C36 54 43 53 50 50" stroke="rgba(109,92,66,0.18)" stroke-opacity="0.28" stroke-width="1" stroke-linecap="round" />
+      <rect x="22" y="17.5" width="6" height="25" fill="#243044" />
+      <rect x="32" y="17.5" width="6" height="25" fill="#243044" />
+      <text id="label-hold" x="30" y="82" text-anchor="middle" font-family="monospace" font-size="12" fill="#6F7D97">HOLD</text>
+    </g>
+    <g id="btn-safety" transform="translate(200, 0)" cursor="pointer" filter="url(#button-shadow)">
+      <rect width="60" height="60" rx="16" fill="url(#button-face)" />
+      <rect x="3" y="3" width="54" height="54" rx="13.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.08" stroke-width="0.9" />
+      <path d="M8 13C15 10 24 8 30 8C37 8 45 10 52 13" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.28" stroke-width="1" stroke-linecap="round" />
+      <path d="M10 50C17 53 24 54 30 54C36 54 43 53 50 50" stroke="rgba(109,92,66,0.18)" stroke-opacity="0.28" stroke-width="1" stroke-linecap="round" />
+      <path d="M30 18.5L38 22.5V30C38 35.3 30 40 30 40C30 40 22 35.3 22 30V22.5L30 18.5Z" stroke="#243044" stroke-width="2.05" stroke-linecap="round" stroke-linejoin="round" />
+      <circle cx="30" cy="29.5" r="1.5" fill="#243044" />
+      <text id="label-safety" x="30" y="82" text-anchor="middle" font-family="monospace" font-size="11.4" fill="#6F7D97">MIC ARM</text>
+    </g>
+  </g>
+
+  <g filter="url(#panel-inset)">
+    <rect x="14" y="338" width="292" height="74" rx="16" fill="url(#readout-surface)" />
+  </g>
+  <rect x="14.5" y="338.5" width="291" height="73" rx="15.5" fill="none" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.1" stroke-width="0.85" />
+  <path d="M26 347H294" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.16" stroke-width="1" stroke-linecap="round" />
+  <path d="M26 404H294" stroke="rgba(109,92,66,0.18)" stroke-opacity="0.18" stroke-width="0.9" stroke-linecap="round" />
+  <path d="M28 359L34 365L28 371M48 371H34" stroke="#319795" stroke-width="2.2" opacity="0.9" />
+  <text id="context-text" x="54" y="365" font-family="monospace" font-size="15.4" font-weight="700" fill="#243044">OFFLINE • PTT • 0s</text>
+  <text id="terminal-text" x="28" y="394" font-family="monospace" font-size="16.2" fill="#6F7D97">LAST &gt; connect to begin</text>
+
+  <g id="btn-config" transform="translate(272, 354)" cursor="pointer">
+    <rect width="20" height="20" rx="10" fill="url(#window-face)" stroke="rgba(255,255,255,0.82)" stroke-width="0.8" />
+    <path d="M5 6H15" stroke="rgba(255,255,255,0.82)" stroke-opacity="0.12" stroke-width="0.7" stroke-linecap="round" />
+    <circle cx="10" cy="6" r="1.2" fill="#6F7D97" />
+    <circle cx="10" cy="10" r="1.2" fill="#6F7D97" />
+    <circle cx="10" cy="14" r="1.2" fill="#6F7D97" />
+  </g>
+
+</svg>

@@ -1,0 +1,57 @@
+name: Bug Report
+description: Report a bug or unexpected behavior
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug! Please fill out the sections below.
+        Before posting logs or screenshots, redact API keys, local filesystem paths, browser URLs, hostnames, and any transcript content you would not want indexed publicly.
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: A clear description of what happened and what you expected.
+      placeholder: "When I run X, Y happens instead of Z."
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to Reproduce
+      description: How can we reproduce this?
+      placeholder: |
+        1. Run `npm run quickstart:pymol`
+        2. Click "Connect Voice Session"
+        3. Say "show as cartoon"
+        4. See error...
+    validations:
+      required: true
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Your system details.
+      value: |
+        - OS: macOS __
+        - Node.js: __
+        - PyMOL / ChimeraX version: __
+        - Browser: __
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Console Output / Error Logs
+      description: Paste any relevant terminal or browser console output after redacting secrets, local paths, and full browser URLs.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: If applicable, add screenshots after masking local paths, session text, and any sensitive structures or prompts.

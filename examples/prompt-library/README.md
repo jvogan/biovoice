@@ -1,0 +1,721 @@
+# Prompt Library
+
+Use these spoken prompts as ready-made demo lines or as examples for downstream users.
+
+## Default Demo Aesthetic
+- Start from a light presentation preset unless the user asks for another look.
+- Use hero framing or pocket framing instead of only bare orient and zoom calls.
+- Keep labels restrained, silhouettes clean, and exports high resolution.
+
+## Binding Pocket Story
+- Open local structure 1HSG.
+- Show the protein as cartoon and the inhibitor as sticks.
+- Color the chains by chain and keep heteroatoms by element.
+- Zoom the active site and center on the ligand.
+- Measure the nearest catalytic contacts.
+- Make the pocket surface transparent and save a hero image.
+- Label the catalytic aspartates.
+- Keep the protein cartoon but emphasize the pocket residues as sticks.
+- Store this as the pocket hero scene.
+- Export the current pocket shot as a PNG.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Two-Structure Comparison
+- Open 1AKE and 4AKE locally.
+- Align 4AKE to 1AKE with super.
+- Color the two models differently.
+- Show only the mobile lid residues as sticks.
+- Center on the mismatch region.
+- Store the aligned and highlighted views.
+- Use alpha carbons for the alignment.
+- Recall the global overview scene.
+- Zoom the open-versus-closed lid region.
+- Save the comparison figure once the camera is framed.
+- Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.
+- If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.
+- Keep the whole complex fixed and slide only the predicted partner to the right.
+- Rotate just the comparison partner around its own center instead of moving the camera.
+- When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.
+- For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.
+- Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.
+- For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Map and Model Walkthrough
+- Open 1UBQ from the local demo pack.
+- Generate a gaussian map and display it as a mesh.
+- Clip in toward the density.
+- Focus residue 48 and its neighbors.
+- Switch from the full model to the site view.
+- Store both views and export a checkpoint image.
+- Show the map as a surface instead of mesh.
+- Highlight the Lys48 neighborhood as sticks.
+- Recall the overview scene and then jump back to the pocket.
+- Export the density close-up as a hero still.
+- Overlay the atomic model with the cryo density and cut into the map without losing the ligand or cofactor context.
+- If a map is loaded, identify the density handle first and then frame the atomic model against it.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Surface and Presentation View
+- Open 4HHB locally.
+- Show the tetramer as both cartoon and transparent surface.
+- Color chains by chain and keep heme atoms prominent.
+- Label each chain around the alpha-carbons.
+- Set a white background and store the hero shot.
+- Export the final figure.
+- Make the surface a little more transparent.
+- Orient the tetramer for a clean publication angle.
+- Keep the heme groups in sticks while the surface stays on.
+- Recall the presentation scene and save another PNG.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Selection and Storyboarding
+- Create a named selection for chain A.
+- Create another selection for catalytic residues.
+- Build a ligand neighborhood selection within five angstroms.
+- Step through each selection and save a scene.
+- Show me the selection names again.
+- Export the final storyboard view.
+- Orient to chain A and store the first storyboard stop.
+- Jump from the chain view to the ligand-shell close-up.
+- Keep the catalytic residues visible in every storyboard stop.
+- Recall the ligand-shell scene and export it.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## AlphaFold Confidence Sweep
+- Open the local AlphaFold Q9H255 model.
+- Switch to a confidence putty preset.
+- Select all residues below seventy confidence and keep them visible as sticks.
+- Zoom the flexible loop and keep the rest of the model quiet.
+- Store an overview scene for the full model.
+- Store a second scene for the uncertain-region close-up.
+- Clear any labels if they start to clutter the loop view.
+- Export the confidence-focused shot once the framing is clean.
+- Color the uncertain residues orange and leave the confident core cooler.
+- Go back to the full-model overview and then return to the flexible loop.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## AlphaFold Experimental Overlay
+- Open 4HHB and the local AlphaFold alpha-chain model.
+- Keep the tetramer readable but emphasize chain A for the overlay.
+- Align the AlphaFold model to experimental chain A with cealign.
+- Show the heme as sticks and tighten the camera around the comparison patch.
+- Label the distal and proximal histidines before the final export.
+- Save one scene for the tetramer overview and one for the chain A overlay.
+- Pull the AlphaFold model away from the tetramer for a readable side-by-side comparison and save that scene too.
+- Make the non-focused chains quieter so the AlphaFold overlay reads clearly.
+- Use the comparison preset before the final export.
+- Tell me the alignment RMSD once the overlay is locked in.
+- Export the final predicted-versus-experimental figure.
+- Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.
+- If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.
+- Keep the whole complex fixed and slide only the predicted partner to the right.
+- Rotate just the comparison partner around its own center instead of moving the camera.
+- When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.
+- For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.
+- Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.
+- For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Crystal Packing Contacts
+- Open 1HSG and prepare a symmetry-contact view.
+- Generate symmetry mates around the inhibitor within eight angstroms.
+- Show the symmetry mates as thin lines and keep the original model as cartoon.
+- Select the packing shell near the ligand and display it as sticks.
+- Color the symmetry shell warm gray so the original complex stays dominant.
+- Tighten the slab around the ligand and its packing shell.
+- Store this crystal-packing view as a scene we can come back to.
+- Export the current packing-contact shot as a hero image.
+- Keep the ligand bright and the surrounding symmetry shell restrained.
+- Tell me how many symmetry-mate objects are currently on screen before you export.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Cryo-Atomic Handoff
+- Open the local 8WJ1 model and EMD-37575 map.
+- Show the protein as cartoon and keep the hemes in sticks.
+- Contour the cryo map as mesh around the fitted model.
+- Switch from the overview to a cutaway around the heme.
+- Use the cryo atomic preset before exporting.
+- Save the global overview and the heme close-up as scenes.
+- Make the density slightly more transparent and less cluttered.
+- Center on the heme neighborhood and clip the slab tighter.
+- Capture the current cutaway before the final export.
+- Export the final cryo-plus-atomic still.
+- Overlay the atomic model with the cryo density and cut into the map without losing the ligand or cofactor context.
+- If a map is loaded, identify the density handle first and then frame the atomic model against it.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Rosetta-Style Design Review
+- Open the scaffold and the design candidate and keep the scaffold quiet.
+- Align the design to the scaffold before we talk about the remodeled shell.
+- Highlight residues 118 through 160 on both models and keep the design warmer.
+- Pull the design candidate to the right for the exploded comparison without moving the scaffold.
+- Store one scene for the global comparison, one for the remodeled shell, and one for the exploded view.
+- Use the semantic handles so I can say scaffold, design, or partner instead of object names.
+- Tell me the alignment RMSD after the scaffold-versus-design overlay locks in.
+- Export the design-review still once the side-by-side frame looks editorial.
+- If I say the whole complex, keep both models visible and move only the design candidate.
+- Bring the design back on top of the scaffold after the exploded shot if I ask for it.
+- Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.
+- If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.
+- Keep the whole complex fixed and slide only the predicted partner to the right.
+- Rotate just the comparison partner around its own center instead of moving the camera.
+- When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.
+- For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.
+- Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.
+- For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.
+- For a design-style review, align the new model to the starting scaffold and isolate only the changed shell.
+- Rotate the binder away from the receptor and then bring it back into the interface frame for the explanation.
+- If the scientist calls one partner the scaffold and the other the design, inspect state first and use the semantic handle instead of guessing object names.
+- Move just the design candidate or just the binder instead of spinning the entire scene when the comparison needs to stay anchored.
+- Keep the scaffold anchored, pull the design candidate outward, and preserve the interface camera for the return shot.
+- Explode the binder from the receptor, then snap back to the packed interface without losing the saved view.
+- If you need a single-atom measurement on a multichain design complex, switch to scaffoldChainA, designChainA, or another chain-specific semantic handle before measuring.
+- Apply the light presentation preset before the next hero shot.
+- Use a pocket hero frame and keep the ligand emphasized.
+- Measure the angle across the catalytic triad and leave the label visible.
+- Measure the key dihedral and keep it on screen for the explanation.
+- Color only the ligand neighborhood and keep the scaffold neutral.
+- Store this polished view so we can jump back to it later.
+- Ray trace a higher-resolution export once the framing looks right.
+- Switch to a comparison-style framing that feels more editorial.
+- Clear the residue labels if they start to clutter the view.
+- Generate symmetry mates around the ligand and keep only the close contacts visible.
+- Clip the slab tighter around the active site and keep the mesh readable.
+- Capture the current viewport so you can check whether the labels and pocket are clean.
+- Color the model by confidence or B-factor and switch to putty for uncertain loops.
+- Isolate the chain interface, keep the buried residues visible, and save the cleanest view.
+- After the first export, inspect the view again and tighten the framing before the final still.
+- Tell me the shortest measurement that is currently visible before you move on.
+- Generate symmetry mates around the ligand and isolate only the packing shell that matters.
+- Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.
+- Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.
+- If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.
+- Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo.
+
+## Ligand Interaction Explainer
+- Open local structure 1HSG in ChimeraX.
+- Color everything by chain and make the ligand sticks.
+- Show a transparent surface around the ligand.
+- Compute hydrogen bonds around the ligand.
+- Check clashes in the pocket.
+- Export the current pocket view.
+- Center the camera on the ligand before the analysis.
+- Keep only the ligand and nearby residues in focus.
+- Switch to a publication preset for the final shot.
+- Save the pocket scene once the hydrogen bonds are visible.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## Homolog Alignment Showcase
+- Open 1AKE and 4AKE in ChimeraX.
+- Color them distinctly.
+- Align them with matchmaker.
+- Tile the windows and then return to the aligned view.
+- Focus the moving lid residues.
+- Export the aligned comparison view.
+- Show the mobile region as sticks after the alignment.
+- Recenter the aligned pair on the lid segment.
+- Use a publication preset before export.
+- Save the aligned comparison as a PNG.
+- Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.
+- If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.
+- Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.
+- Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.
+- Translate partner A away from partner B, save that exploded view, then restore the packed interface.
+- Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.
+- Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.
+- Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.
+- For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## AlphaFold Confidence Review
+- Open the local AlphaFold Q9H255 model.
+- Color the structure by confidence.
+- Select the low-confidence loops.
+- Zoom to the flexible region.
+- Show the surface for the same region.
+- Export the confidence review figure.
+- Keep the overall model as cartoon while the loop gets a surface.
+- Use the B-factor coloring as the confidence legend.
+- Reframe the flexible segment before export.
+- Save the confidence shot once the loop is isolated.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## AlphaFold Experimental Overlay
+- Open 4HHB and the local AlphaFold alpha-chain model.
+- Keep the tetramer overview first, then move into chain A for the comparison.
+- Align the AlphaFold model onto experimental chain A with matchmaker.
+- Show the heme and the nearby histidines once the overlay is aligned.
+- Save one named view for the tetramer and another for the AlphaFold overlay.
+- Move the AlphaFold model off to the side for a readable exploded comparison, then save that view too.
+- Use the comparison preset before the final export.
+- Make the overlay read cleanly without losing the assembly context.
+- Tell me the alignment score once the matchmaker step finishes.
+- Return to the tetramer overview and then come back to the overlay view.
+- Export the final predicted-versus-experimental figure.
+- Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.
+- If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.
+- Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.
+- Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.
+- Translate partner A away from partner B, save that exploded view, then restore the packed interface.
+- Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.
+- Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.
+- Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.
+- For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## Biological Assembly Tour
+- Open the local cryo-EM hemoglobin model.
+- Expand the biological assembly and store a global overview.
+- Tile the assembly briefly so we can inspect the layout.
+- Turn tile mode back off and return to one hero camera.
+- Save a named view for the assembly overview.
+- Save another named view for the polished hero frame.
+- Use a light publication preset before the export.
+- Make the silhouettes a little thinner for the final still.
+- Return to the assembly overview and then come back to the hero view.
+- Export the final assembly shot once it feels balanced.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## Assembly-To-Interface Handoff
+- Open the local 8WJ1 assembly and save a global overview first.
+- Expand the biological assembly, then come back to the A/B interface.
+- Compute chain A versus chain B contacts once the assembly view is stored.
+- Add hydrogen bonds and keep only the interface surface visible.
+- Save a dedicated interface hero view before you export.
+- Recall the assembly overview, then glide back into the interface view.
+- Keep the interface colors distinct but use a neutral surface.
+- Report the contact cutoff you used once the pseudobonds appear.
+- Use a comparison-style preset for the final interface shot.
+- Export the interface hero frame after the camera settles.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## Cryo-EM Map Fit Review
+- Open the local cryo-EM hemoglobin model and map.
+- Show the map as mesh first and then switch to orthoplanes.
+- Fit the model into the map and tell me the fit quality.
+- Rotate around the fit a little before the export.
+- Return from orthoplanes to the mesh view.
+- Use the map hero preset after the fit looks right.
+- Store a named view for the fitted state.
+- Clip the front plane more tightly around the density.
+- Export the current map-fit view once the silhouette looks balanced.
+- Keep the model readable against the density before saving the still.
+- If a map is loaded, identify the map model first and then report the fit metric after the move.
+- Move from a cryo overview into an atomic cutaway while keeping the named views readable and reusable.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## GroEL Cavity Tour
+- Open the local GroEL assembly.
+- Color the chains by chain first, then move into a cleaner assembly preset.
+- Highlight the apical domain in warmer tones and the equatorial domain in cooler tones.
+- Cut into the cavity with a clean front clip.
+- Save a named view for the full assembly.
+- Save another named view for the cavity cutaway.
+- Use the assembly preset before the export.
+- Tile the global and cavity views briefly, then return to the hero frame.
+- Capture the current cutaway and check that the silhouettes are clean.
+- Export the GroEL cavity still once the framing feels editorial.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## Rosetta-Style Design Review
+- Open the scaffold and the design candidate in ChimeraX.
+- Align the design to the scaffold before we talk about the remodeled shell.
+- Highlight residues 118 through 160 on both structures and keep the design warmer.
+- Pull only the design candidate to the side for the exploded comparison.
+- Save a named view for the overview, the shell close-up, and the exploded comparison.
+- Use the semantic handles so I can say scaffold, design, or partner instead of model numbers.
+- Tell me the alignment score after the scaffold-versus-design overlay settles.
+- Export the final design-review still once the exploded shot reads clearly.
+- If I say whole complex, keep both models visible and move only the design candidate.
+- Bring the design back into the overlay after the exploded shot if I ask for it.
+- Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.
+- If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.
+- Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.
+- Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.
+- Translate partner A away from partner B, save that exploded view, then restore the packed interface.
+- Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.
+- Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.
+- Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.
+- For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.
+- For a design review, highlight only the remodeled shell or interface patch and keep the scaffold subdued.
+- If the scientist asks for a Rosetta-style review, focus on changed residues, packing, contacts, and clean before-after views.
+- If only partner chains exist inside one assembly, inspect state first and then use the chain-level semantic handles before moving anything.
+- Move the design candidate or binder away from the receptor for the exploded shot, then recall the interface view for the close-up.
+- Keep the receptor fixed, slide the binder out for the explanation, and then bring it back to the saved interface view.
+- Use partnerA and partnerB semantics when the scientist refers to the two sides of the complex instead of model numbers.
+- When a distance or torsion needs one atom per model, use scaffoldChainA, designChainA, binderChainA, or another chain-specific handle instead of a residue-only whole-model selector.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
+## Interface or Contacts Analysis
+- Open 4HHB in ChimeraX.
+- Hide chains C and D and keep chains A and B.
+- Compute contacts across the A/B interface.
+- Show hydrogen bonds too.
+- Add a transparent surface to the interface.
+- Export the interface image.
+- Color chain A blue and chain B gold.
+- Center the camera on the A/B interface.
+- Turn on silhouettes for the interface export.
+- Save the interface shot after the contact pseudobonds appear.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.

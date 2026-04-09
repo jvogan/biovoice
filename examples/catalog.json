@@ -1,0 +1,4851 @@
+[
+  {
+    "id": "pymol-binding-pocket-story",
+    "category": "workflow-recipes",
+    "title": "Binding Pocket Story",
+    "goal": "Load a ligand-bound structure, style the protein and ligand, measure the pocket, and save a polished active-site view.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "intro",
+    "dataType": "ligand-bound crystal structure",
+    "task": "pocket inspection",
+    "estimatedMinutes": 6,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1hsg",
+        "kind": "local",
+        "label": "HIV protease with inhibitor",
+        "localPath": "./examples/data/local/1hsg.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1HSG.pdb"
+      }
+    ],
+    "prompts": [
+      "Open 1HSG and make it presentation-ready.",
+      "Show the protein as cartoon, ligand as sticks, and focus the active site.",
+      "Measure the closest catalytic contacts and save the hero view."
+    ],
+    "checkpoints": [
+      "1HSG is loaded into PyMOL.",
+      "Protein is cartoon, inhibitor is sticks, and chains are colored distinctly.",
+      "Catalytic contacts are labeled and a transparent pocket surface is visible.",
+      "A hero PNG export is written successfully."
+    ],
+    "utterances": [
+      "Open local structure 1HSG.",
+      "Show the protein as cartoon and the inhibitor as sticks.",
+      "Color the chains by chain and keep heteroatoms by element.",
+      "Zoom the active site and center on the ligand.",
+      "Measure the nearest catalytic contacts.",
+      "Make the pocket surface transparent and save a hero image.",
+      "Label the catalytic aspartates.",
+      "Keep the protein cartoon but emphasize the pocket residues as sticks.",
+      "Store this as the pocket hero scene.",
+      "Export the current pocket shot as a PNG.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-and-style",
+        "title": "Load the structure and establish the visual baseline.",
+        "summary": "Bring 1HSG into PyMOL, switch to cartoon plus sticks, and apply clear colors.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "1hsg",
+            "object": "1hsg",
+            "path": "./examples/data/local/1hsg.pdb"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "polymer.protein"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "organic"
+          },
+          {
+            "type": "color",
+            "selection": "polymer.protein",
+            "scheme": "by_chain"
+          },
+          {
+            "type": "color",
+            "selection": "organic",
+            "scheme": "by_element"
+          }
+        ],
+        "checkpoints": [
+          "The structure is visible in PyMOL.",
+          "Protein is cartoon and organic ligand is in sticks."
+        ],
+        "manualCommands": [
+          "load ./examples/data/local/1hsg.pdb, 1hsg",
+          "hide everything",
+          "show cartoon, polymer.protein",
+          "show sticks, organic",
+          "util.cbc polymer.protein",
+          "util.cbag organic"
+        ]
+      },
+      {
+        "id": "focus-active-site",
+        "title": "Focus the active site and call out the catalytic residues.",
+        "summary": "Select the ligand neighborhood, zoom the pocket, and label the catalytic aspartates.",
+        "actions": [
+          {
+            "type": "select",
+            "name": "pocket",
+            "selection": {
+              "around": "organic",
+              "withinAngstroms": 5,
+              "byResidue": true
+            }
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "pocket"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "chain A and resi 25 and name CA",
+            "text": "Asp25A"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "chain B and resi 25 and name CA",
+            "text": "Asp25B"
+          },
+          {
+            "type": "camera",
+            "action": "pocket_frame",
+            "selection": "pocket or organic",
+            "buffer": 6
+          }
+        ],
+        "checkpoints": [
+          "Pocket residues are selected and displayed.",
+          "Active-site labels are visible near the catalytic aspartates."
+        ],
+        "manualCommands": [
+          "select pocket, byres (organic around 5)",
+          "show sticks, pocket",
+          "label chain A and resi 25 and name CA, \"Asp25A\"",
+          "label chain B and resi 25 and name CA, \"Asp25B\"",
+          "center pocket or organic",
+          "orient pocket or organic",
+          "turn y, 18",
+          "turn x, -10",
+          "zoom pocket or organic, 6",
+          "clip slab, 10"
+        ]
+      },
+      {
+        "id": "measure-and-surface",
+        "title": "Measure the pocket and add a transparent surface.",
+        "summary": "Add key measurements, lay a transparent surface over the pocket, and store a scene.",
+        "actions": [
+          {
+            "type": "measure",
+            "mode": "polar_contacts",
+            "name": "cat_contact_a",
+            "selection1": "chain A and resi 25 and name OD1",
+            "selection2": "organic",
+            "cutoff": 3.5
+          },
+          {
+            "type": "measure",
+            "mode": "polar_contacts",
+            "name": "cat_contact_b",
+            "selection1": "chain B and resi 25 and name OD1",
+            "selection2": "organic",
+            "cutoff": 3.5
+          },
+          {
+            "type": "surface",
+            "selection": "pocket",
+            "transparency": 0.45,
+            "color": "marine"
+          },
+          {
+            "type": "preset",
+            "name": "pocket_hero"
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F1",
+            "message": "Pocket story hero shot"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Distance objects are visible.",
+          "A semi-transparent surface encloses the pocket.",
+          "A scene and PNG export have been created."
+        ],
+        "manualCommands": [
+          "distance cat_contact_a, chain A and resi 25 and name OD1, organic, 3.5, 2",
+          "distance cat_contact_b, chain B and resi 25 and name OD1, organic, 3.5, 2",
+          "show surface, pocket",
+          "set transparency, 0.45, pocket",
+          "color marine, pocket",
+          "bg_color white",
+          "scene F1, store, Pocket story hero shot"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-two-structure-comparison",
+    "category": "workflow-recipes",
+    "title": "Two-Structure Comparison",
+    "goal": "Load open and closed adenylate kinase conformations, align them, isolate the mobile lid, and store paired scenes.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "operator",
+    "dataType": "homologous conformers",
+    "task": "alignment and comparison",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1ake",
+        "kind": "local",
+        "label": "Adenylate kinase open",
+        "localPath": "./examples/data/local/1ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1AKE.pdb"
+      },
+      {
+        "id": "4ake",
+        "kind": "local",
+        "label": "Adenylate kinase closed",
+        "localPath": "./examples/data/local/4ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4AKE.pdb"
+      }
+    ],
+    "prompts": [
+      "Compare open and closed adenylate kinase by voice.",
+      "Align 4AKE to 1AKE and highlight the moving lid region.",
+      "Store a before and after scene for the comparison."
+    ],
+    "checkpoints": [
+      "Both adenylate kinase models are loaded.",
+      "4AKE is aligned onto 1AKE.",
+      "The mobile lid is isolated and emphasized.",
+      "Comparison scenes are stored."
+    ],
+    "utterances": [
+      "Open 1AKE and 4AKE locally.",
+      "Align 4AKE to 1AKE with super.",
+      "Color the two models differently.",
+      "Show only the mobile lid residues as sticks.",
+      "Center on the mismatch region.",
+      "Store the aligned and highlighted views.",
+      "Use alpha carbons for the alignment.",
+      "Recall the global overview scene.",
+      "Zoom the open-versus-closed lid region.",
+      "Save the comparison figure once the camera is framed.",
+      "Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.",
+      "If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.",
+      "Keep the whole complex fixed and slide only the predicted partner to the right.",
+      "Rotate just the comparison partner around its own center instead of moving the camera.",
+      "When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.",
+      "For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.",
+      "Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.",
+      "For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-pair",
+        "title": "Load both conformations and establish distinct colors.",
+        "summary": "Bring both structures into PyMOL and color them for quick comparison.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "1ake",
+            "object": "1ake",
+            "path": "./examples/data/local/1ake.pdb"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "4ake",
+            "object": "4ake",
+            "path": "./examples/data/local/4ake.pdb"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "1ake or 4ake"
+          },
+          {
+            "type": "color",
+            "selection": "1ake",
+            "color": "deepteal"
+          },
+          {
+            "type": "color",
+            "selection": "4ake",
+            "color": "tv_orange"
+          }
+        ],
+        "checkpoints": [
+          "Both models are visible as cartoons with distinct colors."
+        ],
+        "manualCommands": [
+          "load ./examples/data/local/1ake.pdb, 1ake",
+          "load ./examples/data/local/4ake.pdb, 4ake",
+          "hide everything",
+          "show cartoon, 1ake or 4ake",
+          "color deepteal, 1ake",
+          "color tv_orange, 4ake"
+        ]
+      },
+      {
+        "id": "align-and-lid",
+        "title": "Align the pair and isolate the moving lid.",
+        "summary": "Superpose the two models and spotlight the lid region that moves during closure.",
+        "actions": [
+          {
+            "type": "align",
+            "method": "super",
+            "mobile": "4ake and name CA",
+            "target": "1ake and name CA"
+          },
+          {
+            "type": "select",
+            "name": "lid_region",
+            "selection": "resi 118-160 and (1ake or 4ake)"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "lid_region"
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "lid_region",
+            "buffer": 8
+          }
+        ],
+        "checkpoints": [
+          "The models are aligned.",
+          "Residues 118-160 are highlighted as sticks."
+        ],
+        "manualCommands": [
+          "super 4ake and name CA, 1ake and name CA",
+          "select lid_region, resi 118-160 and (1ake or 4ake)",
+          "show sticks, lid_region",
+          "center lid_region",
+          "orient lid_region",
+          "turn y, 12",
+          "turn x, 6",
+          "zoom lid_region, 8"
+        ]
+      },
+      {
+        "id": "store-scenes",
+        "title": "Store the overview and close-up scenes.",
+        "summary": "Save both the global alignment and the lid close-up as named scenes.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F2",
+            "message": "Global aligned overview"
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F3",
+            "message": "Lid close-up"
+          }
+        ],
+        "checkpoints": [
+          "Two named scenes are stored for the comparison."
+        ],
+        "manualCommands": [
+          "scene F2, store, Global aligned overview",
+          "scene F3, store, Lid close-up"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-map-and-model-walkthrough",
+    "category": "workflow-recipes",
+    "title": "Map and Model Walkthrough",
+    "goal": "Generate a synthetic density map around a structure, contour it as mesh or surface, and walk between full-model and pocket views.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "operator",
+    "dataType": "local structure-generated map",
+    "task": "map inspection",
+    "estimatedMinutes": 7,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1ubq",
+        "kind": "local",
+        "label": "Ubiquitin",
+        "localPath": "./examples/data/local/1ubq.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1UBQ.pdb"
+      }
+    ],
+    "prompts": [
+      "Generate a synthetic map from 1UBQ and contour it.",
+      "Show me the global map first, then the Lys48 neighborhood.",
+      "Store both views for the demo."
+    ],
+    "checkpoints": [
+      "1UBQ is loaded.",
+      "A gaussian map has been generated.",
+      "A mesh or surface contour is visible near the selected region.",
+      "Scene transitions between overview and focus views are stored."
+    ],
+    "utterances": [
+      "Open 1UBQ from the local demo pack.",
+      "Generate a gaussian map and display it as a mesh.",
+      "Clip in toward the density.",
+      "Focus residue 48 and its neighbors.",
+      "Switch from the full model to the site view.",
+      "Store both views and export a checkpoint image.",
+      "Show the map as a surface instead of mesh.",
+      "Highlight the Lys48 neighborhood as sticks.",
+      "Recall the overview scene and then jump back to the pocket.",
+      "Export the density close-up as a hero still.",
+      "Overlay the atomic model with the cryo density and cut into the map without losing the ligand or cofactor context.",
+      "If a map is loaded, identify the density handle first and then frame the atomic model against it.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-and-map",
+        "title": "Load ubiquitin and generate a synthetic map.",
+        "summary": "Open 1UBQ, create a gaussian map, and contour it as a mesh.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "1ubq",
+            "object": "1ubq",
+            "path": "./examples/data/local/1ubq.pdb"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "1ubq"
+          },
+          {
+            "type": "map",
+            "selection": "1ubq",
+            "mapName": "ubq_map",
+            "displayAs": "mesh",
+            "grid": 1,
+            "buffer": 5,
+            "level": 1
+          }
+        ],
+        "checkpoints": [
+          "The structure is loaded and a density mesh is visible."
+        ],
+        "manualCommands": [
+          "load ./examples/data/local/1ubq.pdb, 1ubq",
+          "hide everything",
+          "show cartoon, 1ubq",
+          "map_new ubq_map, gaussian, 1, 1ubq, 5",
+          "isomesh ubq_map_mesh, ubq_map, 1, 1ubq, 5"
+        ]
+      },
+      {
+        "id": "focus-residue-48",
+        "title": "Focus the Lys48 region and clip through the map.",
+        "summary": "Create a neighborhood selection, orient the camera, and clip into the contour.",
+        "actions": [
+          {
+            "type": "select",
+            "name": "lys48_shell",
+            "selection": {
+              "residue": "48",
+              "around": "1ubq and resi 48",
+              "withinAngstroms": 6,
+              "byResidue": true
+            }
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "lys48_shell"
+          },
+          {
+            "type": "camera",
+            "action": "map_cutaway",
+            "selection": "lys48_shell",
+            "buffer": 6
+          }
+        ],
+        "checkpoints": [
+          "The Lys48 neighborhood is highlighted and the contour is clipped."
+        ],
+        "manualCommands": [
+          "select lys48_shell, byres ((1ubq and resi 48) around 6)",
+          "show sticks, lys48_shell",
+          "center lys48_shell",
+          "orient lys48_shell",
+          "turn y, 20",
+          "turn x, 12",
+          "zoom lys48_shell, 6",
+          "clip slab, 14"
+        ]
+      },
+      {
+        "id": "store-overview-and-site",
+        "title": "Store overview and site scenes for playback.",
+        "summary": "Create an overview scene and a focused scene, then export the focus image.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F4",
+            "message": "Overview with synthetic map"
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F5",
+            "message": "Lys48 map close-up"
+          },
+          {
+            "type": "preset",
+            "name": "map_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2000,
+              "height": 1400,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Both scenes exist and a focus PNG is saved."
+        ],
+        "manualCommands": [
+          "scene F4, store, Overview with synthetic map",
+          "scene F5, store, Lys48 map close-up",
+          "bg_color white"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-surface-and-presentation",
+    "category": "workflow-recipes",
+    "title": "Surface and Presentation View",
+    "goal": "Build a presentation-ready surface rendering with stylized colors, labels, and an export shot.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "operator",
+    "dataType": "multichain structure",
+    "task": "surface styling",
+    "estimatedMinutes": 6,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "4hhb",
+        "kind": "local",
+        "label": "Human hemoglobin tetramer",
+        "localPath": "./examples/data/local/4hhb.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4HHB.pdb"
+      }
+    ],
+    "prompts": [
+      "Turn 4HHB into a clean surface presentation view.",
+      "Show a transparent surface with cartoon inside and labels on the chains.",
+      "Export a polished hero image."
+    ],
+    "checkpoints": [
+      "4HHB is loaded with chain-aware colors.",
+      "Surface and cartoon are both visible.",
+      "Chain labels and background settings are applied.",
+      "Presentation export is saved."
+    ],
+    "utterances": [
+      "Open 4HHB locally.",
+      "Show the tetramer as both cartoon and transparent surface.",
+      "Color chains by chain and keep heme atoms prominent.",
+      "Label each chain around the alpha-carbons.",
+      "Set a white background and store the hero shot.",
+      "Export the final figure.",
+      "Make the surface a little more transparent.",
+      "Orient the tetramer for a clean publication angle.",
+      "Keep the heme groups in sticks while the surface stays on.",
+      "Recall the presentation scene and save another PNG.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-and-color",
+        "title": "Load hemoglobin and apply distinct chain colors.",
+        "summary": "Open the structure, show cartoons, and color each chain cleanly.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "4hhb",
+            "object": "4hhb",
+            "path": "./examples/data/local/4hhb.pdb"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "4hhb"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "heme"
+          },
+          {
+            "type": "color",
+            "selection": "polymer.protein",
+            "scheme": "by_chain"
+          },
+          {
+            "type": "color",
+            "selection": "heme",
+            "scheme": "by_element"
+          }
+        ],
+        "checkpoints": [
+          "Hemoglobin is visible as cartoon with heme groups shown."
+        ],
+        "manualCommands": [
+          "load ./examples/data/local/4hhb.pdb, 4hhb",
+          "hide everything",
+          "show cartoon, 4hhb",
+          "show sticks, heme",
+          "util.cbc polymer.protein",
+          "util.cbag heme"
+        ]
+      },
+      {
+        "id": "surface-and-labels",
+        "title": "Add the surface and place chain labels.",
+        "summary": "Wrap a transparent surface over the tetramer and label each chain center.",
+        "actions": [
+          {
+            "type": "surface",
+            "selection": "polymer.protein",
+            "transparency": 0.55,
+            "color": "gray70"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "chain A and resi 20 and name CA",
+            "text": "Chain A"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "chain B and resi 20 and name CA",
+            "text": "Chain B"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "chain C and resi 20 and name CA",
+            "text": "Chain C"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "chain D and resi 20 and name CA",
+            "text": "Chain D"
+          },
+          {
+            "type": "preset",
+            "name": "presentation_light"
+          }
+        ],
+        "checkpoints": [
+          "Surface and labels are visible on a white background."
+        ],
+        "manualCommands": [
+          "show surface, polymer.protein",
+          "set transparency, 0.55, polymer.protein",
+          "color gray70, polymer.protein",
+          "bg_color white"
+        ]
+      },
+      {
+        "id": "hero-export",
+        "title": "Frame the hero shot and export it.",
+        "summary": "Orient the tetramer, store the scene, and export a ray-traced PNG.",
+        "actions": [
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "4hhb",
+            "buffer": 8
+          },
+          {
+            "type": "preset",
+            "name": "presentation_light"
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F6",
+            "message": "Hemoglobin presentation view"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1600,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Scene F6 is stored and a figure export exists."
+        ],
+        "manualCommands": [
+          "center 4hhb",
+          "orient 4hhb",
+          "turn y, 14",
+          "turn x, 8",
+          "zoom 4hhb, 8",
+          "bg_color white",
+          "scene F6, store, Hemoglobin presentation view"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-selection-and-storyboarding",
+    "category": "workflow-recipes",
+    "title": "Selection and Storyboarding",
+    "goal": "Create named selections for chains, residue spans, and ligand neighborhoods, then step through them as a storyboard.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "multichain plus ligand view",
+    "task": "storyboard setup",
+    "estimatedMinutes": 9,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1hsg",
+        "kind": "local",
+        "label": "HIV protease with inhibitor",
+        "localPath": "./examples/data/local/1hsg.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1HSG.pdb"
+      }
+    ],
+    "prompts": [
+      "Build a storyboard from reusable selections in 1HSG.",
+      "Create chain, catalytic, and ligand-neighborhood selections.",
+      "Save a scene for each storyboard stop."
+    ],
+    "checkpoints": [
+      "Named selections exist for chains, catalytic residues, and ligand shell.",
+      "Each storyboard stop is visible and stored as a scene.",
+      "The final storyboard close-up can be recalled and exported cleanly."
+    ],
+    "utterances": [
+      "Create a named selection for chain A.",
+      "Create another selection for catalytic residues.",
+      "Build a ligand neighborhood selection within five angstroms.",
+      "Step through each selection and save a scene.",
+      "Show me the selection names again.",
+      "Export the final storyboard view.",
+      "Orient to chain A and store the first storyboard stop.",
+      "Jump from the chain view to the ligand-shell close-up.",
+      "Keep the catalytic residues visible in every storyboard stop.",
+      "Recall the ligand-shell scene and export it.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "named-selections",
+        "title": "Create reusable named selections.",
+        "summary": "Build named selections for chain A, chain B, catalytic residues, and the ligand shell.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "1hsg",
+            "object": "1hsg",
+            "path": "./examples/data/local/1hsg.pdb"
+          },
+          {
+            "type": "select",
+            "name": "chain_a",
+            "selection": "chain A"
+          },
+          {
+            "type": "select",
+            "name": "chain_b",
+            "selection": "chain B"
+          },
+          {
+            "type": "select",
+            "name": "catalytic",
+            "selection": "resi 25+26+27 and (chain A or chain B)"
+          },
+          {
+            "type": "select",
+            "name": "ligand_shell",
+            "selection": {
+              "around": "organic",
+              "withinAngstroms": 5,
+              "byResidue": true
+            }
+          }
+        ],
+        "checkpoints": [
+          "All named selections are created."
+        ],
+        "manualCommands": [
+          "load ./examples/data/local/1hsg.pdb, 1hsg",
+          "select chain_a, chain A",
+          "select chain_b, chain B",
+          "select catalytic, resi 25+26+27 and (chain A or chain B)",
+          "select ligand_shell, byres (organic around 5)"
+        ]
+      },
+      {
+        "id": "storyboard-scenes",
+        "title": "Step through the selections and store scenes.",
+        "summary": "Orient and zoom to each named selection, then store a matching scene for the storyboard.",
+        "actions": [
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "catalytic or ligand_shell"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "chain_a"
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F7",
+            "message": "Chain A introduction"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "chain_b"
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F8",
+            "message": "Chain B introduction"
+          },
+          {
+            "type": "camera",
+            "action": "pocket_frame",
+            "selection": "ligand_shell",
+            "buffer": 5
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F9",
+            "message": "Ligand shell close-up"
+          }
+        ],
+        "checkpoints": [
+          "Scenes F7-F9 are stored for the storyboard."
+        ],
+        "manualCommands": [
+          "show sticks, catalytic or ligand_shell",
+          "center chain_a",
+          "orient chain_a",
+          "scene F7, store, Chain A introduction",
+          "center chain_b",
+          "orient chain_b",
+          "scene F8, store, Chain B introduction",
+          "center ligand_shell",
+          "orient ligand_shell",
+          "turn y, 18",
+          "turn x, -10",
+          "zoom ligand_shell, 5",
+          "scene F9, store, Ligand shell close-up"
+        ]
+      },
+      {
+        "id": "export-storyboard",
+        "title": "Export the final storyboard close-up.",
+        "summary": "Recall the close-up scene and export a final still for reuse.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "recall",
+            "key": "F9"
+          },
+          {
+            "type": "preset",
+            "name": "pocket_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2000,
+              "height": 1400,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The storyboard close-up export is written."
+        ],
+        "manualCommands": [
+          "scene F9, recall",
+          "bg_color white"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-alphafold-confidence-sweep",
+    "category": "workflow-recipes",
+    "title": "AlphaFold Confidence Sweep",
+    "goal": "Open a local AlphaFold model in PyMOL, color it by confidence, isolate uncertain regions, and export a polished confidence-focused still.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "operator",
+    "dataType": "AlphaFold model",
+    "task": "confidence review",
+    "estimatedMinutes": 7,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "Q9H255",
+        "kind": "alphafold",
+        "label": "AlphaFold model Q9H255",
+        "localPath": "./examples/data/local/af-q9h255.pdb",
+        "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-Q9H255-F1-model_v4.pdb"
+      }
+    ],
+    "prompts": [
+      "Walk through an AlphaFold confidence review in PyMOL.",
+      "Load the local Q9H255 model, color it by confidence, and emphasize the uncertain loops.",
+      "Store an overview and a flexible-region close-up, then export the polished confidence view."
+    ],
+    "checkpoints": [
+      "The AlphaFold model is visible in PyMOL with confidence coloring.",
+      "Low-confidence regions are isolated and emphasized in a close-up view.",
+      "Overview and detail scenes are stored, and a final export is written."
+    ],
+    "utterances": [
+      "Open the local AlphaFold Q9H255 model.",
+      "Switch to a confidence putty preset.",
+      "Select all residues below seventy confidence and keep them visible as sticks.",
+      "Zoom the flexible loop and keep the rest of the model quiet.",
+      "Store an overview scene for the full model.",
+      "Store a second scene for the uncertain-region close-up.",
+      "Clear any labels if they start to clutter the loop view.",
+      "Export the confidence-focused shot once the framing is clean.",
+      "Color the uncertain residues orange and leave the confident core cooler.",
+      "Go back to the full-model overview and then return to the flexible loop.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-confidence-overview",
+        "title": "Load the AlphaFold model and establish the confidence overview.",
+        "summary": "Open the local AlphaFold structure, switch to a confidence-aware putty representation, and store an overview scene.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "Q9H255",
+            "object": "af_q9h255",
+            "path": "./examples/data/local/af-q9h255.pdb"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "af_q9h255"
+          },
+          {
+            "type": "preset",
+            "name": "confidence_putty"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "af_q9h255",
+            "buffer": 10
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F10",
+            "message": "AlphaFold confidence overview"
+          }
+        ],
+        "checkpoints": [
+          "The AlphaFold model is visible in cartoon putty mode.",
+          "Scene F10 stores the confidence-colored overview."
+        ],
+        "manualCommands": [
+          "load ./examples/data/local/af-q9h255.pdb, af_q9h255",
+          "hide everything",
+          "show cartoon, af_q9h255",
+          "bg_color gray98",
+          "cartoon putty, polymer.protein",
+          "spectrum b, red_yellow_green_cyan_blue, polymer.protein",
+          "orient af_q9h255",
+          "zoom af_q9h255, 10",
+          "scene F10, store, AlphaFold confidence overview"
+        ]
+      },
+      {
+        "id": "isolate-uncertain-regions",
+        "title": "Isolate and frame the uncertain regions.",
+        "summary": "Create a reusable selection for low-confidence residues, emphasize them, and store a close-up scene.",
+        "actions": [
+          {
+            "type": "select",
+            "name": "low_confidence",
+            "selection": "af_q9h255 and polymer.protein and b < 70"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "low_confidence"
+          },
+          {
+            "type": "color",
+            "selection": "low_confidence",
+            "color": "tv_orange"
+          },
+          {
+            "type": "label",
+            "action": "clear",
+            "selection": "low_confidence and name CA"
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "low_confidence",
+            "buffer": 8
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F11",
+            "message": "Low-confidence region close-up"
+          }
+        ],
+        "checkpoints": [
+          "Low-confidence residues are selected and emphasized as sticks.",
+          "Scene F11 stores the flexible-region close-up."
+        ],
+        "manualCommands": [
+          "select low_confidence, af_q9h255 and polymer.protein and b < 70",
+          "show sticks, low_confidence",
+          "color tv_orange, low_confidence",
+          "hide labels, low_confidence",
+          "center low_confidence",
+          "orient low_confidence",
+          "turn y, 12",
+          "turn x, 6",
+          "zoom low_confidence, 8",
+          "scene F11, store, Low-confidence region close-up"
+        ]
+      },
+      {
+        "id": "export-confidence-shot",
+        "title": "Recall the close-up and export the final confidence still.",
+        "summary": "Return to the flexible-region close-up, polish the presentation preset, and export the final figure.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "recall",
+            "key": "F11"
+          },
+          {
+            "type": "preset",
+            "name": "presentation_light"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The close-up scene is recalled cleanly.",
+          "A confidence-focused PNG export exists."
+        ],
+        "manualCommands": [
+          "scene F11, recall",
+          "bg_color gray98",
+          "set ray_opaque_background, off"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-alphafold-experimental-overlay",
+    "category": "workflow-recipes",
+    "title": "AlphaFold Experimental Overlay",
+    "goal": "Overlay an AlphaFold hemoglobin alpha chain onto the experimental 4HHB tetramer in PyMOL, preserve the assembly context, and export a polished chain-level comparison near the heme pocket.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "AlphaFold monomer plus experimental tetramer",
+    "task": "predicted versus experimental overlay",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "4hhb",
+        "kind": "local",
+        "label": "Human deoxy hemoglobin tetramer",
+        "localPath": "./examples/data/local/4hhb.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4HHB.pdb"
+      },
+      {
+        "id": "P69905",
+        "kind": "alphafold",
+        "label": "AlphaFold hemoglobin alpha chain",
+        "localPath": "./examples/data/local/af-p69905.pdb",
+        "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-P69905-F1-model_v6.pdb"
+      }
+    ],
+    "prompts": [
+      "Compare an AlphaFold hemoglobin alpha chain against the experimental 4HHB tetramer in PyMOL.",
+      "Save one overview of the full tetramer, one aligned overlay around chain A, and one exploded comparison where the prediction is pulled aside cleanly.",
+      "Highlight the heme-adjacent patch so the predicted-versus-experimental handoff feels deliberate."
+    ],
+    "checkpoints": [
+      "The experimental tetramer and AlphaFold alpha-chain model are both loaded in PyMOL.",
+      "The AlphaFold model is aligned to chain A of the experimental tetramer.",
+      "An overview scene, a focused overlay scene, and an exploded comparison scene are all stored.",
+      "A polished overlay export is written successfully."
+    ],
+    "utterances": [
+      "Open 4HHB and the local AlphaFold alpha-chain model.",
+      "Keep the tetramer readable but emphasize chain A for the overlay.",
+      "Align the AlphaFold model to experimental chain A with cealign.",
+      "Show the heme as sticks and tighten the camera around the comparison patch.",
+      "Label the distal and proximal histidines before the final export.",
+      "Save one scene for the tetramer overview and one for the chain A overlay.",
+      "Pull the AlphaFold model away from the tetramer for a readable side-by-side comparison and save that scene too.",
+      "Make the non-focused chains quieter so the AlphaFold overlay reads clearly.",
+      "Use the comparison preset before the final export.",
+      "Tell me the alignment RMSD once the overlay is locked in.",
+      "Export the final predicted-versus-experimental figure.",
+      "Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.",
+      "If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.",
+      "Keep the whole complex fixed and slide only the predicted partner to the right.",
+      "Rotate just the comparison partner around its own center instead of moving the camera.",
+      "When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.",
+      "For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.",
+      "Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.",
+      "For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-assembly-and-prediction",
+        "title": "Load the tetramer and the AlphaFold chain, then establish the overview.",
+        "summary": "Start from a clean PyMOL workspace, load 4HHB plus the AlphaFold alpha chain, and store an assembly-first overview before the overlay.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "4hhb",
+            "object": "hb_exp",
+            "path": "./examples/data/local/4hhb.pdb",
+            "semanticRole": "experimental",
+            "aliases": [
+              "experimental tetramer",
+              "reference tetramer",
+              "whole complex"
+            ]
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "P69905",
+            "object": "hb_af_alpha",
+            "path": "./examples/data/local/af-p69905.pdb",
+            "semanticRole": "predicted",
+            "aliases": [
+              "predicted alpha chain",
+              "alphafold alpha chain",
+              "prediction"
+            ]
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "hb_exp and polymer.protein"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "hb_exp and organic"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "hb_af_alpha and polymer.protein"
+          },
+          {
+            "type": "color",
+            "selection": "hb_exp and polymer.protein",
+            "color": "gray85"
+          },
+          {
+            "type": "color",
+            "selection": "hb_exp and chain A and polymer.protein",
+            "color": "deepteal"
+          },
+          {
+            "type": "color",
+            "selection": "hb_exp and organic",
+            "color": "tv_orange"
+          },
+          {
+            "type": "color",
+            "selection": "hb_af_alpha and polymer.protein",
+            "color": "hotpink"
+          },
+          {
+            "type": "setting",
+            "name": "cartoon_transparency",
+            "value": 0.55,
+            "selection": "hb_exp and polymer.protein and not chain A"
+          },
+          {
+            "type": "preset",
+            "name": "assembly_editorial"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "hb_exp and polymer.protein",
+            "buffer": 11
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F15",
+            "message": "Experimental tetramer overview"
+          }
+        ],
+        "checkpoints": [
+          "The experimental tetramer is visible with chain A emphasized.",
+          "The AlphaFold chain is loaded and visible as a separate overlay object.",
+          "Scene F15 stores the clean assembly overview."
+        ],
+        "manualCommands": [
+          "delete all",
+          "scene *, clear",
+          "load ./examples/data/local/4hhb.pdb, hb_exp",
+          "load ./examples/data/local/af-p69905.pdb, hb_af_alpha",
+          "hide everything",
+          "show cartoon, hb_exp and polymer.protein",
+          "show sticks, hb_exp and organic",
+          "show cartoon, hb_af_alpha and polymer.protein",
+          "color gray85, hb_exp and polymer.protein",
+          "color deepteal, hb_exp and chain A and polymer.protein",
+          "color tv_orange, hb_exp and organic",
+          "color hotpink, hb_af_alpha and polymer.protein",
+          "set cartoon_transparency, 0.55, hb_exp and polymer.protein and not chain A",
+          "scene F15, store, Experimental tetramer overview"
+        ]
+      },
+      {
+        "id": "align-and-frame-overlay",
+        "title": "Align the prediction to chain A and focus the heme-adjacent comparison patch.",
+        "summary": "Align the AlphaFold chain to experimental chain A, spotlight the heme neighborhood, and store a crisp comparison scene with labels.",
+        "actions": [
+          {
+            "type": "align",
+            "method": "cealign",
+            "mobile": "hb_af_alpha and polymer.protein",
+            "target": "hb_exp and chain A and polymer.protein"
+          },
+          {
+            "type": "select",
+            "name": "compare_patch",
+            "selection": "byres (hb_exp and chain A within 6 of organic)"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "compare_patch"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "hb_exp and chain A and resi 58 and name CA",
+            "text": "His58"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "hb_exp and chain A and resi 87 and name CA",
+            "text": "His87"
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "compare_patch or hb_af_alpha or hb_exp and chain A",
+            "buffer": 8
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F16",
+            "message": "AlphaFold overlay around chain A"
+          }
+        ],
+        "checkpoints": [
+          "The AlphaFold model is aligned to chain A.",
+          "The heme-adjacent comparison patch is visible as sticks.",
+          "Scene F16 stores the chain-level overlay."
+        ],
+        "manualCommands": [
+          "cealign hb_exp and chain A and polymer.protein, hb_af_alpha and polymer.protein",
+          "select compare_patch, byres (hb_exp and chain A within 6 of organic)",
+          "show sticks, compare_patch",
+          "label hb_exp and chain A and resi 58 and name CA, \"His58\"",
+          "label hb_exp and chain A and resi 87 and name CA, \"His87\"",
+          "center compare_patch or hb_af_alpha or hb_exp and chain A",
+          "orient compare_patch or hb_af_alpha or hb_exp and chain A",
+          "turn y, 16",
+          "turn x, -6",
+          "zoom compare_patch or hb_af_alpha or hb_exp and chain A, 8",
+          "scene F16, store, AlphaFold overlay around chain A"
+        ]
+      },
+      {
+        "id": "explode-side-by-side",
+        "title": "Pull the prediction aside for an exploded comparison shot.",
+        "summary": "Translate and rotate the AlphaFold model away from the tetramer so the scientist can explain the prediction separately before returning to the overlay.",
+        "actions": [
+          {
+            "type": "transform",
+            "mode": "translate",
+            "selection": {
+              "reference": "predictedModel"
+            },
+            "axis": "x",
+            "amount": 18
+          },
+          {
+            "type": "transform",
+            "mode": "rotate",
+            "selection": {
+              "reference": "predictedModel"
+            },
+            "axis": "y",
+            "amount": 24
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "hb_exp and chain A or hb_af_alpha or organic",
+            "buffer": 11
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F17",
+            "message": "Exploded prediction-versus-experiment comparison"
+          }
+        ],
+        "checkpoints": [
+          "The AlphaFold model is offset from the tetramer for a readable side-by-side comparison.",
+          "Scene F17 stores the exploded comparison view."
+        ],
+        "manualCommands": [
+          "translate [18,0,0], object=hb_af_alpha, camera=1",
+          "rotate y, 24, object=hb_af_alpha, camera=1",
+          "center hb_exp and chain A or hb_af_alpha or organic",
+          "orient hb_exp and chain A or hb_af_alpha or organic",
+          "turn y, 16",
+          "turn x, -6",
+          "zoom hb_exp and chain A or hb_af_alpha or organic, 11",
+          "scene F17, store, Exploded prediction-versus-experiment comparison"
+        ]
+      },
+      {
+        "id": "export-overlay-figure",
+        "title": "Recall the comparison scene and export the final figure.",
+        "summary": "Return to the exploded comparison, strengthen the editorial comparison preset, and export a high-resolution figure for the demo.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "recall",
+            "key": "F17"
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2600,
+              "height": 1700,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The stored exploded comparison scene is recalled cleanly.",
+          "A high-resolution predicted-versus-experimental PNG export exists."
+        ],
+        "manualCommands": [
+          "scene F17, recall",
+          "bg_color gray99",
+          "set cartoon_transparency, 0.08"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-crystal-packing-contacts",
+    "category": "workflow-recipes",
+    "title": "Crystal Packing Contacts",
+    "goal": "Expand crystallographic symmetry around a ligand-bound structure, isolate the packing shell near the inhibitor, and export a polished packing-contact still.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "ligand-bound crystal lattice",
+    "task": "crystal packing analysis",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1hsg",
+        "kind": "local",
+        "label": "HIV protease with inhibitor",
+        "localPath": "./examples/data/local/1hsg.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1HSG.pdb"
+      }
+    ],
+    "prompts": [
+      "Show the crystal packing contacts around the inhibitor in 1HSG.",
+      "Generate symmetry mates, keep only the local packing shell, and frame it like a figure panel.",
+      "Export the clean packing-contact shot once the view is polished."
+    ],
+    "checkpoints": [
+      "1HSG is loaded and the inhibitor is visible.",
+      "Symmetry mates are generated around the ligand.",
+      "Only the local packing shell is emphasized near the inhibitor.",
+      "A polished packing-contact PNG export is written."
+    ],
+    "utterances": [
+      "Open 1HSG and prepare a symmetry-contact view.",
+      "Generate symmetry mates around the inhibitor within eight angstroms.",
+      "Show the symmetry mates as thin lines and keep the original model as cartoon.",
+      "Select the packing shell near the ligand and display it as sticks.",
+      "Color the symmetry shell warm gray so the original complex stays dominant.",
+      "Tighten the slab around the ligand and its packing shell.",
+      "Store this crystal-packing view as a scene we can come back to.",
+      "Export the current packing-contact shot as a hero image.",
+      "Keep the ligand bright and the surrounding symmetry shell restrained.",
+      "Tell me how many symmetry-mate objects are currently on screen before you export.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-ligand-complex",
+        "title": "Load the ligand-bound complex and establish the base styling.",
+        "summary": "Bring 1HSG into PyMOL, show the protein and ligand cleanly, and apply the light editorial preset.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "object",
+            "action": "delete",
+            "name": "mate_*"
+          },
+          {
+            "type": "object",
+            "action": "delete",
+            "name": "packing_shell"
+          },
+          {
+            "type": "object",
+            "action": "delete",
+            "name": "1hsg"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "1hsg",
+            "object": "1hsg",
+            "path": "./examples/data/local/1hsg.pdb"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "polymer.protein"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "organic"
+          },
+          {
+            "type": "color",
+            "selection": "polymer.protein",
+            "scheme": "by_chain"
+          },
+          {
+            "type": "color",
+            "selection": "organic",
+            "scheme": "by_element"
+          },
+          {
+            "type": "preset",
+            "name": "presentation_light"
+          }
+        ],
+        "checkpoints": [
+          "Protein is cartoon and the inhibitor is visible as sticks.",
+          "The light presentation preset is active."
+        ],
+        "manualCommands": [
+          "delete mate_*",
+          "delete packing_shell",
+          "delete 1hsg",
+          "load ./examples/data/local/1hsg.pdb, 1hsg",
+          "hide everything",
+          "show cartoon, polymer.protein",
+          "show sticks, organic",
+          "util.cbc polymer.protein",
+          "util.cbag organic",
+          "bg_color gray98"
+        ]
+      },
+      {
+        "id": "expand-symmetry-shell",
+        "title": "Generate symmetry mates and isolate the packing shell.",
+        "summary": "Expand symmetry around the inhibitor, then keep only the local shell that explains the packing contact story.",
+        "actions": [
+          {
+            "type": "symmetry",
+            "prefix": "mate_",
+            "object": "1hsg",
+            "selection": "organic",
+            "cutoff": 8
+          },
+          {
+            "type": "show",
+            "representations": [
+              "lines"
+            ],
+            "selection": "mate_*"
+          },
+          {
+            "type": "color",
+            "selection": "mate_*",
+            "color": "gray70"
+          },
+          {
+            "type": "select",
+            "name": "packing_shell",
+            "selection": "byres (mate_* within 4 of organic)"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "packing_shell"
+          },
+          {
+            "type": "color",
+            "selection": "packing_shell",
+            "color": "wheat"
+          }
+        ],
+        "checkpoints": [
+          "Symmetry mates are visible around the inhibitor.",
+          "The local packing shell is selected and emphasized."
+        ],
+        "manualCommands": [
+          "symexp mate_, 1hsg, organic, 8",
+          "show lines, mate_*",
+          "color gray70, mate_*",
+          "select packing_shell, byres (mate_* within 4 of organic)",
+          "show sticks, packing_shell",
+          "color wheat, packing_shell"
+        ]
+      },
+      {
+        "id": "frame-and-export-packing",
+        "title": "Polish the packing-contact shot and export it.",
+        "summary": "Frame the ligand and packing shell tightly, save a scene, and export a publication-style still.",
+        "actions": [
+          {
+            "type": "camera",
+            "action": "pocket_frame",
+            "selection": "packing_shell or organic",
+            "buffer": 7
+          },
+          {
+            "type": "camera",
+            "action": "clip",
+            "clipMode": "slab",
+            "amount": 12
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F12",
+            "message": "Crystal packing contact hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "A tight crystal-packing scene is stored.",
+          "A polished PNG export is created."
+        ],
+        "manualCommands": [
+          "center packing_shell or organic",
+          "orient packing_shell or organic",
+          "turn y, 18",
+          "turn x, -8",
+          "zoom packing_shell or organic, 7",
+          "clip slab, 12",
+          "scene F12, store, Crystal packing contact hero"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-cryo-atomic-handoff",
+    "category": "workflow-recipes",
+    "title": "Cryo-Atomic Handoff",
+    "goal": "Load a local cryo-EM hemoglobin model and map in PyMOL, show the fitted atomic model against the density, focus a heme neighborhood, and export a polished cutaway still.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "local cryo-EM map plus fitted atomic model",
+    "task": "cryo and atomic overlay",
+    "estimatedMinutes": 9,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "8wj1",
+        "kind": "local",
+        "label": "Human oxy hemoglobin cryo-EM model",
+        "localPath": "./examples/data/local/8wj1.cif",
+        "remoteUrl": "https://files.rcsb.org/download/8WJ1.cif"
+      },
+      {
+        "id": "EMD-37575",
+        "kind": "local",
+        "label": "Human oxy hemoglobin cryo-EM map",
+        "localPath": "./examples/data/local/emd_37575.map",
+        "remoteUrl": "https://ftp.ebi.ac.uk/pub/databases/emdb/structures/EMD-37575/map/emd_37575.map.gz"
+      }
+    ],
+    "prompts": [
+      "Open the local cryo-EM hemoglobin model and map in PyMOL.",
+      "Show the atomic model inside the density and focus a heme neighborhood.",
+      "Store an overview and a cutaway hero frame, then export the polished map still."
+    ],
+    "checkpoints": [
+      "The local model and cryo-EM map are loaded into PyMOL.",
+      "The atomic model and a contoured density view are visible together.",
+      "A heme-centered cutaway scene is stored and exported cleanly."
+    ],
+    "utterances": [
+      "Open the local 8WJ1 model and EMD-37575 map.",
+      "Show the protein as cartoon and keep the hemes in sticks.",
+      "Contour the cryo map as mesh around the fitted model.",
+      "Switch from the overview to a cutaway around the heme.",
+      "Use the cryo atomic preset before exporting.",
+      "Save the global overview and the heme close-up as scenes.",
+      "Make the density slightly more transparent and less cluttered.",
+      "Center on the heme neighborhood and clip the slab tighter.",
+      "Capture the current cutaway before the final export.",
+      "Export the final cryo-plus-atomic still.",
+      "Overlay the atomic model with the cryo density and cut into the map without losing the ligand or cofactor context.",
+      "If a map is loaded, identify the density handle first and then frame the atomic model against it.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-model-and-map",
+        "title": "Load the fitted model and local map.",
+        "summary": "Open the local cryo-EM model and map, establish the atomic baseline, and store the overview scene.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "8wj1",
+            "object": "hb_cryo",
+            "path": "./examples/data/local/8wj1.cif"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "EMD-37575",
+            "object": "emd_37575",
+            "path": "./examples/data/local/emd_37575.map"
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": "hb_cryo and polymer.protein"
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "hb_cryo and organic"
+          },
+          {
+            "type": "color",
+            "selection": "hb_cryo and polymer.protein",
+            "scheme": "by_chain"
+          },
+          {
+            "type": "color",
+            "selection": "hb_cryo and organic",
+            "scheme": "by_element"
+          },
+          {
+            "type": "preset",
+            "name": "cryo_atomic_hero"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "hb_cryo and polymer.protein",
+            "buffer": 11
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F13",
+            "message": "Cryo overview"
+          }
+        ],
+        "checkpoints": [
+          "The cryo-EM model and map are both loaded.",
+          "The fitted atomic model is visible with cofactors emphasized.",
+          "A clean overview scene is stored."
+        ],
+        "manualCommands": [
+          "delete all",
+          "scene *, clear",
+          "load ./examples/data/local/8wj1.cif, hb_cryo",
+          "load ./examples/data/local/emd_37575.map, emd_37575",
+          "hide everything",
+          "show cartoon, hb_cryo and polymer.protein",
+          "show sticks, hb_cryo and organic",
+          "util.cbc hb_cryo and polymer.protein",
+          "util.cnc hb_cryo and organic",
+          "scene F13, store, Cryo overview"
+        ]
+      },
+      {
+        "id": "focus-heme-and-density",
+        "title": "Contour the density and move into the heme neighborhood.",
+        "summary": "Build a reusable heme shell, contour the local density, and create a cryo-aware cutaway frame.",
+        "actions": [
+          {
+            "type": "select",
+            "name": "heme_shell",
+            "selection": {
+              "object": "hb_cryo",
+              "around": "organic",
+              "withinAngstroms": 5,
+              "byResidue": true
+            }
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": "heme_shell or hb_cryo and organic"
+          },
+          {
+            "type": "map_display",
+            "mapName": "emd_37575",
+            "selection": "heme_shell or hb_cryo and organic",
+            "displayAs": "mesh",
+            "buffer": 6,
+            "level": 1.4,
+            "color": "cyan"
+          },
+          {
+            "type": "preset",
+            "name": "cryo_atomic_hero"
+          },
+          {
+            "type": "camera",
+            "action": "map_cutaway",
+            "selection": "heme_shell or hb_cryo and organic",
+            "buffer": 7
+          },
+          {
+            "type": "camera",
+            "action": "clip",
+            "clipMode": "slab",
+            "amount": 14
+          }
+        ],
+        "checkpoints": [
+          "A heme neighborhood selection exists.",
+          "Local density is contoured around the heme shell.",
+          "The framing now reads as a cryo-plus-atomic cutaway."
+        ],
+        "manualCommands": [
+          "select heme_shell, byres (hb_cryo and organic around 5)",
+          "show sticks, heme_shell or hb_cryo and organic",
+          "isomesh emd_37575_mesh, emd_37575, 1.4, heme_shell or hb_cryo and organic, 6",
+          "color cyan, emd_37575_mesh",
+          "center heme_shell or hb_cryo and organic",
+          "orient heme_shell or hb_cryo and organic",
+          "turn y, 20",
+          "turn x, 12",
+          "zoom heme_shell or hb_cryo and organic, 7",
+          "clip slab, 14"
+        ]
+      },
+      {
+        "id": "store-and-export-cryo-cutaway",
+        "title": "Store the cutaway and export the polished still.",
+        "summary": "Save the heme-centered scene, preserve the cryo-aware preset, and export the final still.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F14",
+            "message": "Cryo heme cutaway"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2600,
+              "height": 1700,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The heme cutaway scene is stored.",
+          "A polished cryo-plus-atomic PNG export is written."
+        ],
+        "manualCommands": [
+          "scene F14, store, Cryo heme cutaway"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "pymol-rosetta-style-design-review",
+    "category": "guided-tutorials",
+    "title": "Rosetta-Style Design Review",
+    "goal": "Review a scaffold-versus-design comparison in PyMOL with semantic handles, changed-shell emphasis, and an exploded side-by-side export.",
+    "apps": [
+      "pymol"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "scaffold plus design candidate",
+    "task": "rosetta-style design review",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "wt_scaffold",
+        "kind": "local",
+        "label": "Wild-type scaffold surrogate",
+        "localPath": "./examples/data/local/4ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4AKE.pdb"
+      },
+      {
+        "id": "rosetta_design_v2",
+        "kind": "local",
+        "label": "Rosetta-style design surrogate",
+        "localPath": "./examples/data/local/1ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1AKE.pdb"
+      }
+    ],
+    "prompts": [
+      "Run a Rosetta-style scaffold-versus-design review in PyMOL.",
+      "Use semantic handles so the scientist can say scaffold, design, changed shell, or whole complex without naming objects manually.",
+      "Store one overview, one remodeled-shell close-up, and one exploded comparison before the export."
+    ],
+    "checkpoints": [
+      "The scaffold and design surrogate are both loaded with semantic roles.",
+      "The design is aligned onto the scaffold and the remodeled shell is emphasized.",
+      "An exploded comparison scene moves only the design candidate, not the whole camera.",
+      "A polished PNG export is written successfully."
+    ],
+    "utterances": [
+      "Open the scaffold and the design candidate and keep the scaffold quiet.",
+      "Align the design to the scaffold before we talk about the remodeled shell.",
+      "Highlight residues 118 through 160 on both models and keep the design warmer.",
+      "Pull the design candidate to the right for the exploded comparison without moving the scaffold.",
+      "Store one scene for the global comparison, one for the remodeled shell, and one for the exploded view.",
+      "Use the semantic handles so I can say scaffold, design, or partner instead of object names.",
+      "Tell me the alignment RMSD after the scaffold-versus-design overlay locks in.",
+      "Export the design-review still once the side-by-side frame looks editorial.",
+      "If I say the whole complex, keep both models visible and move only the design candidate.",
+      "Bring the design back on top of the scaffold after the exploded shot if I ask for it.",
+      "Use the assembly preset for large oligomers so the silhouettes stay crisp and the frame does not get muddy.",
+      "If the prediction and scaffold overlap too much, move the predicted model aside for a cleaner side-by-side comparison.",
+      "Keep the whole complex fixed and slide only the predicted partner to the right.",
+      "Rotate just the comparison partner around its own center instead of moving the camera.",
+      "When the user says whole complex, scaffold, binder, or experimental model, inspect state first and use the semantic handle instead of guessing.",
+      "For an AlphaFold handoff, compare the confidence-colored loop against the experimental backbone before exporting.",
+      "Overlay the AlphaFold subunit on the experimental assembly, save the global context, and then push into the local comparison patch.",
+      "For a prediction-versus-experiment story, keep the experimental assembly quiet and let the overlay read crisply against one highlighted chain.",
+      "For a design-style review, align the new model to the starting scaffold and isolate only the changed shell.",
+      "Rotate the binder away from the receptor and then bring it back into the interface frame for the explanation.",
+      "If the scientist calls one partner the scaffold and the other the design, inspect state first and use the semantic handle instead of guessing object names.",
+      "Move just the design candidate or just the binder instead of spinning the entire scene when the comparison needs to stay anchored.",
+      "Keep the scaffold anchored, pull the design candidate outward, and preserve the interface camera for the return shot.",
+      "Explode the binder from the receptor, then snap back to the packed interface without losing the saved view.",
+      "If you need a single-atom measurement on a multichain design complex, switch to scaffoldChainA, designChainA, or another chain-specific semantic handle before measuring.",
+      "Apply the light presentation preset before the next hero shot.",
+      "Use a pocket hero frame and keep the ligand emphasized.",
+      "Measure the angle across the catalytic triad and leave the label visible.",
+      "Measure the key dihedral and keep it on screen for the explanation.",
+      "Color only the ligand neighborhood and keep the scaffold neutral.",
+      "Store this polished view so we can jump back to it later.",
+      "Ray trace a higher-resolution export once the framing looks right.",
+      "Switch to a comparison-style framing that feels more editorial.",
+      "Clear the residue labels if they start to clutter the view.",
+      "Generate symmetry mates around the ligand and keep only the close contacts visible.",
+      "Clip the slab tighter around the active site and keep the mesh readable.",
+      "Capture the current viewport so you can check whether the labels and pocket are clean.",
+      "Color the model by confidence or B-factor and switch to putty for uncertain loops.",
+      "Isolate the chain interface, keep the buried residues visible, and save the cleanest view.",
+      "After the first export, inspect the view again and tighten the framing before the final still.",
+      "Tell me the shortest measurement that is currently visible before you move on.",
+      "Generate symmetry mates around the ligand and isolate only the packing shell that matters.",
+      "Tell me whether the current scene contains maps, measurement objects, or just molecular models before you change it.",
+      "Focus the quaternary interface, quiet the rest of the model, and leave me with a publication-style still.",
+      "If the shot feels busy, clear the labels, tighten the slab, and re-export a cleaner version.",
+      "Walk from the global assembly into a domain-level or cavity-level close-up, then save both scenes for the demo."
+    ],
+    "steps": [
+      {
+        "id": "load-scaffold-and-design",
+        "title": "Load the scaffold and design candidate with semantic roles.",
+        "summary": "Start from a clean workspace, load the scaffold plus design surrogate, and establish a restrained overview view.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "wt_scaffold",
+            "object": "wt_scaffold",
+            "path": "./examples/data/local/4ake.pdb",
+            "semanticRole": "scaffold",
+            "aliases": [
+              "scaffold",
+              "reference scaffold",
+              "wild-type scaffold"
+            ]
+          },
+          {
+            "type": "load",
+            "source": "local",
+            "id": "rosetta_design_v2",
+            "object": "rosetta_design_v2",
+            "path": "./examples/data/local/1ake.pdb",
+            "semanticRole": "design",
+            "aliases": [
+              "design",
+              "design candidate",
+              "rosetta design"
+            ]
+          },
+          {
+            "type": "hide",
+            "representations": [
+              "everything"
+            ]
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": {
+              "reference": "scaffoldModel",
+              "entity": "protein"
+            }
+          },
+          {
+            "type": "show",
+            "representations": [
+              "cartoon"
+            ],
+            "selection": {
+              "reference": "designModel",
+              "entity": "protein"
+            }
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "scaffoldModel",
+              "entity": "protein"
+            },
+            "color": "gray80"
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "designModel",
+              "entity": "protein"
+            },
+            "color": "raspberry"
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "wt_scaffold or rosetta_design_v2",
+            "buffer": 10
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F18",
+            "message": "Scaffold versus design overview"
+          }
+        ],
+        "checkpoints": [
+          "The scaffold and design are visible with distinct colors.",
+          "Scene F18 stores the global design-review overview."
+        ],
+        "manualCommands": [
+          "delete all",
+          "scene *, clear",
+          "load ./examples/data/local/4ake.pdb, wt_scaffold",
+          "load ./examples/data/local/1ake.pdb, rosetta_design_v2",
+          "hide everything",
+          "show cartoon, wt_scaffold and polymer.protein",
+          "show cartoon, rosetta_design_v2 and polymer.protein",
+          "color gray80, wt_scaffold and polymer.protein",
+          "color raspberry, rosetta_design_v2 and polymer.protein",
+          "scene F18, store, Scaffold versus design overview"
+        ]
+      },
+      {
+        "id": "align-and-shell",
+        "title": "Align the design to the scaffold and isolate the remodeled shell.",
+        "summary": "Overlay the design onto the scaffold, then emphasize the moving shell so the scientist can narrate the changed region directly.",
+        "actions": [
+          {
+            "type": "align",
+            "method": "cealign",
+            "mobile": {
+              "reference": "designModel",
+              "entity": "protein"
+            },
+            "target": {
+              "reference": "scaffoldModel",
+              "entity": "protein"
+            }
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": {
+              "reference": "designModel",
+              "residues": [
+                "118-160"
+              ]
+            }
+          },
+          {
+            "type": "show",
+            "representations": [
+              "sticks"
+            ],
+            "selection": {
+              "reference": "scaffoldModel",
+              "residues": [
+                "118-160"
+              ]
+            }
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "designModel",
+              "residues": [
+                "118-160"
+              ]
+            },
+            "color": "hotpink"
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "scaffoldModel",
+              "residues": [
+                "118-160"
+              ]
+            },
+            "color": "deepteal"
+          },
+          {
+            "type": "distance",
+            "name": "shell_anchor",
+            "selection1": {
+              "reference": "scaffoldModel",
+              "residue": "136",
+              "atom": "CA"
+            },
+            "selection2": {
+              "reference": "designModel",
+              "residue": "136",
+              "atom": "CA"
+            }
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "wt_scaffold and resi 118-160 or rosetta_design_v2 and resi 118-160",
+            "buffer": 8
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F19",
+            "message": "Remodeled shell close-up"
+          }
+        ],
+        "checkpoints": [
+          "The design is aligned onto the scaffold.",
+          "Residues 118-160 are emphasized on both models.",
+          "Scene F19 stores the remodeled-shell close-up."
+        ],
+        "manualCommands": [
+          "cealign wt_scaffold and polymer.protein, rosetta_design_v2 and polymer.protein",
+          "show sticks, rosetta_design_v2 and resi 118-160",
+          "show sticks, wt_scaffold and resi 118-160",
+          "color hotpink, rosetta_design_v2 and resi 118-160",
+          "color deepteal, wt_scaffold and resi 118-160",
+          "distance shell_anchor, wt_scaffold and resi 136 and name CA, rosetta_design_v2 and resi 136 and name CA",
+          "scene F19, store, Remodeled shell close-up"
+        ]
+      },
+      {
+        "id": "explode-and-export-design",
+        "title": "Move only the design candidate for the exploded comparison and export it.",
+        "summary": "Translate and rotate the design candidate away from the scaffold, keep the scaffold anchored, and export the final design-review figure.",
+        "actions": [
+          {
+            "type": "transform",
+            "mode": "translate",
+            "selection": {
+              "reference": "designModel"
+            },
+            "axis": "x",
+            "amount": 22
+          },
+          {
+            "type": "transform",
+            "mode": "rotate",
+            "selection": {
+              "reference": "designModel"
+            },
+            "axis": "y",
+            "amount": 22
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "wt_scaffold or rosetta_design_v2",
+            "buffer": 12
+          },
+          {
+            "type": "scene",
+            "action": "store",
+            "key": "F20",
+            "message": "Exploded scaffold versus design comparison"
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2600,
+              "height": 1700,
+              "rayTrace": true,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Only the design candidate is moved for the exploded comparison.",
+          "Scene F20 stores the exploded comparison.",
+          "A high-resolution design-review PNG export exists."
+        ],
+        "manualCommands": [
+          "translate [22,0,0], object=rosetta_design_v2, camera=1",
+          "rotate y, 22, object=rosetta_design_v2, camera=1",
+          "scene F20, store, Exploded scaffold versus design comparison"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-ligand-interaction-explainer",
+    "category": "workflow-recipes",
+    "title": "Ligand Interaction Explainer",
+    "goal": "Load a ligand-bound structure in ChimeraX, build a transparent pocket surface, and compute hydrogen bonds and clashes around the ligand.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "intro",
+    "dataType": "ligand-bound crystal structure",
+    "task": "interaction analysis",
+    "estimatedMinutes": 6,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1hsg",
+        "kind": "local",
+        "label": "HIV protease with inhibitor",
+        "localPath": "./examples/data/local/1hsg.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1HSG.pdb"
+      }
+    ],
+    "prompts": [
+      "Use ChimeraX to explain the ligand pocket around 1HSG.",
+      "Color by chain, compute hydrogen bonds, and add a transparent surface.",
+      "Export the pocket shot when it looks clean."
+    ],
+    "checkpoints": [
+      "1HSG is open in ChimeraX.",
+      "Ligand and pocket surface are visible.",
+      "Hydrogen bonds and clash/contact analysis are displayed."
+    ],
+    "utterances": [
+      "Open local structure 1HSG in ChimeraX.",
+      "Color everything by chain and make the ligand sticks.",
+      "Show a transparent surface around the ligand.",
+      "Compute hydrogen bonds around the ligand.",
+      "Check clashes in the pocket.",
+      "Export the current pocket view.",
+      "Center the camera on the ligand before the analysis.",
+      "Keep only the ligand and nearby residues in focus.",
+      "Switch to a publication preset for the final shot.",
+      "Save the pocket scene once the hydrogen bonds are visible.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-style",
+        "title": "Open the structure and style the protein and ligand.",
+        "summary": "Load 1HSG, apply chain coloring, and switch the ligand to a more legible representation.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "1hsg",
+            "path": "./examples/data/local/1hsg.pdb"
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "bychain"
+          },
+          {
+            "type": "style",
+            "selection": "protein",
+            "ribbon": true
+          },
+          {
+            "type": "style",
+            "selection": "ligand",
+            "atoms": "stick"
+          },
+          {
+            "type": "camera",
+            "action": "view",
+            "selection": "ligand"
+          }
+        ],
+        "checkpoints": [
+          "Protein is ribbon, ligand is sticks, and colors are applied."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/1hsg.pdb",
+          "color bychain #1",
+          "cartoon protein",
+          "style ligand stick",
+          "view ligand"
+        ]
+      },
+      {
+        "id": "surface-and-interactions",
+        "title": "Build the pocket surface and compute interactions.",
+        "summary": "Create a transparent pocket surface and overlay hydrogen bonds and clashes around the ligand.",
+        "actions": [
+          {
+            "type": "style",
+            "selection": "protein & ligand :< 6",
+            "surface": true,
+            "transparency": 55
+          },
+          {
+            "type": "contacts",
+            "mode": "hbonds",
+            "selection1": "ligand",
+            "selection2": "protein & ligand :< 6"
+          },
+          {
+            "type": "contacts",
+            "mode": "clashes",
+            "selection1": "ligand",
+            "selection2": "protein & ligand :< 6",
+            "distance": 2.2
+          }
+        ],
+        "checkpoints": [
+          "Pocket surface is visible and interaction overlays are present."
+        ],
+        "manualCommands": [
+          "surface protein & ligand :< 6",
+          "transparency protein & ligand :< 6 55 target s",
+          "hbonds ligand restrict \"protein & ligand :< 6\" reveal true showDist true",
+          "clashes ligand restrict \"protein & ligand :< 6\" distanceOnly 2.2 reveal true showDist true"
+        ]
+      },
+      {
+        "id": "export-pocket-view",
+        "title": "Finish the pocket shot and export it.",
+        "summary": "Set the camera, apply a presentation preset, and save a PNG.",
+        "actions": [
+          {
+            "type": "preset",
+            "name": "presentation_light"
+          },
+          {
+            "type": "camera",
+            "action": "pocket_frame",
+            "selection": "ligand"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "A publication-style export is saved."
+        ],
+        "manualCommands": [
+          "preset publication 1",
+          "graphics bgColor #F7F7F2",
+          "view ligand orient",
+          "turn y 18",
+          "turn x -10",
+          "zoom 1.35"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-homolog-alignment-showcase",
+    "category": "workflow-recipes",
+    "title": "Homolog Alignment Showcase",
+    "goal": "Open open and closed adenylate kinase conformers in ChimeraX, align them with matchmaker, tile and compare views, and store a presentation export.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "operator",
+    "dataType": "homologous conformers",
+    "task": "alignment",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1ake",
+        "kind": "local",
+        "label": "Adenylate kinase open",
+        "localPath": "./examples/data/local/1ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1AKE.pdb"
+      },
+      {
+        "id": "4ake",
+        "kind": "local",
+        "label": "Adenylate kinase closed",
+        "localPath": "./examples/data/local/4ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4AKE.pdb"
+      }
+    ],
+    "prompts": [
+      "Compare 1AKE and 4AKE in ChimeraX.",
+      "Matchmaker the pair and jump between aligned and tiled views.",
+      "Save the aligned state as a figure."
+    ],
+    "checkpoints": [
+      "Both models are loaded.",
+      "Matchmaker alignment succeeds.",
+      "Views move between tiled and aligned states.",
+      "An export is saved."
+    ],
+    "utterances": [
+      "Open 1AKE and 4AKE in ChimeraX.",
+      "Color them distinctly.",
+      "Align them with matchmaker.",
+      "Tile the windows and then return to the aligned view.",
+      "Focus the moving lid residues.",
+      "Export the aligned comparison view.",
+      "Show the mobile region as sticks after the alignment.",
+      "Recenter the aligned pair on the lid segment.",
+      "Use a publication preset before export.",
+      "Save the aligned comparison as a PNG.",
+      "Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.",
+      "If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.",
+      "Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.",
+      "Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.",
+      "Translate partner A away from partner B, save that exploded view, then restore the packed interface.",
+      "Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.",
+      "Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.",
+      "Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.",
+      "For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-color",
+        "title": "Open the conformers and apply distinct coloring.",
+        "summary": "Bring in both structures and make them visually distinct.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "1ake",
+            "path": "./examples/data/local/1ake.pdb"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "4ake",
+            "path": "./examples/data/local/4ake.pdb"
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "color": "deepskyblue"
+          },
+          {
+            "type": "color",
+            "selection": "#2",
+            "color": "gold"
+          }
+        ],
+        "checkpoints": [
+          "Both structures are present with distinct colors."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/1ake.pdb",
+          "open ./examples/data/local/4ake.pdb",
+          "color #1 deepskyblue",
+          "color #2 gold"
+        ]
+      },
+      {
+        "id": "matchmaker-and-focus",
+        "title": "Run matchmaker and focus the moving region.",
+        "summary": "Superpose the models and focus the mobile lid region for comparison.",
+        "actions": [
+          {
+            "type": "align",
+            "method": "matchmaker",
+            "mobile": "#2",
+            "target": "#1"
+          },
+          {
+            "type": "select",
+            "selection": "#1,2:118-160"
+          },
+          {
+            "type": "style",
+            "selection": "sel",
+            "atoms": "stick"
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "sel"
+          }
+        ],
+        "checkpoints": [
+          "Alignment and moving-region focus are complete."
+        ],
+        "manualCommands": [
+          "matchmaker #2 to #1",
+          "select #1,2:118-160",
+          "style sel stick",
+          "view sel orient",
+          "turn y 10",
+          "turn x 5",
+          "zoom 1.2"
+        ]
+      },
+      {
+        "id": "tile-and-export",
+        "title": "Jump between tile and aligned views, then export.",
+        "summary": "Show the presentation preset, create a tiled comparison, then export the aligned view.",
+        "actions": [
+          {
+            "type": "layout",
+            "mode": "tile"
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "layout",
+            "mode": "off"
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "#1"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Tile view occurs and the final aligned export is saved."
+        ],
+        "manualCommands": [
+          "tile",
+          "preset publication 1",
+          "tile off",
+          "view #1 orient",
+          "turn y 10",
+          "turn x 5"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-alphafold-confidence-review",
+    "category": "workflow-recipes",
+    "title": "AlphaFold Confidence Review",
+    "goal": "Open an AlphaFold model, color by confidence, isolate flexible loops, and export a confidence-focused figure.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "operator",
+    "dataType": "AlphaFold prediction",
+    "task": "confidence review",
+    "estimatedMinutes": 7,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "Q9H255",
+        "kind": "alphafold",
+        "label": "AlphaFold Q9H255 model",
+        "localPath": "./examples/data/local/af-q9h255.pdb",
+        "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-Q9H255-F1-model_v6.pdb"
+      }
+    ],
+    "prompts": [
+      "Open the local AlphaFold model and color by confidence.",
+      "Show the low-confidence loops and compare cartoon versus surface.",
+      "Save the confidence-focused figure."
+    ],
+    "checkpoints": [
+      "AlphaFold model opens successfully.",
+      "Confidence coloring is applied.",
+      "Flexible loops are isolated and framed."
+    ],
+    "utterances": [
+      "Open the local AlphaFold Q9H255 model.",
+      "Color the structure by confidence.",
+      "Select the low-confidence loops.",
+      "Zoom to the flexible region.",
+      "Show the surface for the same region.",
+      "Export the confidence review figure.",
+      "Keep the overall model as cartoon while the loop gets a surface.",
+      "Use the B-factor coloring as the confidence legend.",
+      "Reframe the flexible segment before export.",
+      "Save the confidence shot once the loop is isolated.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-color-confidence",
+        "title": "Open the AlphaFold model and color it by confidence.",
+        "summary": "Load the local AlphaFold model and apply B-factor confidence coloring.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "af_q9h255",
+            "path": "./examples/data/local/af-q9h255.pdb"
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "confidence"
+          },
+          {
+            "type": "style",
+            "selection": "#1",
+            "ribbon": true
+          }
+        ],
+        "checkpoints": [
+          "Model is open and confidence colors are visible."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/af-q9h255.pdb",
+          "color byattribute bfactor #1",
+          "cartoon #1"
+        ]
+      },
+      {
+        "id": "focus-flexible-loop",
+        "title": "Find and focus the flexible region.",
+        "summary": "Select a low-confidence loop, frame it, and compare cartoon and surface.",
+        "actions": [
+          {
+            "type": "select",
+            "selection": "#1:180-225"
+          },
+          {
+            "type": "style",
+            "selection": "sel",
+            "atoms": "stick",
+            "surface": true,
+            "transparency": 60
+          },
+          {
+            "type": "camera",
+            "action": "pocket_frame",
+            "selection": "sel"
+          }
+        ],
+        "checkpoints": [
+          "Flexible loop region is selected and emphasized."
+        ],
+        "manualCommands": [
+          "select #1:180-225",
+          "style sel stick",
+          "surface sel",
+          "transparency sel 60",
+          "view sel orient"
+        ]
+      },
+      {
+        "id": "export-confidence-shot",
+        "title": "Apply a clean preset and export the result.",
+        "summary": "Use a soft-light preset and save the final confidence review figure.",
+        "actions": [
+          {
+            "type": "preset",
+            "name": "confidence_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "A final confidence review image is saved."
+        ],
+        "manualCommands": [
+          "lighting soft",
+          "graphics bgColor #F7F7F2"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-alphafold-experimental-overlay",
+    "category": "workflow-recipes",
+    "title": "AlphaFold Experimental Overlay",
+    "goal": "Open the experimental 4HHB tetramer and an AlphaFold hemoglobin alpha chain in ChimeraX, preserve a full-assembly view, then move into a chain-level overlay near the heme site and export the comparison.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "AlphaFold monomer plus experimental tetramer",
+    "task": "predicted versus experimental overlay",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "4hhb",
+        "kind": "local",
+        "label": "Human deoxy hemoglobin tetramer",
+        "localPath": "./examples/data/local/4hhb.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4HHB.pdb"
+      },
+      {
+        "id": "P69905",
+        "kind": "alphafold",
+        "label": "AlphaFold hemoglobin alpha chain",
+        "localPath": "./examples/data/local/af-p69905.pdb",
+        "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-P69905-F1-model_v6.pdb"
+      }
+    ],
+    "prompts": [
+      "Compare an AlphaFold hemoglobin alpha chain to the experimental 4HHB tetramer in ChimeraX.",
+      "Save one named view for the tetramer overview, one for the chain A overlay around the heme region, and one exploded comparison with the prediction moved aside.",
+      "Use a comparison-style preset before exporting the final predicted-versus-experimental still."
+    ],
+    "checkpoints": [
+      "The experimental tetramer and AlphaFold chain are both open in ChimeraX.",
+      "The AlphaFold chain is aligned to experimental chain A.",
+      "Named views exist for the assembly overview, the overlay focus, and the exploded comparison.",
+      "A polished overlay export is written successfully."
+    ],
+    "utterances": [
+      "Open 4HHB and the local AlphaFold alpha-chain model.",
+      "Keep the tetramer overview first, then move into chain A for the comparison.",
+      "Align the AlphaFold model onto experimental chain A with matchmaker.",
+      "Show the heme and the nearby histidines once the overlay is aligned.",
+      "Save one named view for the tetramer and another for the AlphaFold overlay.",
+      "Move the AlphaFold model off to the side for a readable exploded comparison, then save that view too.",
+      "Use the comparison preset before the final export.",
+      "Make the overlay read cleanly without losing the assembly context.",
+      "Tell me the alignment score once the matchmaker step finishes.",
+      "Return to the tetramer overview and then come back to the overlay view.",
+      "Export the final predicted-versus-experimental figure.",
+      "Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.",
+      "If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.",
+      "Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.",
+      "Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.",
+      "Translate partner A away from partner B, save that exploded view, then restore the packed interface.",
+      "Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.",
+      "Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.",
+      "Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.",
+      "For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-save-overview",
+        "title": "Open the tetramer and prediction, then save the overview.",
+        "summary": "Start from a clean ChimeraX workspace, open the experimental tetramer plus the AlphaFold chain, and save a polished full-assembly view before alignment.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "4hhb",
+            "path": "./examples/data/local/4hhb.pdb",
+            "semanticRole": "experimental",
+            "aliases": [
+              "experimental tetramer",
+              "reference tetramer",
+              "whole complex"
+            ]
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "af_p69905",
+            "path": "./examples/data/local/af-p69905.pdb",
+            "semanticRole": "predicted",
+            "aliases": [
+              "predicted alpha chain",
+              "alphafold alpha chain",
+              "prediction"
+            ]
+          },
+          {
+            "type": "style",
+            "selection": "#1",
+            "ribbon": true
+          },
+          {
+            "type": "style",
+            "selection": "#1 & ligand",
+            "atoms": "stick"
+          },
+          {
+            "type": "style",
+            "selection": "#2",
+            "ribbon": true
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "bychain"
+          },
+          {
+            "type": "color",
+            "selection": "#2",
+            "color": "hot pink"
+          },
+          {
+            "type": "preset",
+            "name": "assembly_editorial"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "#1"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "tetramer-overview"
+          }
+        ],
+        "checkpoints": [
+          "The tetramer is visible with chain colors and hemes shown as sticks.",
+          "The AlphaFold chain is open as a second model.",
+          "tetramer-overview is stored as a named view."
+        ],
+        "manualCommands": [
+          "close all",
+          "view delete all",
+          "open ./examples/data/local/4hhb.pdb",
+          "open ./examples/data/local/af-p69905.pdb",
+          "cartoon #1",
+          "style #1 & ligand stick",
+          "cartoon #2",
+          "color #1 bychain cartoons",
+          "color #2 hot pink",
+          "view #1 orient",
+          "turn y 14",
+          "turn x 8",
+          "view name tetramer-overview"
+        ]
+      },
+      {
+        "id": "align-and-store-overlay",
+        "title": "Align to chain A and store the focused overlay.",
+        "summary": "Align the AlphaFold model to experimental chain A, emphasize the heme-adjacent patch, and save a dedicated overlay view for recall.",
+        "actions": [
+          {
+            "type": "align",
+            "method": "matchmaker",
+            "mobile": "#2",
+            "target": "#1/A"
+          },
+          {
+            "type": "style",
+            "selection": "#1/A:58,87 | #2:58,87 | #1 & ligand",
+            "atoms": "stick"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "#1/A:58@CA",
+            "text": "Exp His58"
+          },
+          {
+            "type": "label",
+            "action": "show",
+            "selection": "#1/A:87@CA",
+            "text": "Exp His87"
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "#1/A | #2 | #1 & ligand"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "alpha-overlay"
+          }
+        ],
+        "checkpoints": [
+          "The AlphaFold chain is aligned to chain A.",
+          "The heme-adjacent overlay patch is emphasized.",
+          "alpha-overlay is stored as a named view."
+        ],
+        "manualCommands": [
+          "matchmaker #2 to #1/A",
+          "style #1/A:58,87 | #2:58,87 | #1 & ligand stick",
+          "label #1/A:58@CA text \"Exp His58\"",
+          "label #1/A:87@CA text \"Exp His87\"",
+          "view #1/A | #2 | #1 & ligand orient",
+          "turn y 10",
+          "turn x 4",
+          "zoom 1.2",
+          "view name alpha-overlay"
+        ]
+      },
+      {
+        "id": "explode-for-side-by-side",
+        "title": "Move the prediction aside for an exploded comparison.",
+        "summary": "Translate and rotate the AlphaFold model away from the tetramer so the comparison can be narrated without visual overlap.",
+        "actions": [
+          {
+            "type": "transform",
+            "mode": "translate",
+            "selection": {
+              "reference": "predictedModel"
+            },
+            "axis": "x",
+            "amount": 18
+          },
+          {
+            "type": "transform",
+            "mode": "rotate",
+            "selection": {
+              "reference": "predictedModel"
+            },
+            "axis": "y",
+            "amount": 24
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "#1/A | #2 | #1 & ligand"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "alpha-exploded"
+          }
+        ],
+        "checkpoints": [
+          "The AlphaFold chain is offset from the tetramer for an exploded comparison.",
+          "alpha-exploded is stored as a named view."
+        ],
+        "manualCommands": [
+          "move x 18 models #2",
+          "turn y 24 center #2 models #2",
+          "view #1/A | #2 | #1 & ligand orient",
+          "turn y 10",
+          "turn x 4",
+          "zoom 1.15",
+          "view name alpha-exploded"
+        ]
+      },
+      {
+        "id": "recall-and-export-overlay",
+        "title": "Recall the overlay and export the final comparison.",
+        "summary": "Return to the exploded comparison, apply the polished comparison preset, and export a high-resolution still for the demo.",
+        "actions": [
+          {
+            "type": "view",
+            "action": "recall",
+            "name": "alpha-exploded",
+            "frames": 35
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2600,
+              "height": 1700,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The alpha-exploded view is recalled cleanly.",
+          "A high-resolution predicted-versus-experimental export exists."
+        ],
+        "manualCommands": [
+          "view alpha-exploded 35",
+          "preset publication 1",
+          "graphics silhouettes true color #222222 width 2.1"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-biological-assembly-tour",
+    "category": "workflow-recipes",
+    "title": "Biological Assembly Tour",
+    "goal": "Open a local cryo-EM hemoglobin model, expand the biological assembly, store named views for the overview and hero frame, and export the final assembly still.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "operator",
+    "dataType": "cryo-EM assembly model",
+    "task": "assembly storytelling",
+    "estimatedMinutes": 7,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "8wj1",
+        "kind": "local",
+        "label": "Human oxy hemoglobin cryo-EM model",
+        "localPath": "./examples/data/local/8wj1.cif",
+        "remoteUrl": "https://files.rcsb.org/download/8WJ1.cif"
+      }
+    ],
+    "prompts": [
+      "Show a biological assembly workflow in ChimeraX with a local cryo-EM hemoglobin model.",
+      "Expand the assembly, store an overview, and then tighten the framing for a polished hero view.",
+      "Export the final assembly still after the silhouettes and camera look balanced."
+    ],
+    "checkpoints": [
+      "The local cryo-EM hemoglobin model is open.",
+      "The biological assembly view is generated and stored.",
+      "A polished hero view is recalled and exported cleanly."
+    ],
+    "utterances": [
+      "Open the local cryo-EM hemoglobin model.",
+      "Expand the biological assembly and store a global overview.",
+      "Tile the assembly briefly so we can inspect the layout.",
+      "Turn tile mode back off and return to one hero camera.",
+      "Save a named view for the assembly overview.",
+      "Save another named view for the polished hero frame.",
+      "Use a light publication preset before the export.",
+      "Make the silhouettes a little thinner for the final still.",
+      "Return to the assembly overview and then come back to the hero view.",
+      "Export the final assembly shot once it feels balanced.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-expand-assembly",
+        "title": "Open the model and expand the biological assembly.",
+        "summary": "Load the local 8WJ1 cryo-EM model, color it by chain, expand the assembly, and store the overview.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "8wj1",
+            "path": "./examples/data/local/8wj1.cif"
+          },
+          {
+            "type": "style",
+            "selection": "#1",
+            "ribbon": true
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "bychain"
+          },
+          {
+            "type": "symmetry",
+            "action": "assembly",
+            "selection": "#1",
+            "assemblyId": "1",
+            "copies": true
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "#1"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "assembly-overview"
+          }
+        ],
+        "checkpoints": [
+          "The model is visible with by-chain colors.",
+          "assembly-overview is stored as a named view."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/8wj1.cif",
+          "cartoon #1",
+          "color #1 bychain cartoons",
+          "sym #1 assembly 1 copies true",
+          "view #1 orient",
+          "turn y 14",
+          "turn x 8",
+          "view name assembly-overview"
+        ]
+      },
+      {
+        "id": "tile-and-polish",
+        "title": "Tile briefly and settle into the hero framing.",
+        "summary": "Use tile mode to inspect the assembly layout, then collapse back to a single presentation camera and store the hero view.",
+        "actions": [
+          {
+            "type": "layout",
+            "mode": "tile"
+          },
+          {
+            "type": "layout",
+            "mode": "off"
+          },
+          {
+            "type": "preset",
+            "name": "presentation_light"
+          },
+          {
+            "type": "graphics",
+            "silhouettes": true,
+            "silhouetteColor": "#303030",
+            "silhouetteWidth": 1.4
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "#1"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "assembly-hero"
+          }
+        ],
+        "checkpoints": [
+          "Tile mode toggles cleanly.",
+          "assembly-hero is stored as a named view."
+        ],
+        "manualCommands": [
+          "tile",
+          "tile off",
+          "preset publication 1",
+          "graphics bgColor #F7F7F2",
+          "graphics silhouettes true color #303030 width 1.4",
+          "view #1 orient",
+          "turn y 10",
+          "turn x 5",
+          "zoom 1.2",
+          "view name assembly-hero"
+        ]
+      },
+      {
+        "id": "export-assembly-still",
+        "title": "Recall the hero framing and export the still.",
+        "summary": "Recall the polished hero view, strengthen the presentation preset, and export the final assembly still.",
+        "actions": [
+          {
+            "type": "view",
+            "action": "recall",
+            "name": "assembly-hero",
+            "frames": 40
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2400,
+              "height": 1600,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The assembly-hero view is recalled.",
+          "A high-resolution assembly export exists."
+        ],
+        "manualCommands": [
+          "view assembly-hero 40",
+          "graphics silhouettes true color #222222 width 2.1"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-assembly-interface-handoff",
+    "category": "workflow-recipes",
+    "title": "Assembly-To-Interface Handoff",
+    "goal": "Start from a biological assembly overview, transition into a chain-level interface analysis, and finish on a polished interface hero view with saved named cameras.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "multichain cryo-EM assembly",
+    "task": "assembly to interface storytelling",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "8wj1",
+        "kind": "local",
+        "label": "Human oxy hemoglobin cryo-EM model",
+        "localPath": "./examples/data/local/8wj1.cif",
+        "remoteUrl": "https://files.rcsb.org/download/8WJ1.cif"
+      }
+    ],
+    "prompts": [
+      "Start from the full assembly in ChimeraX and then hand off to the chain A/B interface.",
+      "Keep the overview saved, compute interface contacts, and polish the focused hero shot.",
+      "Export the final interface still once the contact network is clean."
+    ],
+    "checkpoints": [
+      "The biological assembly overview is saved as a named view.",
+      "The A/B interface is isolated with contacts or hydrogen bonds visible.",
+      "A focused interface hero view is saved and exported."
+    ],
+    "utterances": [
+      "Open the local 8WJ1 assembly and save a global overview first.",
+      "Expand the biological assembly, then come back to the A/B interface.",
+      "Compute chain A versus chain B contacts once the assembly view is stored.",
+      "Add hydrogen bonds and keep only the interface surface visible.",
+      "Save a dedicated interface hero view before you export.",
+      "Recall the assembly overview, then glide back into the interface view.",
+      "Keep the interface colors distinct but use a neutral surface.",
+      "Report the contact cutoff you used once the pseudobonds appear.",
+      "Use a comparison-style preset for the final interface shot.",
+      "Export the interface hero frame after the camera settles.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-save-overview",
+        "title": "Open the assembly and save the overview camera.",
+        "summary": "Load 8WJ1, expand the biological assembly, and save a clean overview view before focusing on the interface.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "8wj1",
+            "path": "./examples/data/local/8wj1.cif"
+          },
+          {
+            "type": "style",
+            "selection": "#1",
+            "ribbon": true
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "bychain"
+          },
+          {
+            "type": "symmetry",
+            "action": "assembly",
+            "selection": "#1",
+            "assemblyId": "1",
+            "copies": true
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "#1"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "assembly-global"
+          }
+        ],
+        "checkpoints": [
+          "The assembly is visible and color-coded by chain.",
+          "assembly-global is stored as a named view."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/8wj1.cif",
+          "cartoon #1",
+          "color #1 bychain cartoons",
+          "sym #1 assembly 1 copies true",
+          "view #1 orient",
+          "turn y 14",
+          "turn x 8",
+          "view name assembly-global"
+        ]
+      },
+      {
+        "id": "focus-ab-interface",
+        "title": "Focus the A/B interface and compute its contact network.",
+        "summary": "Return to one focused interface, compute contacts and hydrogen bonds across chains A and B, and save the interface hero view.",
+        "actions": [
+          {
+            "type": "layout",
+            "mode": "off"
+          },
+          {
+            "type": "visibility",
+            "mode": "hide",
+            "selection": "/C,D"
+          },
+          {
+            "type": "color",
+            "selection": "/A",
+            "color": "royalblue"
+          },
+          {
+            "type": "color",
+            "selection": "/B",
+            "color": "goldenrod"
+          },
+          {
+            "type": "contacts",
+            "mode": "contacts",
+            "selection1": "/A",
+            "selection2": "/B",
+            "distance": 4
+          },
+          {
+            "type": "contacts",
+            "mode": "hbonds",
+            "selection1": "/A",
+            "selection2": "/B"
+          },
+          {
+            "type": "style",
+            "selection": "(/A & /B :< 4) | (/B & /A :< 4)",
+            "surface": true,
+            "transparency": 55
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "/A,B"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "interface-hero"
+          }
+        ],
+        "checkpoints": [
+          "Only chains A and B are emphasized.",
+          "Contacts or hydrogen bonds across the interface are visible.",
+          "interface-hero is stored as a named view."
+        ],
+        "manualCommands": [
+          "tile off",
+          "hide /C,D",
+          "color /A royalblue",
+          "color /B goldenrod",
+          "contacts /A restrict /B distanceOnly 4 reveal true showDist true",
+          "hbonds /A restrict /B reveal true showDist true",
+          "surface (/A & /B :< 4) | (/B & /A :< 4)",
+          "transparency (/A & /B :< 4) | (/B & /A :< 4) 55 target s",
+          "view /A,B orient",
+          "view name interface-hero"
+        ]
+      },
+      {
+        "id": "recall-and-export-interface",
+        "title": "Recall the interface hero view and export it cleanly.",
+        "summary": "Return to the saved interface view, apply the polished comparison preset, and export the final interface still.",
+        "actions": [
+          {
+            "type": "view",
+            "action": "recall",
+            "name": "interface-hero",
+            "frames": 35
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2400,
+              "height": 1600,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The interface-hero view is recalled.",
+          "A high-resolution interface export is written."
+        ],
+        "manualCommands": [
+          "view interface-hero 35",
+          "preset publication 1",
+          "graphics silhouettes true color #222222 width 2.1"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-em-map-fit-demo",
+    "category": "workflow-recipes",
+    "title": "Cryo-EM Map Fit Review",
+    "goal": "Open a real local cryo-EM map with its fitted hemoglobin model, inspect mesh and orthoplanes, report the fit quality, and export a polished map-fit still.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "local cryo-EM map plus fitted model",
+    "task": "map fitting",
+    "estimatedMinutes": 9,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "8wj1",
+        "kind": "local",
+        "label": "Human oxy hemoglobin cryo-EM model",
+        "localPath": "./examples/data/local/8wj1.cif",
+        "remoteUrl": "https://files.rcsb.org/download/8WJ1.cif"
+      },
+      {
+        "id": "EMD-37575",
+        "kind": "local",
+        "label": "Human oxy hemoglobin cryo-EM map",
+        "localPath": "./examples/data/local/emd_37575.map",
+        "remoteUrl": "https://ftp.ebi.ac.uk/pub/databases/emdb/structures/EMD-37575/map/emd_37575.map.gz"
+      }
+    ],
+    "prompts": [
+      "Open the local hemoglobin cryo-EM model and map, then show a real map-fit review.",
+      "Inspect the map as mesh and orthoplanes, fit the model into the map, and report the fit quality briefly.",
+      "Export the polished map-fit result after the framing is clean."
+    ],
+    "checkpoints": [
+      "The local model and map are both open in ChimeraX.",
+      "Map fit is executed.",
+      "Map styles switch between mesh and orthoplanes.",
+      "Export is saved."
+    ],
+    "utterances": [
+      "Open the local cryo-EM hemoglobin model and map.",
+      "Show the map as mesh first and then switch to orthoplanes.",
+      "Fit the model into the map and tell me the fit quality.",
+      "Rotate around the fit a little before the export.",
+      "Return from orthoplanes to the mesh view.",
+      "Use the map hero preset after the fit looks right.",
+      "Store a named view for the fitted state.",
+      "Clip the front plane more tightly around the density.",
+      "Export the current map-fit view once the silhouette looks balanced.",
+      "Keep the model readable against the density before saving the still.",
+      "If a map is loaded, identify the map model first and then report the fit metric after the move.",
+      "Move from a cryo overview into an atomic cutaway while keeping the named views readable and reusable.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-local-map-and-model",
+        "title": "Open the local cryo-EM model and map.",
+        "summary": "Load the fitted hemoglobin model and its cryo-EM map, then switch the map to a clean mesh view.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "8wj1",
+            "path": "./examples/data/local/8wj1.cif"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "EMD-37575",
+            "path": "./examples/data/local/emd_37575.map"
+          },
+          {
+            "type": "style",
+            "selection": "#1",
+            "ribbon": true
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "bychain"
+          },
+          {
+            "type": "volume",
+            "action": "mesh",
+            "mapName": "#2",
+            "level": 0.021
+          }
+        ],
+        "checkpoints": [
+          "The cryo-EM map is visible as mesh with the model loaded beside it."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/8wj1.cif",
+          "open ./examples/data/local/emd_37575.map",
+          "cartoon #1",
+          "color #1 bychain cartoons",
+          "volume #2 style mesh level 0.021"
+        ]
+      },
+      {
+        "id": "fit-and-inspect",
+        "title": "Fit the model into the map and inspect the fit.",
+        "summary": "Run fitmap, move through mesh and orthoplane views, and store the fitted presentation framing.",
+        "actions": [
+          {
+            "type": "fit",
+            "mobile": "#1",
+            "map": "#2"
+          },
+          {
+            "type": "camera",
+            "action": "map_cutaway",
+            "selection": "#1"
+          },
+          {
+            "type": "volume",
+            "action": "orthoplanes",
+            "mapName": "#2"
+          },
+          {
+            "type": "volume",
+            "action": "mesh",
+            "mapName": "#2",
+            "level": 0.021
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "map-fit-hero"
+          }
+        ],
+        "checkpoints": [
+          "Fit executes cleanly and the map-fit-hero view is stored."
+        ],
+        "manualCommands": [
+          "fitmap #1 inMap #2",
+          "view #1 orient",
+          "turn y 20",
+          "turn x 12",
+          "volume #2 style image orthoplanes xyz",
+          "volume #2 style mesh level 0.021",
+          "view name map-fit-hero"
+        ]
+      },
+      {
+        "id": "presentation-export",
+        "title": "Apply a presentation preset and export.",
+        "summary": "Enable a publication-friendly preset and save the final map-fit image.",
+        "actions": [
+          {
+            "type": "view",
+            "action": "recall",
+            "name": "map-fit-hero",
+            "frames": 40
+          },
+          {
+            "type": "preset",
+            "name": "map_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2400,
+              "height": 1600,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "A map-fit export exists."
+        ],
+        "manualCommands": [
+          "view map-fit-hero 40",
+          "preset publication 1",
+          "graphics bgColor #F7F7F2"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-groel-cavity-tour",
+    "category": "workflow-recipes",
+    "title": "GroEL Cavity Tour",
+    "goal": "Open the GroEL chaperonin in ChimeraX, color its domain architecture, move into a cavity cutaway, and export a polished large-assembly still.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "large oligomeric assembly",
+    "task": "assembly cutaway walkthrough",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "1grl",
+        "kind": "local",
+        "label": "GroEL heptameric chaperonin ring",
+        "localPath": "./examples/data/local/1grl.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1GRL.pdb"
+      }
+    ],
+    "prompts": [
+      "Open GroEL and build a clean large-assembly demo in ChimeraX.",
+      "Color the domain architecture and reveal the folding cavity with a polished cutaway.",
+      "Store a global overview and a cavity hero view, then export the final still."
+    ],
+    "checkpoints": [
+      "The GroEL assembly is open and colored cleanly.",
+      "A named overview view is stored for the full ring.",
+      "A cavity-focused hero view is stored and exported cleanly."
+    ],
+    "utterances": [
+      "Open the local GroEL assembly.",
+      "Color the chains by chain first, then move into a cleaner assembly preset.",
+      "Highlight the apical domain in warmer tones and the equatorial domain in cooler tones.",
+      "Cut into the cavity with a clean front clip.",
+      "Save a named view for the full assembly.",
+      "Save another named view for the cavity cutaway.",
+      "Use the assembly preset before the export.",
+      "Tile the global and cavity views briefly, then return to the hero frame.",
+      "Capture the current cutaway and check that the silhouettes are clean.",
+      "Export the GroEL cavity still once the framing feels editorial.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-save-overview",
+        "title": "Open GroEL and establish the overview.",
+        "summary": "Load the local assembly, color by chain, apply the large-assembly preset, and save a global overview view.",
+        "actions": [
+          {
+            "type": "view",
+            "action": "delete"
+          },
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "1grl",
+            "path": "./examples/data/local/1grl.pdb"
+          },
+          {
+            "type": "color",
+            "selection": "#1",
+            "scheme": "bychain"
+          },
+          {
+            "type": "style",
+            "selection": "#1",
+            "ribbon": true
+          },
+          {
+            "type": "preset",
+            "name": "assembly_editorial"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "#1"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "groel-overview"
+          }
+        ],
+        "checkpoints": [
+          "GroEL is visible as a clean large assembly.",
+          "The groel-overview named view exists."
+        ],
+        "manualCommands": [
+          "view delete all",
+          "close all",
+          "open ./examples/data/local/1grl.pdb",
+          "color #1 bychain cartoons",
+          "cartoon #1",
+          "view #1 orient",
+          "view name groel-overview"
+        ]
+      },
+      {
+        "id": "color-domains-and-cutaway",
+        "title": "Color the domain architecture and reveal the cavity.",
+        "summary": "Color the GroEL apical, intermediate, and equatorial domains, clip into the cavity, and save the hero view.",
+        "actions": [
+          {
+            "type": "color",
+            "selection": ":191-376",
+            "color": "#E07A5F"
+          },
+          {
+            "type": "color",
+            "selection": ":134-190,377-408",
+            "color": "#95A78D"
+          },
+          {
+            "type": "color",
+            "selection": ":1-133,409-523",
+            "color": "#59728A"
+          },
+          {
+            "type": "camera",
+            "action": "view",
+            "selection": "#1"
+          },
+          {
+            "type": "camera",
+            "action": "clip",
+            "clipMode": "front",
+            "amount": 18
+          },
+          {
+            "type": "camera",
+            "action": "turn",
+            "axis": "y",
+            "amount": 22
+          },
+          {
+            "type": "camera",
+            "action": "turn",
+            "axis": "x",
+            "amount": 8
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "groel-cavity"
+          }
+        ],
+        "checkpoints": [
+          "The three GroEL domains are colored distinctly.",
+          "The cavity cutaway is visible and stored as groel-cavity."
+        ],
+        "manualCommands": [
+          "color :191-376 #E07A5F",
+          "color :134-190,377-408 #95A78D",
+          "color :1-133,409-523 #59728A",
+          "view #1 orient",
+          "clip front 18",
+          "turn y 22",
+          "turn x 8",
+          "view name groel-cavity"
+        ]
+      },
+      {
+        "id": "tile-recall-and-export",
+        "title": "Inspect the layout and export the cavity hero shot.",
+        "summary": "Briefly tile the view, return to the cavity hero framing, and export the final still.",
+        "actions": [
+          {
+            "type": "layout",
+            "mode": "tile"
+          },
+          {
+            "type": "layout",
+            "mode": "off"
+          },
+          {
+            "type": "view",
+            "action": "recall",
+            "name": "groel-cavity",
+            "frames": 35
+          },
+          {
+            "type": "preset",
+            "name": "assembly_editorial"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2600,
+              "height": 1700,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "The cavity hero view is recalled cleanly.",
+          "A polished GroEL still is exported."
+        ],
+        "manualCommands": [
+          "tile",
+          "tile off",
+          "view groel-cavity 35",
+          "preset publication 1"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-rosetta-style-design-review",
+    "category": "guided-tutorials",
+    "title": "Rosetta-Style Design Review",
+    "goal": "Review a scaffold-versus-design comparison in ChimeraX with semantic handles, remodeled-shell emphasis, exploded transforms, and a polished export.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "deep-dive",
+    "dataType": "scaffold plus design candidate",
+    "task": "rosetta-style design review",
+    "estimatedMinutes": 8,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "wt_scaffold",
+        "kind": "local",
+        "label": "Wild-type scaffold surrogate",
+        "localPath": "./examples/data/local/4ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4AKE.pdb"
+      },
+      {
+        "id": "rosetta_design_v2",
+        "kind": "local",
+        "label": "Rosetta-style design surrogate",
+        "localPath": "./examples/data/local/1ake.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/1AKE.pdb"
+      }
+    ],
+    "prompts": [
+      "Run a Rosetta-style scaffold-versus-design review in ChimeraX.",
+      "Use semantic handles so the scientist can say scaffold, design, partner, or whole complex without naming model numbers manually.",
+      "Store one overview, one remodeled-shell close-up, and one exploded comparison before exporting the final still."
+    ],
+    "checkpoints": [
+      "The scaffold and design surrogate are both open with semantic roles.",
+      "The design is aligned onto the scaffold and the remodeled shell is emphasized.",
+      "An exploded comparison moves only the design candidate, not the whole assembly.",
+      "A polished PNG export is written successfully."
+    ],
+    "utterances": [
+      "Open the scaffold and the design candidate in ChimeraX.",
+      "Align the design to the scaffold before we talk about the remodeled shell.",
+      "Highlight residues 118 through 160 on both structures and keep the design warmer.",
+      "Pull only the design candidate to the side for the exploded comparison.",
+      "Save a named view for the overview, the shell close-up, and the exploded comparison.",
+      "Use the semantic handles so I can say scaffold, design, or partner instead of model numbers.",
+      "Tell me the alignment score after the scaffold-versus-design overlay settles.",
+      "Export the final design-review still once the exploded shot reads clearly.",
+      "If I say whole complex, keep both models visible and move only the design candidate.",
+      "Bring the design back into the overlay after the exploded shot if I ask for it.",
+      "Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.",
+      "If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.",
+      "Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.",
+      "Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.",
+      "Translate partner A away from partner B, save that exploded view, then restore the packed interface.",
+      "Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.",
+      "Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.",
+      "Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.",
+      "For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.",
+      "For a design review, highlight only the remodeled shell or interface patch and keep the scaffold subdued.",
+      "If the scientist asks for a Rosetta-style review, focus on changed residues, packing, contacts, and clean before-after views.",
+      "If only partner chains exist inside one assembly, inspect state first and then use the chain-level semantic handles before moving anything.",
+      "Move the design candidate or binder away from the receptor for the exploded shot, then recall the interface view for the close-up.",
+      "Keep the receptor fixed, slide the binder out for the explanation, and then bring it back to the saved interface view.",
+      "Use partnerA and partnerB semantics when the scientist refers to the two sides of the complex instead of model numbers.",
+      "When a distance or torsion needs one atom per model, use scaffoldChainA, designChainA, binderChainA, or another chain-specific handle instead of a residue-only whole-model selector.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-scaffold-and-design",
+        "title": "Open the scaffold and design candidate with semantic roles.",
+        "summary": "Start from a clean ChimeraX workspace, open the scaffold plus design surrogate, and establish a restrained overview view.",
+        "actions": [
+          {
+            "type": "reset_workspace"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "wt_scaffold",
+            "path": "./examples/data/local/4ake.pdb",
+            "semanticRole": "scaffold",
+            "aliases": [
+              "scaffold",
+              "reference scaffold",
+              "wild-type scaffold"
+            ]
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "rosetta_design_v2",
+            "path": "./examples/data/local/1ake.pdb",
+            "semanticRole": "design",
+            "aliases": [
+              "design",
+              "design candidate",
+              "rosetta design"
+            ]
+          },
+          {
+            "type": "style",
+            "selection": {
+              "reference": "scaffoldModel"
+            },
+            "ribbon": true
+          },
+          {
+            "type": "style",
+            "selection": {
+              "reference": "designModel"
+            },
+            "ribbon": true
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "scaffoldModel"
+            },
+            "color": "slate gray"
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "designModel"
+            },
+            "color": "hot pink"
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "camera",
+            "action": "hero_frame",
+            "selection": "#1 | #2"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "design-overview"
+          }
+        ],
+        "checkpoints": [
+          "The scaffold and design are visible with distinct colors.",
+          "design-overview is stored as a named view."
+        ],
+        "manualCommands": [
+          "close all",
+          "view delete all",
+          "open ./examples/data/local/4ake.pdb",
+          "open ./examples/data/local/1ake.pdb",
+          "cartoon #1",
+          "cartoon #2",
+          "color #1 slate gray",
+          "color #2 hot pink",
+          "view name design-overview"
+        ]
+      },
+      {
+        "id": "align-and-shell",
+        "title": "Align the design to the scaffold and isolate the remodeled shell.",
+        "summary": "Overlay the design onto the scaffold, emphasize the remodeled shell, and save the focused comparison view.",
+        "actions": [
+          {
+            "type": "align",
+            "method": "matchmaker",
+            "mobile": {
+              "reference": "designModel"
+            },
+            "target": {
+              "reference": "scaffoldModel"
+            }
+          },
+          {
+            "type": "style",
+            "selection": {
+              "reference": "designModel",
+              "residues": [
+                "118-160"
+              ]
+            },
+            "atoms": "stick"
+          },
+          {
+            "type": "style",
+            "selection": {
+              "reference": "scaffoldModel",
+              "residues": [
+                "118-160"
+              ]
+            },
+            "atoms": "stick"
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "designModel",
+              "residues": [
+                "118-160"
+              ]
+            },
+            "color": "hot pink"
+          },
+          {
+            "type": "color",
+            "selection": {
+              "reference": "scaffoldModel",
+              "residues": [
+                "118-160"
+              ]
+            },
+            "color": "deepskyblue"
+          },
+          {
+            "type": "distance",
+            "selection1": {
+              "reference": "scaffoldChainA",
+              "residue": "136",
+              "atom": "CA"
+            },
+            "selection2": {
+              "reference": "designChainA",
+              "residue": "136",
+              "atom": "CA"
+            }
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "#1:118-160 | #2:118-160"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "design-shell"
+          }
+        ],
+        "checkpoints": [
+          "The design is aligned onto the scaffold.",
+          "Residues 118-160 are emphasized on both models.",
+          "design-shell is stored as a named view."
+        ],
+        "manualCommands": [
+          "matchmaker #2 to #1",
+          "style #2:118-160 stick",
+          "style #1:118-160 stick",
+          "color #2:118-160 hot pink",
+          "color #1:118-160 deepskyblue",
+          "distance #1/A:136@CA #2/A:136@CA",
+          "view name design-shell"
+        ]
+      },
+      {
+        "id": "explode-and-export-design",
+        "title": "Move only the design candidate for the exploded comparison and export it.",
+        "summary": "Translate and rotate the design candidate away from the scaffold, keep the scaffold anchored, and export the final design-review still.",
+        "actions": [
+          {
+            "type": "transform",
+            "mode": "translate",
+            "selection": {
+              "reference": "designModel"
+            },
+            "axis": "x",
+            "amount": 22
+          },
+          {
+            "type": "transform",
+            "mode": "rotate",
+            "selection": {
+              "reference": "designModel"
+            },
+            "axis": "y",
+            "amount": 22
+          },
+          {
+            "type": "camera",
+            "action": "comparison_frame",
+            "selection": "#1 | #2"
+          },
+          {
+            "type": "view",
+            "action": "save",
+            "name": "design-exploded"
+          },
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2600,
+              "height": 1700,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Only the design candidate is moved for the exploded comparison.",
+          "design-exploded is stored as a named view.",
+          "A high-resolution design-review PNG export exists."
+        ],
+        "manualCommands": [
+          "move x 22 models #2",
+          "turn y 22 center #2 models #2",
+          "view name design-exploded"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "chimerax-interface-contacts-analysis",
+    "category": "workflow-recipes",
+    "title": "Interface or Contacts Analysis",
+    "goal": "Open a multichain complex, isolate an interface, compute contacts and hydrogen bonds, and export the interface view.",
+    "apps": [
+      "chimerax"
+    ],
+    "difficulty": "operator",
+    "dataType": "multichain complex",
+    "task": "interface analysis",
+    "estimatedMinutes": 7,
+    "voiceMode": "push_to_talk",
+    "requiresConfirmation": false,
+    "lastVerified": "2026-04-04",
+    "sampleData": [
+      {
+        "id": "4hhb",
+        "kind": "local",
+        "label": "Human hemoglobin tetramer",
+        "localPath": "./examples/data/local/4hhb.pdb",
+        "remoteUrl": "https://files.rcsb.org/download/4HHB.pdb"
+      }
+    ],
+    "prompts": [
+      "Show an interface analysis in ChimeraX with 4HHB.",
+      "Isolate chains A and B, compute contacts, and style the interface surface.",
+      "Export the interface view when it is ready."
+    ],
+    "checkpoints": [
+      "4HHB is loaded and the A/B interface is isolated.",
+      "Contacts or hydrogen bonds are visible.",
+      "Interface surface and export are complete."
+    ],
+    "utterances": [
+      "Open 4HHB in ChimeraX.",
+      "Hide chains C and D and keep chains A and B.",
+      "Compute contacts across the A/B interface.",
+      "Show hydrogen bonds too.",
+      "Add a transparent surface to the interface.",
+      "Export the interface image.",
+      "Color chain A blue and chain B gold.",
+      "Center the camera on the A/B interface.",
+      "Turn on silhouettes for the interface export.",
+      "Save the interface shot after the contact pseudobonds appear.",
+      "Apply the light presentation preset before exporting this view.",
+      "Use a pocket hero frame and keep the interface clean.",
+      "Measure the torsion for the active-site side chain and report it briefly.",
+      "Save this camera as a named view so we can recall it later.",
+      "Recall the last saved view with a smooth transition.",
+      "Color the AlphaFold model by confidence with the standard palette.",
+      "Use softer lighting and thinner silhouettes for a cleaner still.",
+      "Export a higher-resolution hero frame once the scene is polished.",
+      "Clip the front plane a little more so the pocket reads clearly.",
+      "Clear the labels before the final export if they feel busy.",
+      "Capture the current viewport and check whether the hbonds are readable.",
+      "Turn on the biological assembly briefly, then return to the focused view.",
+      "Use a distance-only contact cutoff when you want a stricter interface view.",
+      "Open the local cryo-EM map and compare mesh against orthoplanes before exporting.",
+      "Save one named view for the global assembly and another for the focused interface.",
+      "After the fit or interface analysis runs, report the strongest numeric metric in one sentence.",
+      "Start from the biological assembly, then hand off to the interface without losing the saved overview.",
+      "Tell me which named views already exist before you recall one.",
+      "Clean up the contact network so only the interface story remains before the final export."
+    ],
+    "steps": [
+      {
+        "id": "open-and-isolate-interface",
+        "title": "Open hemoglobin and isolate chains A and B.",
+        "summary": "Load the tetramer and narrow the view to the A/B interface.",
+        "actions": [
+          {
+            "type": "close",
+            "target": "all"
+          },
+          {
+            "type": "open",
+            "source": "local",
+            "id": "4hhb",
+            "path": "./examples/data/local/4hhb.pdb"
+          },
+          {
+            "type": "visibility",
+            "mode": "hide",
+            "selection": "/C,D"
+          },
+          {
+            "type": "color",
+            "selection": "/A",
+            "color": "royalblue"
+          },
+          {
+            "type": "color",
+            "selection": "/B",
+            "color": "goldenrod"
+          },
+          {
+            "type": "camera",
+            "action": "view",
+            "selection": "/A,B"
+          }
+        ],
+        "checkpoints": [
+          "Only chains A and B remain emphasized."
+        ],
+        "manualCommands": [
+          "close all",
+          "open ./examples/data/local/4hhb.pdb",
+          "hide /C,D",
+          "color /A royalblue",
+          "color /B goldenrod",
+          "view /A,B"
+        ]
+      },
+      {
+        "id": "compute-contacts",
+        "title": "Compute interface contacts and hydrogen bonds.",
+        "summary": "Run contact and hydrogen bond analysis across the chain interface.",
+        "actions": [
+          {
+            "type": "contacts",
+            "mode": "contacts",
+            "selection1": "/A",
+            "selection2": "/B",
+            "distance": 4
+          },
+          {
+            "type": "contacts",
+            "mode": "hbonds",
+            "selection1": "/A",
+            "selection2": "/B"
+          },
+          {
+            "type": "style",
+            "selection": "(/A & /B :< 4) | (/B & /A :< 4)",
+            "surface": true,
+            "transparency": 60
+          }
+        ],
+        "checkpoints": [
+          "Interface pseudobonds and surface are visible."
+        ],
+        "manualCommands": [
+          "contacts /A restrict /B distanceOnly 4.0 reveal true showDist true",
+          "hbonds /A restrict /B reveal true showDist true",
+          "surface (/A & /B :< 4) | (/B & /A :< 4)",
+          "transparency (/A & /B :< 4) | (/B & /A :< 4) 60 target s"
+        ]
+      },
+      {
+        "id": "export-interface",
+        "title": "Apply the clean preset and export the interface.",
+        "summary": "Use a silhouette presentation preset and save the interface shot.",
+        "actions": [
+          {
+            "type": "preset",
+            "name": "comparison_hero"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1500,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Interface export is saved."
+        ],
+        "manualCommands": [
+          "graphics silhouettes true"
+        ]
+      }
+    ]
+  }
+]

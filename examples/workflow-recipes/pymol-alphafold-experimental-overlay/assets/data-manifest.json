@@ -1,0 +1,26 @@
+{
+  "id": "pymol-alphafold-experimental-overlay",
+  "title": "AlphaFold Experimental Overlay",
+  "sampleData": [
+    {
+      "id": "4hhb",
+      "kind": "local",
+      "label": "Human deoxy hemoglobin tetramer",
+      "localPath": "./examples/data/local/4hhb.pdb",
+      "remoteUrl": "https://files.rcsb.org/download/4HHB.pdb"
+    },
+    {
+      "id": "P69905",
+      "kind": "alphafold",
+      "label": "AlphaFold hemoglobin alpha chain",
+      "localPath": "./examples/data/local/af-p69905.pdb",
+      "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-P69905-F1-model_v6.pdb"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

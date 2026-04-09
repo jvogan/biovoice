@@ -1,0 +1,19 @@
+{
+  "id": "chimerax-alphafold-confidence-review",
+  "title": "AlphaFold Confidence Review",
+  "sampleData": [
+    {
+      "id": "Q9H255",
+      "kind": "alphafold",
+      "label": "AlphaFold Q9H255 model",
+      "localPath": "./examples/data/local/af-q9h255.pdb",
+      "remoteUrl": "https://alphafold.ebi.ac.uk/files/AF-Q9H255-F1-model_v6.pdb"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

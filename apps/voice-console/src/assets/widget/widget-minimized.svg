@@ -1,0 +1,42 @@
+<svg width="244" height="58" viewBox="0 0 244 58" fill="none" xmlns="http://www.w3.org/2000/svg" shape-rendering="geometricPrecision" text-rendering="geometricPrecision">
+  <defs>
+    <linearGradient id="mini-shell" x1="122" y1="0" x2="122" y2="58">
+      <stop offset="0%" stop-color="#14161B" />
+      <stop offset="100%" stop-color="#08090D" />
+    </linearGradient>
+    <linearGradient id="mini-inner" x1="122" y1="8" x2="122" y2="50">
+      <stop offset="0%" stop-color="#111821" />
+      <stop offset="100%" stop-color="#0D1118" />
+    </linearGradient>
+    <linearGradient id="mini-window" x1="0" y1="0" x2="0" y2="16">
+      <stop offset="0%" stop-color="#20262D" />
+      <stop offset="100%" stop-color="#12161B" />
+    </linearGradient>
+  </defs>
+  <rect width="244" height="58" rx="29" fill="url(#mini-shell)" stroke="rgba(255,255,255,0.08)" stroke-width="1" />
+  <rect x="3.5" y="3.5" width="237" height="51" rx="25.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-opacity="0.24" stroke-width="0.8" />
+  <rect x="8" y="8" width="228" height="42" rx="21" fill="url(#mini-inner)" stroke="rgba(0,0,0,0.38)" stroke-opacity="0.18" stroke-width="0.7" />
+  <rect x="9.2" y="9.2" width="225.6" height="39.6" rx="19.8" fill="none" stroke="rgba(255,255,255,0.08)" stroke-opacity="0.12" stroke-width="0.8" />
+  <path d="M18 15H226" stroke="rgba(255,255,255,0.08)" stroke-opacity="0.16" stroke-width="0.8" stroke-linecap="round" />
+  <circle id="mini-target-indicator" cx="24" cy="29" r="5" fill="#ECC94B" />
+  <circle id="mini-status-led" cx="34" cy="29" r="4.5" fill="#F56565" />
+  <text id="mini-target-status" x="48" y="33.2" font-family="monospace" font-size="12.2" font-weight="bold" fill="#EAF0FA">PYMOL • OFFLINE</text>
+
+  <g id="btn-mini-talk" transform="translate(174, 29)" cursor="pointer">
+    <circle r="14" fill="#4FD1C5" opacity="0.12" />
+    <circle r="13.5" fill="none" stroke="rgba(255,255,255,0.08)" stroke-opacity="0.2" />
+    <path d="M0 -5.2C-1.8 -5.2 -3.2 -3.8 -3.2 -2V2C-3.2 3.8 -1.8 5.2 0 5.2C1.8 5.2 3.2 3.8 3.2 2V-2C3.2 -3.8 1.8 -5.2 0 -5.2Z" stroke="#EAF0FA" stroke-width="1.8" />
+    <path d="M-4.8 1.3V3C-4.8 6 -2.7 7.9 0 7.9C2.7 7.9 4.8 6 4.8 3V1.3" stroke="#EAF0FA" stroke-width="1.8" />
+    <path d="M0 7.9V10.4M-3.3 10.4H3.3" stroke="#EAF0FA" stroke-width="1.8" />
+  </g>
+
+  <g id="btn-restore" transform="translate(198, 19)" cursor="pointer">
+    <rect width="16" height="16" rx="8" fill="url(#mini-window)" stroke="rgba(255,255,255,0.08)" stroke-width="0.8" />
+    <path d="M4.8 8H11.2M8 4.8V11.2" stroke="#EAF0FA" opacity="0.58" stroke-width="1.2" stroke-linecap="round" />
+  </g>
+
+  <g id="btn-mini-close" transform="translate(218, 19)" cursor="pointer">
+    <rect width="16" height="16" rx="8" fill="url(#mini-window)" stroke="rgba(255,255,255,0.08)" stroke-width="0.8" />
+    <path d="M5 5L11 11M11 5L5 11" stroke="#F56565" stroke-width="1.25" stroke-linecap="round" />
+  </g>
+</svg>

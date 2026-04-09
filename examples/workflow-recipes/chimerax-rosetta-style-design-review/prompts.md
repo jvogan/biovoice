@@ -1,0 +1,53 @@
+# Rosetta-Style Design Review Prompts
+
+## Starter Prompts
+- Run a Rosetta-style scaffold-versus-design review in ChimeraX.
+- Use semantic handles so the scientist can say scaffold, design, partner, or whole complex without naming model numbers manually.
+- Store one overview, one remodeled-shell close-up, and one exploded comparison before exporting the final still.
+
+## Reusable Spoken Utterances
+- Open the scaffold and the design candidate in ChimeraX.
+- Align the design to the scaffold before we talk about the remodeled shell.
+- Highlight residues 118 through 160 on both structures and keep the design warmer.
+- Pull only the design candidate to the side for the exploded comparison.
+- Save a named view for the overview, the shell close-up, and the exploded comparison.
+- Use the semantic handles so I can say scaffold, design, or partner instead of model numbers.
+- Tell me the alignment score after the scaffold-versus-design overlay settles.
+- Export the final design-review still once the exploded shot reads clearly.
+- If I say whole complex, keep both models visible and move only the design candidate.
+- Bring the design back into the overlay after the exploded shot if I ask for it.
+- Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.
+- If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.
+- Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.
+- Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.
+- Translate partner A away from partner B, save that exploded view, then restore the packed interface.
+- Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.
+- Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.
+- Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.
+- For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.
+- For a design review, highlight only the remodeled shell or interface patch and keep the scaffold subdued.
+- If the scientist asks for a Rosetta-style review, focus on changed residues, packing, contacts, and clean before-after views.
+- If only partner chains exist inside one assembly, inspect state first and then use the chain-level semantic handles before moving anything.
+- Move the design candidate or binder away from the receptor for the exploded shot, then recall the interface view for the close-up.
+- Keep the receptor fixed, slide the binder out for the explanation, and then bring it back to the saved interface view.
+- Use partnerA and partnerB semantics when the scientist refers to the two sides of the complex instead of model numbers.
+- When a distance or torsion needs one atom per model, use scaffoldChainA, designChainA, binderChainA, or another chain-specific handle instead of a residue-only whole-model selector.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.

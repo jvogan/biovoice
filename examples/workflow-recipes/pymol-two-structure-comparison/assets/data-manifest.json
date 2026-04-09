@@ -1,0 +1,26 @@
+{
+  "id": "pymol-two-structure-comparison",
+  "title": "Two-Structure Comparison",
+  "sampleData": [
+    {
+      "id": "1ake",
+      "kind": "local",
+      "label": "Adenylate kinase open",
+      "localPath": "./examples/data/local/1ake.pdb",
+      "remoteUrl": "https://files.rcsb.org/download/1AKE.pdb"
+    },
+    {
+      "id": "4ake",
+      "kind": "local",
+      "label": "Adenylate kinase closed",
+      "localPath": "./examples/data/local/4ake.pdb",
+      "remoteUrl": "https://files.rcsb.org/download/4AKE.pdb"
+    }
+  ],
+  "checkpointCaptures": [
+    "hero.png",
+    "checkpoint-1.png",
+    "checkpoint-2.png"
+  ],
+  "generatedBy": "scripts/generate-example-files.ts"
+}

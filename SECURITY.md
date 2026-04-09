@@ -1,0 +1,32 @@
+# Security Policy
+
+## Supported Versions
+
+| Version | Supported          |
+| ------- | ------------------ |
+| 0.1.x   | Yes                |
+
+## Reporting a Vulnerability
+
+If you discover a security vulnerability, please report it responsibly:
+
+1. **Do not** open a public GitHub issue for security vulnerabilities
+2. Use GitHub private vulnerability reporting if it is enabled for the repository
+3. If private reporting is unavailable, use the contact address listed on the maintainer GitHub profile
+4. If no private address is available, open a minimal public issue requesting a private contact channel without posting sensitive details
+5. Include steps to reproduce if possible
+
+You should receive a response within 72 hours. We will work with you to understand and address the issue before any public disclosure.
+
+## Security Considerations
+
+BioVoice runs as a local server on your machine. Be aware of the following:
+
+- **API keys**: Your `OPENAI_API_KEY` is stored in `.env` and never sent to any service other than OpenAI. Never commit `.env` to version control.
+- **Network binding**: The server binds to `127.0.0.1` by default (localhost only). Remote access is rejected unless you explicitly set `ALLOW_REMOTE_CLIENTS=true`.
+- **LAN access**: If you intentionally expose the service on your LAN, set `HOST=0.0.0.0`, `ALLOW_REMOTE_CLIENTS=true`, and use `REMOTE_ACCESS_TOKEN` or the generated access URL printed at startup. `LOCAL_BROWSER_ORIGINS` only controls which browser origins may make cross-origin requests after that access token is presented.
+- **File access**: Structure loading and export paths are restricted to configured allowed roots (`STRUCTURE_ALLOWED_PATHS`, `EXPORT_ALLOWED_PATHS`). The server will reject paths outside these roots.
+- **Raw commands**: The `raw_command` action type is disabled by default. It is gated behind both `ENABLE_EXPERT_RAW_COMMANDS=true` (server-side) and a per-session `advancedMode` flag. When enabled, the AI model can execute arbitrary PyMOL Python or ChimeraX commands — including file I/O and network operations within those applications. Only enable this in environments where you trust all voice input.
+- **CORS**: The server restricts browser access to localhost origins by default. Additional trusted origins can be added via `LOCAL_BROWSER_ORIGINS`.
+- **Local retention**: Session event logs, transcripts, captures, workflow exports, and runtime logs may be written to `.runtime/` or `output/` depending on the feature path and retention settings. Review the `RUNTIME_*` knobs in `.env` and run `npm run cleanup:runtime` before sharing a machine snapshot.
+- **Screenshots and bug reports**: Browser URLs, workflow inputs, target endpoints, and transcript text may appear in screenshots or logs. Redact those details before filing public issues.
