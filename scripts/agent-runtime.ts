@@ -10,6 +10,7 @@ import {
   cleanupRuntimeArtifacts,
   getRuntimeCleanupOptions,
   resolveScientificWorkflowRecipeId,
+  resolvePublicBaseUrlOrigin,
   resolveFromRoot,
   scientificWorkflowRequestSchema,
   scientificWorkflowKinds,
@@ -113,7 +114,11 @@ const defaultPort = Number(process.env.PORT ?? "3000");
 const configuredHost = process.env.HOST ?? "127.0.0.1";
 const localAppHost = configuredHost === "0.0.0.0" ? "127.0.0.1" : configuredHost;
 const managedAppUrl = `http://${localAppHost}:${defaultPort}`;
-const publicAppUrl = process.env.PUBLIC_BASE_URL ?? `http://localhost:${defaultPort}`;
+const publicAppUrl = resolvePublicBaseUrlOrigin({
+  configuredPublicBaseUrl: process.env.PUBLIC_BASE_URL,
+  listenHost: configuredHost,
+  port: defaultPort,
+});
 const command = process.argv[2];
 const cli = parseCliArgs(process.argv.slice(3));
 const targetArg = cli.target;

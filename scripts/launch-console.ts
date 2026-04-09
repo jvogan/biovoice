@@ -5,6 +5,7 @@ import { promisify } from "node:util";
 import {
   buildScientificWorkflowUrl,
   getScientificWorkflowSpec,
+  resolvePublicBaseUrlOrigin,
   resolveScientificWorkflowRecipeId,
   scientificWorkflowKinds,
   type ScientificLaunchInputs,
@@ -16,6 +17,10 @@ const npmCommand = process.platform === "win32" ? "npm.cmd" : "npm";
 const projectRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 type TargetKind = "pymol" | "chimerax";
+type StartOutput = {
+  url?: string;
+  recommendedUrl?: string;
+};
 
 async function main() {
   const [targetArg, ...rest] = process.argv.slice(2);
@@ -31,7 +36,12 @@ async function main() {
   const launchInputs = parsed.scientificInputs;
 
   const query = new URLSearchParams();
-  const url = buildScientificWorkflowUrl("http://localhost:3000", {
+  const fallbackBaseUrl = resolvePublicBaseUrlOrigin({
+    configuredPublicBaseUrl: process.env.PUBLIC_BASE_URL,
+    listenHost: process.env.HOST ?? "127.0.0.1",
+    port: Number(process.env.PORT ?? "3000"),
+  });
+  const url = buildScientificWorkflowUrl(fallbackBaseUrl, {
     target,
     recipeId,
     workflowId,
@@ -70,8 +80,13 @@ async function main() {
     env: process.env,
   });
 
-  const reportedUrl = parseRecommendedUrl(started.stdout);
-  const launchUrl = reportedUrl ?? `http://localhost:3000/?${query.toString()}`;
+  const reported = parseStartOutput(started.stdout);
+  const launchOrigin = reported.recommendedUrl
+    ? new URL(reported.recommendedUrl).origin
+    : reported.url
+      ? new URL(reported.url).origin
+      : fallbackBaseUrl;
+  const launchUrl = reported.recommendedUrl ?? `${launchOrigin}/?${query.toString()}`;
   if (!parsed.overlay) {
     await execFileAsync("open", [launchUrl]);
   }
@@ -91,13 +106,44 @@ function normalizeTarget(value: string | undefined): TargetKind | null {
   return null;
 }
 
-function parseRecommendedUrl(stdout: string): string | null {
-  try {
-    const parsed = JSON.parse(stdout) as { recommendedUrl?: string };
-    return parsed.recommendedUrl ?? null;
-  } catch {
-    return null;
+function parseStartOutput(stdout: string): StartOutput {
+  const trimmed = stdout.trim();
+  if (!trimmed) {
+    return {};
   }
+
+  const jsonPayload = extractTrailingJsonPayload(trimmed);
+  if (!jsonPayload) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(jsonPayload) as StartOutput;
+  } catch {
+    return {};
+  }
+}
+
+function extractTrailingJsonPayload(stdout: string): string | null {
+  if (stdout.startsWith("{") || stdout.startsWith("[")) {
+    return stdout;
+  }
+
+  const objectIndex = stdout.lastIndexOf("\n{");
+  const arrayIndex = stdout.lastIndexOf("\n[");
+  const startIndex = Math.max(objectIndex, arrayIndex);
+  if (startIndex >= 0) {
+    return stdout.slice(startIndex + 1).trim();
+  }
+
+  const fallbackObjectIndex = stdout.lastIndexOf("{");
+  const fallbackArrayIndex = stdout.lastIndexOf("[");
+  const fallbackStartIndex = Math.max(fallbackObjectIndex, fallbackArrayIndex);
+  if (fallbackStartIndex >= 0) {
+    return stdout.slice(fallbackStartIndex).trim();
+  }
+
+  return null;
 }
 
 function parseLaunchFlags(flags: string[]): {

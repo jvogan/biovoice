@@ -60,7 +60,18 @@ describe("scientific workflow helpers", () => {
     expect(command).toContain("--scorefile ./score.sc");
     expect(command).toContain("--top-n 5");
     expect(command).toContain("--overlay");
+    expect(command).not.toContain("--widget");
     expect(command).not.toContain("--autoconnect");
+  });
+
+  it("keeps explicit recipe launches in the generated agent command", () => {
+    const command = buildScientificLaunchCommand({
+      target: "pymol",
+      recipeId: "pymol-binding-pocket-story",
+    });
+
+    expect(command).toContain("--recipe pymol-binding-pocket-story");
+    expect(command).not.toContain("--widget");
   });
 
   it("ranks only available candidate recipes for the active target", () => {

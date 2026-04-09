@@ -1,4 +1,5 @@
 import {
+  buildScientificLaunchCommand,
   buildScientificWorkflowUrl,
   type ScientificLaunchInputs,
 } from "../../../../packages/runtime-and-adapters/src/examples/scientific-workflows.js";
@@ -67,7 +68,10 @@ export function buildStartPathOptions(input: {
     recipeId: input.recipeId,
     workflowId: input.workflowId,
     scientificInputs: input.scientificInputs,
-    widget: input.widgetEnabled ?? true,
+    audience: false,
+    voice: undefined,
+    advanced: false,
+    overlay: false,
   });
   const guidedUrl = buildScientificWorkflowUrl(input.baseUrl ?? "http://localhost:3000", {
     target: input.target,
@@ -127,27 +131,6 @@ export function buildStartPathOptions(input: {
       ],
     },
   ];
-}
-
-function buildScientificLaunchCommand(input: {
-  target: "pymol" | "chimerax";
-  recipeId?: string;
-  workflowId?: ScientificWorkflowKind;
-  scientificInputs?: ScientificLaunchInputs;
-  widget?: boolean;
-}): string {
-  const parts = ["npm run agent:start --", input.target];
-  if (input.recipeId) {
-    parts.push("--recipe", input.recipeId);
-  }
-  if (input.workflowId) {
-    parts.push("--workflow", input.workflowId);
-  }
-  appendScientificArgs(parts, input.scientificInputs);
-  if (input.widget) {
-    parts.push("--widget");
-  }
-  return parts.join(" ");
 }
 
 function buildRehearsalCommand(input: {

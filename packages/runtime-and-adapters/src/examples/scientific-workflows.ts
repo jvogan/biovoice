@@ -304,6 +304,9 @@ export function buildScientificWorkflowUrl(
 
 export function buildScientificLaunchCommand(launch: ScientificWorkflowLaunch): string {
   const parts = ["npm run agent:start --", launch.target];
+  if (launch.recipeId) {
+    parts.push("--recipe", launch.recipeId);
+  }
   if (launch.workflowId) {
     parts.push("--workflow", launch.workflowId);
   }

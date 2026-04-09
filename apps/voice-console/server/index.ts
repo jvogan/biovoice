@@ -15,6 +15,7 @@ import {
   getScientificWorkflowCatalog,
   getRecipe,
   RealtimeSessionRegistry,
+  resolvePublicBaseUrlOrigin,
   resolveFromRoot,
   scientificWorkflowRequestSchema,
   targetKindSchema,
@@ -246,8 +247,11 @@ const serverStartedAt = new Date().toISOString();
 
 const port = Number(process.env.PORT ?? 3000);
 const listenHost = process.env.HOST ?? "127.0.0.1";
-const publicHost = listenHost === "0.0.0.0" ? "localhost" : listenHost;
-const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? `http://${publicHost}:${port}`;
+const publicBaseUrl = resolvePublicBaseUrlOrigin({
+  configuredPublicBaseUrl: process.env.PUBLIC_BASE_URL,
+  listenHost,
+  port,
+});
 const allowRemoteClients = process.env.ALLOW_REMOTE_CLIENTS === "true";
 const remoteAccessToken = allowRemoteClients
   ? (process.env.REMOTE_ACCESS_TOKEN?.trim() || crypto.randomUUID())
