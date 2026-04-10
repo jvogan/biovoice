@@ -12,7 +12,7 @@ Checkpoints:
 - A clean overview scene is stored.
 
 Direct command equivalents:
-- `delete all`
+- `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
 - `set ray_opaque_background, off`

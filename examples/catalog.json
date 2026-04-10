@@ -846,9 +846,9 @@
         ]
       },
       {
-        "id": "hero-export",
-        "title": "Frame the hero shot and export it.",
-        "summary": "Orient the tetramer, store the scene, and export a ray-traced PNG.",
+        "id": "frame-hero-shot",
+        "title": "Frame the hero shot and store the scene.",
+        "summary": "Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.",
         "actions": [
           {
             "type": "camera",
@@ -865,19 +865,10 @@
             "action": "store",
             "key": "F6",
             "message": "Hemoglobin presentation view"
-          },
-          {
-            "type": "export",
-            "export": {
-              "width": 2200,
-              "height": 1600,
-              "rayTrace": true,
-              "format": "png"
-            }
           }
         ],
         "checkpoints": [
-          "Scene F6 is stored and a figure export exists."
+          "Scene F6 is stored for the final hemoglobin presentation view."
         ],
         "manualCommands": [
           "center 4hhb",
@@ -887,6 +878,33 @@
           "zoom 4hhb, 8",
           "bg_color white",
           "scene F6, store, Hemoglobin presentation view"
+        ]
+      },
+      {
+        "id": "export-hero-shot",
+        "title": "Export the final hemoglobin presentation PNG.",
+        "summary": "Recall the stored hero scene and write the final high-resolution PNG after the framing settles.",
+        "actions": [
+          {
+            "type": "scene",
+            "action": "recall",
+            "key": "F6"
+          },
+          {
+            "type": "export",
+            "export": {
+              "width": 2200,
+              "height": 1600,
+              "rayTrace": false,
+              "format": "png"
+            }
+          }
+        ],
+        "checkpoints": [
+          "Scene F6 is stored and a figure export exists."
+        ],
+        "manualCommands": [
+          "scene F6, recall"
         ]
       }
     ]

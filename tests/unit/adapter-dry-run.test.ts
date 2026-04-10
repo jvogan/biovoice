@@ -50,7 +50,7 @@ describe("adapter dry-run compilation", () => {
     const chimeraxResult = await chimerax.execute([{ type: "reset_workspace" }], true);
 
     expect(pymolResult.commandsExecuted).toEqual(expect.arrayContaining([
-      "delete all",
+      "reinitialize",
       "scene *, clear",
       "bg_color gray99",
     ]));

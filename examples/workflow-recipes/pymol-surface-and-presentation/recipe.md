@@ -10,7 +10,7 @@ Checkpoints:
 - Hemoglobin is visible as cartoon with heme groups shown.
 
 Direct command equivalents:
-- `delete all`
+- `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
 - `set ray_opaque_background, off`
@@ -88,14 +88,14 @@ Direct command equivalents:
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
 
-## Step 3: Frame the hero shot and export it.
+## Step 3: Frame the hero shot and store the scene.
 
-**Suggested voice request:** Orient the tetramer, store the scene, and export a ray-traced PNG.
+**Suggested voice request:** Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
 
-Orient the tetramer, store the scene, and export a ray-traced PNG.
+Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
 
 Checkpoints:
-- Scene F6 is stored and a figure export exists.
+- Scene F6 is stored for the final hemoglobin presentation view.
 
 Direct command equivalents:
 - `center 4hhb`
@@ -129,4 +129,16 @@ Direct command equivalents:
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
 - `scene F6, store, Hemoglobin presentation view`
-- `png "./output/doc-exports/pymol-surface-and-presentation-hero-export.png", width=2200, height=1600, dpi=350, ray=1`
+
+## Step 4: Export the final hemoglobin presentation PNG.
+
+**Suggested voice request:** Recall the stored hero scene and write the final high-resolution PNG after the framing settles.
+
+Recall the stored hero scene and write the final high-resolution PNG after the framing settles.
+
+Checkpoints:
+- Scene F6 is stored and a figure export exists.
+
+Direct command equivalents:
+- `scene F6, recall`
+- `png "./output/doc-exports/pymol-surface-and-presentation-export-hero-shot.png", width=2200, height=1600, dpi=350, ray=0`

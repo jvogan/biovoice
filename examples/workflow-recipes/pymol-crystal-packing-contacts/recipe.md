@@ -11,7 +11,7 @@ Checkpoints:
 - The light presentation preset is active.
 
 Direct command equivalents:
-- `delete all`
+- `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
 - `set ray_opaque_background, off`

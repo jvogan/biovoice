@@ -10,7 +10,7 @@ Checkpoints:
 - The structure is loaded and a density mesh is visible.
 
 Direct command equivalents:
-- `delete all`
+- `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
 - `set ray_opaque_background, off`

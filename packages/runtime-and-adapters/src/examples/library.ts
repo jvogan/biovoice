@@ -539,16 +539,15 @@ export const exampleCatalog: RecipeManifest[] = recipeManifestSchema.array().par
         ],
       },
       {
-        id: "hero-export",
-        title: "Frame the hero shot and export it.",
-        summary: "Orient the tetramer, store the scene, and export a ray-traced PNG.",
+        id: "frame-hero-shot",
+        title: "Frame the hero shot and store the scene.",
+        summary: "Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.",
         actions: [
           { type: "camera", action: "hero_frame", selection: "4hhb", buffer: 8 },
           { type: "preset", name: "presentation_light" },
           { type: "scene", key: "F6", action: "store", message: "Hemoglobin presentation view" },
-          { type: "export", export: { format: "png", width: 2200, height: 1600, rayTrace: true } },
         ],
-        checkpoints: ["Scene F6 is stored and a figure export exists."],
+        checkpoints: ["Scene F6 is stored for the final hemoglobin presentation view."],
         manualCommands: [
           "center 4hhb",
           "orient 4hhb",
@@ -557,6 +556,19 @@ export const exampleCatalog: RecipeManifest[] = recipeManifestSchema.array().par
           "zoom 4hhb, 8",
           "bg_color white",
           "scene F6, store, Hemoglobin presentation view",
+        ],
+      },
+      {
+        id: "export-hero-shot",
+        title: "Export the final hemoglobin presentation PNG.",
+        summary: "Recall the stored hero scene and write the final high-resolution PNG after the framing settles.",
+        actions: [
+          { type: "scene", key: "F6", action: "recall" },
+          { type: "export", export: { format: "png", width: 2200, height: 1600, rayTrace: false } },
+        ],
+        checkpoints: ["Scene F6 is stored and a figure export exists."],
+        manualCommands: [
+          "scene F6, recall",
         ],
       },
     ],

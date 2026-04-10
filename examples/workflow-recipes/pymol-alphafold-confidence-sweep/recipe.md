@@ -11,7 +11,7 @@ Checkpoints:
 - Scene F10 stores the confidence-colored overview.
 
 Direct command equivalents:
-- `delete all`
+- `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
 - `set ray_opaque_background, off`

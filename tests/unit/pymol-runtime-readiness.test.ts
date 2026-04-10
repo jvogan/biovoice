@@ -122,6 +122,59 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     ]));
   });
 
+  it("uses an extended post-export recovery window for ray-traced surface renders", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    }) as unknown as {
+      execute: (actions: Array<Record<string, unknown>>, dryRun?: boolean) => Promise<{
+        commandsExecuted: string[];
+        warnings: string[];
+      }>;
+      ensureReady: () => Promise<string>;
+      resolveReferenceHintsForActions: () => Promise<Record<string, never>>;
+      callDo: () => Promise<void>;
+      callPngExport: () => Promise<void>;
+      waitForSpecificRpcUrl: (
+        rpcUrl: string,
+        timeoutMs: number,
+        options?: { requiredConsecutivePasses?: number; coldStartOnSuccess?: boolean },
+      ) => Promise<string | null>;
+      collectStateSummary: () => Promise<Record<string, unknown>>;
+      collectScientificMetrics: () => Promise<unknown[]>;
+    };
+
+    let recoveryTimeoutMs = 0;
+    let recoveryPasses = 0;
+    adapter.ensureReady = async () => "http://127.0.0.1:9123/RPC2";
+    adapter.resolveReferenceHintsForActions = async () => ({});
+    adapter.callDo = async () => {};
+    adapter.callPngExport = async () => {};
+    adapter.waitForSpecificRpcUrl = async (_rpcUrl, timeoutMs, options) => {
+      recoveryTimeoutMs = timeoutMs;
+      recoveryPasses = options?.requiredConsecutivePasses ?? 0;
+      return "http://127.0.0.1:9123/RPC2";
+    };
+    adapter.collectStateSummary = async () => ({});
+    adapter.collectScientificMetrics = async () => [];
+
+    const result = await adapter.execute([
+      { type: "surface", selection: "polymer.protein", transparency: 0.55, color: "gray70" },
+      { type: "scene", key: "F6", action: "store", message: "Hemoglobin presentation view" },
+      { type: "export", export: { format: "png", width: 2200, height: 1600, rayTrace: true } },
+    ]);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      "show surface, polymer.protein",
+      "scene F6, store, Hemoglobin presentation view",
+    ]));
+    expect(recoveryTimeoutMs).toBe(30_000);
+    expect(recoveryPasses).toBe(2);
+  });
+
   it("reports stabilization timeouts without falsely declaring the pinned endpoint dead", async () => {
     const adapter = new PymolAdapter({
       rpcUrl: "http://127.0.0.1:9123/RPC2",
@@ -147,6 +200,37 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     await expect(adapter.waitUntilCommandReady(30_000)).rejects.not.toThrow(
       /stopped responding|restart the managed pymol target/i,
     );
+  });
+
+  it("uses a single certification pass when the pinned endpoint was recently validated", async () => {
+    const adapter = new PymolAdapter({
+      rpcUrl: "http://127.0.0.1:9123/RPC2",
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    }) as unknown as {
+      waitUntilCommandReady: (timeoutMs?: number) => Promise<string>;
+      waitForSpecificRpcUrl: (
+        rpcUrl: string,
+        timeoutMs: number,
+        options?: { requiredConsecutivePasses?: number; coldStartOnSuccess?: boolean },
+      ) => Promise<string | null>;
+      lastCommandReadyUrl?: string;
+      lastValidatedAt?: string;
+    };
+
+    let requestedPasses = 0;
+    adapter.lastCommandReadyUrl = "http://127.0.0.1:9123/RPC2";
+    adapter.lastValidatedAt = new Date().toISOString();
+    adapter.waitForSpecificRpcUrl = async (_rpcUrl, _timeoutMs, options) => {
+      requestedPasses = options?.requiredConsecutivePasses ?? 0;
+      return "http://127.0.0.1:9123/RPC2";
+    };
+
+    await expect(adapter.waitUntilCommandReady(30_000)).resolves.toBe("http://127.0.0.1:9123/RPC2");
+    expect(requestedPasses).toBe(1);
   });
 
   it("collects a lightweight state summary without issuing atom-count probes", async () => {

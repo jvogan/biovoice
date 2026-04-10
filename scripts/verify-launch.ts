@@ -125,9 +125,11 @@ async function verifyManagedTarget(
     const postBrowserRecipeCheck = options.runBrowserSmoke && target === "pymol"
       ? await runManagedRecipeCheck(target, startResult, "post-browser-repeat")
       : undefined;
+    const supplementalRecipeChecks = await runSupplementalRecipeChecks(target, startResult, "post-browser-supplemental");
     startResult = await restartManagedTarget(target, options.skipBuildOnStart);
     const restartRouteChecks = await runManagedRouteChecks(target, startResult);
     const restartLiveRecipeCheck = await runManagedRecipeCheck(target, startResult, "post-restart");
+    const restartSupplementalRecipeChecks = await runSupplementalRecipeChecks(target, startResult, "post-restart-supplemental");
 
     completed = true;
     return {
@@ -146,6 +148,7 @@ async function verifyManagedTarget(
       launchPageSmoke,
       browserSmoke,
       postBrowserRecipeCheck,
+      supplementalRecipeChecks,
       restart: {
         url: startResult.url,
         recommendedUrl: startResult.recommendedUrl ?? null,
@@ -155,6 +158,7 @@ async function verifyManagedTarget(
       },
       restartRouteChecks,
       restartLiveRecipeCheck,
+      restartSupplementalRecipeChecks,
     };
   } catch (error) {
     primaryFailure = error;
@@ -319,8 +323,8 @@ async function runManagedRecipeCheck(
   target: TargetKind,
   startResult: ManagedStartResult,
   label: string,
+  recipeId = buildLaunchGateScenario(target).recipeId,
 ): Promise<Record<string, unknown>> {
-  const recipeId = buildLaunchGateScenario(target).recipeId;
   const baseUrl = new URL(startResult.url);
   console.log(`[verify-launch] Running ${label} live recipe ${recipeId} for ${target}`);
 
@@ -361,6 +365,22 @@ async function runManagedRecipeCheck(
     imageArtifactPath: String(imageArtifact.path),
     imageArtifactLabel: typeof imageArtifact.label === "string" ? imageArtifact.label : null,
   };
+}
+
+async function runSupplementalRecipeChecks(
+  target: TargetKind,
+  startResult: ManagedStartResult,
+  labelPrefix: string,
+): Promise<Array<Record<string, unknown>>> {
+  const supplementalRecipeIds = target === "pymol"
+    ? ["pymol-surface-and-presentation"]
+    : [];
+
+  const results: Array<Record<string, unknown>> = [];
+  for (const [index, recipeId] of supplementalRecipeIds.entries()) {
+    results.push(await runManagedRecipeCheck(target, startResult, `${labelPrefix}-${index + 1}`, recipeId));
+  }
+  return results;
 }
 
 async function restartManagedTarget(target: TargetKind, skipBuildOnStart: boolean): Promise<ManagedStartResult> {

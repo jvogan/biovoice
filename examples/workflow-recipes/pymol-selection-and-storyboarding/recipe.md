@@ -10,7 +10,7 @@ Checkpoints:
 - All named selections are created.
 
 Direct command equivalents:
-- `delete all`
+- `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
 - `set ray_opaque_background, off`

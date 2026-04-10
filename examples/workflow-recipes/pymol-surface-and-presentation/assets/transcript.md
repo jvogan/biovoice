@@ -11,6 +11,11 @@
 **Visible result:** Surface and labels are visible on a white background.
 
 ## Turn 3
-**Operator:** Orient the tetramer, store the scene, and export a ray-traced PNG.
-**System action:** Orient the tetramer, store the scene, and export a ray-traced PNG.
+**Operator:** Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
+**System action:** Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
+**Visible result:** Scene F6 is stored for the final hemoglobin presentation view.
+
+## Turn 4
+**Operator:** Recall the stored hero scene and write the final high-resolution PNG after the framing settles.
+**System action:** Recall the stored hero scene and write the final high-resolution PNG after the framing settles.
 **Visible result:** Scene F6 is stored and a figure export exists.

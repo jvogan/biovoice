@@ -205,9 +205,11 @@ export class PymolAdapter {
 
         const elapsedMs = Date.now() - startedAt;
         const warnings: string[] = [];
-        const needsPostCommandRecovery = !dryRun && commandBatches.some((batch) => requiresPymolPostCommandRecovery(batch.command));
-        if (needsPostCommandRecovery) {
-          await this.waitForSpecificRpcUrl(rpcUrl!, Math.min(this.renderTimeoutMs, 10_000));
+        const postCommandRecovery = !dryRun ? getPymolPostCommandRecovery(commandBatches, this.renderTimeoutMs) : null;
+        if (postCommandRecovery) {
+          await this.waitForSpecificRpcUrl(rpcUrl!, postCommandRecovery.timeoutMs, {
+            requiredConsecutivePasses: postCommandRecovery.requiredConsecutivePasses,
+          });
         }
 
         let state: Record<string, unknown> | undefined;
@@ -272,8 +274,9 @@ export class PymolAdapter {
   async waitUntilCommandReady(timeoutMs = 12_000): Promise<string> {
     const pinnedUrl = this.activeUrl ?? this.configuredRpcUrl ?? this.lastCommandReadyUrl;
     if (pinnedUrl) {
+      const requiredConsecutivePasses = this.hasRecentCertification(pinnedUrl) ? 1 : 3;
       const readyUrl = await this.waitForSpecificRpcUrl(pinnedUrl, timeoutMs, {
-        requiredConsecutivePasses: 3,
+        requiredConsecutivePasses,
       });
       if (readyUrl) {
         return readyUrl;
@@ -281,8 +284,9 @@ export class PymolAdapter {
       throw new Error(buildPinnedEndpointWarmupTimeoutError(pinnedUrl, timeoutMs));
     }
 
+    const requiredConsecutivePasses = this.lastCommandReadyUrl && this.hasRecentCertification(this.lastCommandReadyUrl) ? 1 : 3;
     const readyUrl = await this.waitForReadyRpcUrl(timeoutMs, {
-      requiredConsecutivePasses: 3,
+      requiredConsecutivePasses,
     });
     if (readyUrl) {
       return readyUrl;
@@ -1220,6 +1224,32 @@ function requiresPymolPostCommandRecovery(command: string): boolean {
   return /^(ray|png|save|map_new|isomesh|isosurface)\b/i.test(command.trim());
 }
 
+function getPymolPostCommandRecovery(
+  commandBatches: PymolCommandBatch[],
+  renderTimeoutMs: number,
+): { timeoutMs: number; requiredConsecutivePasses: number } | null {
+  if (!commandBatches.some((batch) => requiresPymolPostCommandRecovery(batch.command))) {
+    return null;
+  }
+
+  const joined = commandBatches.map((batch) => batch.command).join("\n");
+  const hasSurfaceOrSceneWork = /\b(show surface|set surface_|scene\b)\b/i.test(joined);
+  const hasRayCommand = commandBatches.some((batch) => /^ray\b/i.test(batch.command.trim()));
+  const hasRayTracedPng = commandBatches.some((batch) => (parsePymolPngCommand(batch.command)?.ray ?? 0) > 0);
+
+  if (hasRayCommand || hasRayTracedPng) {
+    return {
+      timeoutMs: Math.min(renderTimeoutMs, hasSurfaceOrSceneWork ? 30_000 : 20_000),
+      requiredConsecutivePasses: hasSurfaceOrSceneWork ? 2 : 1,
+    };
+  }
+
+  return {
+    timeoutMs: Math.min(renderTimeoutMs, hasSurfaceOrSceneWork ? 15_000 : 10_000),
+    requiredConsecutivePasses: 1,
+  };
+}
+
 function buildPostExecutionRecoveryWarning(phase: string, error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);
   return `PyMOL ${phase} did not complete before the export route returned. The artifact was created, but the immediate ${phase} probe was skipped: ${detail}`;
@@ -1266,7 +1296,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
   switch (action.type) {
     case "reset_workspace":
       return [
-        "delete all",
+        "reinitialize",
         "scene *, clear",
         ...compilePymolAction({ type: "preset", name: "presentation_light" }, referenceHints),
       ];

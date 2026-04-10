@@ -115,12 +115,12 @@ describe("realtime session registry hardening", () => {
 
     const result = await registry.runRecipeDirect("pymol-surface-and-presentation", "pymol");
 
-    expect(result.stepResults).toHaveLength(3);
+    expect(result.stepResults).toHaveLength(4);
     expect(result.stepResults[0]?.result.warnings).toEqual(expect.arrayContaining([
       expect.stringMatching(/slow to stabilize/i),
       expect.stringMatching(/load-and-color/i),
     ]));
-    expect(registry.executeTargetActions).toHaveBeenCalledTimes(3);
-    expect(registry.pymolAdapter.waitUntilCommandReady).toHaveBeenCalledTimes(2);
+    expect(registry.executeTargetActions).toHaveBeenCalledTimes(4);
+    expect(registry.pymolAdapter.waitUntilCommandReady).toHaveBeenCalledTimes(3);
   });
 });
