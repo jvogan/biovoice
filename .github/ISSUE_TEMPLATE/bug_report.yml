@@ -6,6 +6,8 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug! Please fill out the sections below.
+        For setup help, first-session questions, or workflow guidance, start with `SUPPORT.md` and the docs hub.
+        For vulnerabilities or privacy-sensitive issues, do not post publicly; use `SECURITY.md`.
         Before posting logs or screenshots, redact API keys, local filesystem paths, browser URLs, hostnames, and any transcript content you would not want indexed publicly.
 
   - type: textarea

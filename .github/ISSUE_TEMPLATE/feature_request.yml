@@ -6,6 +6,7 @@ body:
     attributes:
       value: |
         Have an idea for BioVoice? We'd love to hear it.
+        If your request is really a setup or troubleshooting question, check `SUPPORT.md` and the docs first.
 
   - type: textarea
     id: description

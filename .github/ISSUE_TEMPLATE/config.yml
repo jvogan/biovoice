@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: BioVoice docs hub
+    url: https://github.com/jvogan/biovoice/blob/main/docs/README.md
+    about: Start here for newcomer onboarding, first-session setup, and guided tutorials.
+  - name: BioVoice support guide
+    url: https://github.com/jvogan/biovoice/blob/main/SUPPORT.md
+    about: Use this for usage questions, bug-report guidance, and privacy-safe reporting paths.
+  - name: BioVoice security policy
+    url: https://github.com/jvogan/biovoice/blob/main/SECURITY.md
+    about: Use this instead of public issues for vulnerabilities or privacy-sensitive problems.

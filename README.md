@@ -78,6 +78,7 @@ npm run agent:start -- pymol --offline --clean-target
 
 Additional guided docs:
 
+- [Docs Hub](./docs/README.md)
 - [Ligand Pocket Tutorial](./docs/tutorial-ligand-pocket.md)
 - [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md)
 - [Architecture and Provider Support](./docs/architecture.md)
