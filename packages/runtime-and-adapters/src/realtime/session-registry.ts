@@ -24,7 +24,14 @@ import { buildSessionInstructions } from "../prompts/index.js";
 import { TranscriptStore } from "../store/index.js";
 import { buildRealtimeTools } from "./tool-definitions.js";
 import { sessionStatusSchema, sessionUiEventSchema, type SessionStatus, type SessionUiEvent } from "./session-events.js";
-import { accumulateResponseUsage, accumulateTranscriptionUsage, createEmptySessionUsage, formatUsageSummary } from "./usage.js";
+import {
+  accumulateResponseUsage,
+  accumulateTranscriptionUsage,
+  buildSessionUsageGuardState,
+  createEmptySessionUsage,
+  formatUsageSummary,
+  type SessionUsageGuardrails,
+} from "./usage.js";
 import { prettyJson } from "../utils/json.js";
 import { ChimeraXAdapter, type ChimeraXAdapterOptions } from "../adapters/chimerax-adapter.js";
 import { PymolAdapter, type PymolAdapterOptions } from "../adapters/pymol-adapter.js";
@@ -42,6 +49,7 @@ export interface RealtimeRegistryOptions {
     retentionRatio: number;
     postInstructions: number;
   } | null;
+  sessionGuardrails: SessionUsageGuardrails;
   transcriptionPromptHint?: string;
   debugRawEvents?: boolean;
   expertCommandsEnabled?: boolean;
@@ -108,6 +116,9 @@ interface SessionRecord {
   accessToken: string;
   registerToken: string | null;
   disconnectRequested: boolean;
+  connectedAtMs: number | null;
+  sessionDeadlineTimer: NodeJS.Timeout | null;
+  lastGuardrailNoticeKey: string | null;
   reconnectAttempts: number;
   reconnectTimer: NodeJS.Timeout | null;
   sidebandGeneration: number;
@@ -139,6 +150,7 @@ export class RealtimeSessionRegistry {
     retentionRatio: number;
     postInstructions: number;
   } | null;
+  private readonly sessionGuardrails: SessionUsageGuardrails;
   private readonly transcriptionPromptHint?: string;
   private readonly debugRawEvents: boolean;
   private readonly expertCommandsEnabled: boolean;
@@ -159,6 +171,7 @@ export class RealtimeSessionRegistry {
     this.realtimeMaxOutputTokens = options.realtimeMaxOutputTokens;
     this.realtimeTracing = options.realtimeTracing;
     this.realtimeTruncation = options.realtimeTruncation;
+    this.sessionGuardrails = options.sessionGuardrails;
     this.transcriptionPromptHint = options.transcriptionPromptHint;
     this.debugRawEvents = options.debugRawEvents ?? false;
     this.expertCommandsEnabled = options.expertCommandsEnabled ?? false;
@@ -300,6 +313,7 @@ export class RealtimeSessionRegistry {
     accessToken?: string,
     registerToken?: string,
   ): SessionRecord {
+    const createdAtMs = Date.now();
     const status = sessionStatusSchema.parse({
       sessionId,
       callId,
@@ -316,6 +330,12 @@ export class RealtimeSessionRegistry {
       eventSubscribers: 0,
       toolBusy: false,
       usage: createEmptySessionUsage(),
+      usageGuardrails: buildSessionUsageGuardState(
+        createEmptySessionUsage(),
+        this.sessionGuardrails,
+        createdAtMs,
+        createdAtMs,
+      ),
     });
 
     return {
@@ -329,6 +349,9 @@ export class RealtimeSessionRegistry {
       accessToken: accessToken ?? crypto.randomUUID(),
       registerToken: registerToken ?? null,
       disconnectRequested: false,
+      connectedAtMs: null,
+      sessionDeadlineTimer: null,
+      lastGuardrailNoticeKey: null,
       reconnectAttempts: 0,
       reconnectTimer: null,
       sidebandGeneration: 0,
@@ -515,6 +538,10 @@ export class RealtimeSessionRegistry {
   async disconnect(sessionId: string): Promise<void> {
     const record = this.requireSession(sessionId);
     record.disconnectRequested = true;
+    if (record.sessionDeadlineTimer) {
+      clearTimeout(record.sessionDeadlineTimer);
+      record.sessionDeadlineTimer = null;
+    }
     if (record.reconnectTimer) {
       clearTimeout(record.reconnectTimer);
       record.reconnectTimer = null;
@@ -872,10 +899,17 @@ export class RealtimeSessionRegistry {
       if (configRequiresSync) {
         void this.pushSessionUpdate(sessionId);
       }
+      this.ensureSessionConnectedAt(sessionId);
+      this.refreshSessionUsageGuardrails(sessionId);
+      this.scheduleSessionDeadline(sessionId);
+      if (!configRequiresSync) {
+        this.broadcastGuardrailSummary(sessionId);
+      }
       return;
     }
 
     if (eventType === "session.updated") {
+      this.ensureSessionConnectedAt(sessionId);
       this.setStatus(sessionId, {
         status: "connected",
         sidebandStatus: "connected",
@@ -890,12 +924,16 @@ export class RealtimeSessionRegistry {
         text: "Controller update applied. Session ready.",
         payload: this.requireSession(sessionId).status,
       });
+      this.refreshSessionUsageGuardrails(sessionId);
+      this.scheduleSessionDeadline(sessionId);
+      this.broadcastGuardrailSummary(sessionId);
       return;
     }
 
     if (eventType === "conversation.item.input_audio_transcription.completed") {
       const usage = accumulateTranscriptionUsage(this.requireSession(sessionId).status.usage, payload.usage);
       this.setStatus(sessionId, { usage });
+      this.refreshSessionUsageGuardrails(sessionId);
       if (this.persistSessionEvents) {
         void this.transcriptStore.writeUsage(sessionId, usage).catch(() => {});
       }
@@ -968,6 +1006,7 @@ export class RealtimeSessionRegistry {
     if (eventType === "response.done") {
       const usage = accumulateResponseUsage(this.requireSession(sessionId).status.usage, (payload.response as { usage?: unknown })?.usage);
       this.setStatus(sessionId, { usage });
+      this.refreshSessionUsageGuardrails(sessionId);
       if (this.persistSessionEvents) {
         void this.transcriptStore.writeUsage(sessionId, usage).catch(() => {});
       }
@@ -1171,6 +1210,107 @@ export class RealtimeSessionRegistry {
       payload: result,
     });
     this.setStatus(sessionId, { toolBusy: false });
+  }
+
+  private ensureSessionConnectedAt(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    if (record.connectedAtMs) {
+      return;
+    }
+    record.connectedAtMs = Date.now();
+  }
+
+  private refreshSessionUsageGuardrails(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    const baselineMs = record.connectedAtMs ?? Date.now();
+    const nextState = buildSessionUsageGuardState(
+      record.status.usage,
+      this.sessionGuardrails,
+      baselineMs,
+      Date.now(),
+    );
+    const previousState = record.status.usageGuardrails;
+    this.setStatus(sessionId, {
+      usageGuardrails: nextState,
+    });
+
+    const warningNoticeKey = nextState.warningReason ? `warn:${nextState.warningReason}` : null;
+    if (nextState.warningActive && nextState.warningMessage && record.lastGuardrailNoticeKey !== warningNoticeKey) {
+      record.lastGuardrailNoticeKey = warningNoticeKey;
+      this.broadcast(sessionId, {
+        kind: "log",
+        level: "warn",
+        text: nextState.warningMessage,
+        payload: { usageGuardrails: nextState },
+      });
+    }
+
+    const breachNoticeKey = nextState.breachReason ? `breach:${nextState.breachReason}` : null;
+    if (nextState.breachMessage && record.lastGuardrailNoticeKey !== breachNoticeKey) {
+      record.lastGuardrailNoticeKey = breachNoticeKey;
+      this.broadcast(sessionId, {
+        kind: "log",
+        level: "error",
+        text: nextState.breachMessage,
+        payload: { usageGuardrails: nextState },
+      });
+      this.broadcast(sessionId, {
+        kind: "status",
+        text: nextState.breachMessage,
+        payload: this.requireSession(sessionId).status,
+      });
+      return;
+    }
+
+    if (!nextState.warningActive && !nextState.breachMessage) {
+      record.lastGuardrailNoticeKey = null;
+      if (previousState.warningActive || previousState.breachMessage) {
+        this.broadcast(sessionId, {
+          kind: "status",
+          text: "Realtime session guardrails are back in a safe range.",
+          payload: this.requireSession(sessionId).status,
+        });
+      }
+    }
+  }
+
+  private scheduleSessionDeadline(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    if (!record.connectedAtMs) {
+      return;
+    }
+    if (record.sessionDeadlineTimer) {
+      clearTimeout(record.sessionDeadlineTimer);
+      record.sessionDeadlineTimer = null;
+    }
+
+    const deadlineMs = record.connectedAtMs + this.sessionGuardrails.maxSessionMinutes * 60_000;
+    const remainingMs = deadlineMs - Date.now();
+    if (remainingMs <= 0) {
+      this.refreshSessionUsageGuardrails(sessionId);
+      return;
+    }
+
+    record.sessionDeadlineTimer = setTimeout(() => {
+      record.sessionDeadlineTimer = null;
+      this.refreshSessionUsageGuardrails(sessionId);
+    }, remainingMs);
+    record.sessionDeadlineTimer.unref?.();
+  }
+
+  private broadcastGuardrailSummary(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    const summary = `Realtime session guardrails active: ${this.sessionGuardrails.maxSessionMinutes}m max session, ${this.sessionGuardrails.maxResponsesPerSession} responses, ${this.sessionGuardrails.maxTranscriptionsPerSession} transcriptions, ${new Intl.NumberFormat("en-US").format(this.sessionGuardrails.maxBillableTokensPerSession)} billable tokens. Push-to-talk remains the lowest-risk default.`;
+    if (record.lastGuardrailNoticeKey === "summary") {
+      return;
+    }
+    record.lastGuardrailNoticeKey = "summary";
+    this.broadcast(sessionId, {
+      kind: "log",
+      level: "info",
+      text: summary,
+      payload: { usageGuardrails: record.status.usageGuardrails },
+    });
   }
 
   private decorateActionResult(result: ActionResult): ActionResult {
@@ -1412,6 +1552,10 @@ export class RealtimeSessionRegistry {
       return;
     }
     record.sidebandGeneration += 1;
+    if (record.sessionDeadlineTimer) {
+      clearTimeout(record.sessionDeadlineTimer);
+      record.sessionDeadlineTimer = null;
+    }
     record.ws?.removeAllListeners();
     record.ws?.close();
     if (record.reconnectTimer) {

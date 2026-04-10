@@ -829,10 +829,6 @@
             "action": "show",
             "selection": "chain D and resi 20 and name CA",
             "text": "Chain D"
-          },
-          {
-            "type": "preset",
-            "name": "presentation_light"
           }
         ],
         "checkpoints": [
@@ -848,17 +844,13 @@
       {
         "id": "frame-hero-shot",
         "title": "Frame the hero shot and store the scene.",
-        "summary": "Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.",
+        "summary": "Orient the tetramer and store the hero scene before exporting.",
         "actions": [
           {
             "type": "camera",
             "action": "hero_frame",
             "selection": "4hhb",
             "buffer": 8
-          },
-          {
-            "type": "preset",
-            "name": "presentation_light"
           },
           {
             "type": "scene",

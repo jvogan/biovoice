@@ -44,6 +44,13 @@ async function main() {
       retentionRatio: Number(process.env.REALTIME_RETENTION_RATIO ?? 0.8),
       postInstructions: Number(process.env.REALTIME_POST_INSTRUCTIONS_TOKENS ?? 12000),
     },
+    sessionGuardrails: {
+      maxSessionMinutes: Number(process.env.REALTIME_MAX_SESSION_MINUTES ?? 25),
+      maxResponsesPerSession: Number(process.env.REALTIME_MAX_RESPONSES_PER_SESSION ?? 18),
+      maxTranscriptionsPerSession: Number(process.env.REALTIME_MAX_TRANSCRIPTIONS_PER_SESSION ?? 36),
+      maxBillableTokensPerSession: Number(process.env.REALTIME_MAX_BILLABLE_TOKENS_PER_SESSION ?? 24000),
+      warningRatio: Number(process.env.REALTIME_USAGE_WARNING_RATIO ?? 0.8),
+    },
     transcriptionPromptHint: process.env.REALTIME_TRANSCRIPTION_PROMPT_HINT,
     debugRawEvents: false,
     pymol: {

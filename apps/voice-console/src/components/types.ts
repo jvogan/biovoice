@@ -49,6 +49,22 @@ export interface RuntimeSnapshot {
   phase: string;
 }
 
+export interface GuardrailsSnapshot {
+  voiceMode: VoiceMode;
+  idleDisconnectSeconds: number;
+  maxSessionMinutes: number;
+  maxResponsesPerSession: number;
+  maxTranscriptionsPerSession: number;
+  maxBillableTokensPerSession: number;
+  warningRatio: number;
+  currentResponses?: number;
+  currentTranscriptions?: number;
+  currentBillableTokens?: number;
+  warningActive?: boolean;
+  warningMessage?: string;
+  breachMessage?: string;
+}
+
 export interface AuthSnapshot {
   realtimeKey: string;
   realtimeValid: boolean;

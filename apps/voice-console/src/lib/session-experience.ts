@@ -93,7 +93,7 @@ export function buildStartPathOptions(input: {
       title: "Guided UI Start",
       description: `Open the full console, connect Realtime only when you are ready, and drive ${targetLabel} from the recipe panel.`,
       bestFor: "first-time users and careful demos",
-      costNote: "Lowest accidental spend: push-to-talk, explicit connect, and a fresh session when you disconnect.",
+      costNote: "Lowest accidental spend: push-to-talk, explicit connect, and built-in session guardrails that warn before the configured caps.",
       primaryActionLabel: "Open Console",
       primaryActionValue: guidedUrl,
       steps: [
@@ -107,7 +107,7 @@ export function buildStartPathOptions(input: {
       title: "Agent Launch",
       description: `Tell Codex or Claude Code to open ${targetLabel}, start the managed console, and hand you a ready URL.`,
       bestFor: "repeatable launches and remote operator handoff",
-      costNote: "Good default when you want one command to open the desktop app but still connect voice only on demand.",
+      costNote: "Good default when you want one command to open the desktop app but still connect voice only on demand, with the same per-session guardrails enforced once voice starts.",
       primaryActionLabel: "Agent Command",
       primaryActionValue: agentCommand,
       steps: [

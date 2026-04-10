@@ -11,8 +11,8 @@
 **Visible result:** Surface and labels are visible on a white background.
 
 ## Turn 3
-**Operator:** Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
-**System action:** Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
+**Operator:** Orient the tetramer and store the hero scene before exporting.
+**System action:** Orient the tetramer and store the hero scene before exporting.
 **Visible result:** Scene F6 is stored for the final hemoglobin presentation view.
 
 ## Turn 4

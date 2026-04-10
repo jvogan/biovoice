@@ -175,6 +175,59 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     expect(recoveryPasses).toBe(2);
   });
 
+  it("waits for post-command recovery after surface-heavy presentation steps", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    }) as unknown as {
+      execute: (actions: Array<Record<string, unknown>>, dryRun?: boolean) => Promise<{
+        commandsExecuted: string[];
+        warnings: string[];
+      }>;
+      ensureReady: () => Promise<string>;
+      resolveReferenceHintsForActions: () => Promise<Record<string, never>>;
+      callDo: () => Promise<void>;
+      waitForSpecificRpcUrl: (
+        rpcUrl: string,
+        timeoutMs: number,
+        options?: { requiredConsecutivePasses?: number; coldStartOnSuccess?: boolean },
+      ) => Promise<string | null>;
+      collectStateSummary: () => Promise<Record<string, unknown>>;
+      collectScientificMetrics: () => Promise<unknown[]>;
+    };
+
+    let recoveryTimeoutMs = 0;
+    let recoveryPasses = 0;
+    adapter.ensureReady = async () => "http://127.0.0.1:9123/RPC2";
+    adapter.resolveReferenceHintsForActions = async () => ({});
+    adapter.callDo = async () => {};
+    adapter.waitForSpecificRpcUrl = async (_rpcUrl, timeoutMs, options) => {
+      recoveryTimeoutMs = timeoutMs;
+      recoveryPasses = options?.requiredConsecutivePasses ?? 0;
+      return "http://127.0.0.1:9123/RPC2";
+    };
+    adapter.collectStateSummary = async () => ({});
+    adapter.collectScientificMetrics = async () => [];
+
+    const result = await adapter.execute([
+      { type: "surface", selection: "polymer.protein", transparency: 0.55, color: "gray70" },
+      { type: "label", selection: "chain A and resi 20 and name CA", text: "Chain A" },
+      { type: "label", selection: "chain B and resi 20 and name CA", text: "Chain B" },
+      { type: "label", selection: "chain C and resi 20 and name CA", text: "Chain C" },
+      { type: "label", selection: "chain D and resi 20 and name CA", text: "Chain D" },
+    ]);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      "show surface, polymer.protein",
+      "label chain A and resi 20 and name CA, \"Chain A\"",
+    ]));
+    expect(recoveryTimeoutMs).toBe(30_000);
+    expect(recoveryPasses).toBe(2);
+  });
+
   it("reports stabilization timeouts without falsely declaring the pinned endpoint dead", async () => {
     const adapter = new PymolAdapter({
       rpcUrl: "http://127.0.0.1:9123/RPC2",
@@ -200,6 +253,53 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     await expect(adapter.waitUntilCommandReady(30_000)).rejects.not.toThrow(
       /stopped responding|restart the managed pymol target/i,
     );
+  });
+
+  it("treats a reachable pinned endpoint as warming before declaring it dead", async () => {
+    const adapter = new PymolAdapter({
+      rpcUrl: "http://127.0.0.1:9123/RPC2",
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    }) as unknown as {
+      ensureReady: () => Promise<string>;
+      waitForSpecificRpcUrl: (
+        rpcUrl: string,
+        timeoutMs: number,
+        options?: { requiredConsecutivePasses?: number; coldStartOnSuccess?: boolean },
+      ) => Promise<string | null>;
+      probeEndpoint: (rpcUrl: string) => Promise<{
+        rpcUrl: string;
+        objectCount: number;
+        port: number;
+        reachable: boolean;
+        commandReady: boolean;
+        lastError?: string;
+      } | null>;
+    };
+
+    let waitCallCount = 0;
+    let finalTimeoutMs = 0;
+    adapter.waitForSpecificRpcUrl = async (_rpcUrl, timeoutMs) => {
+      waitCallCount += 1;
+      finalTimeoutMs = timeoutMs;
+      return null;
+    };
+    adapter.probeEndpoint = async (rpcUrl) => ({
+      rpcUrl,
+      objectCount: 4,
+      port: 9123,
+      reachable: true,
+      commandReady: false,
+      lastError: "PyMOL RPC is reachable, but the command-ready probes did not all succeed yet.",
+    });
+
+    await expect(adapter.ensureReady()).rejects.toThrow(/did not become command-ready within 35000 ms/i);
+    await expect(adapter.ensureReady()).rejects.not.toThrow(/stopped responding|restart the managed pymol target/i);
+    expect(waitCallCount).toBeGreaterThanOrEqual(2);
+    expect(finalTimeoutMs).toBe(30_000);
   });
 
   it("uses a single certification pass when the pinned endpoint was recently validated", async () => {

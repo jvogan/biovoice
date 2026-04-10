@@ -264,6 +264,11 @@ const realtimeMaxOutputTokens = parseRealtimeMaxOutputTokens(process.env.REALTIM
 const realtimeIdleWarningSeconds = readNonNegativeInteger(process.env.REALTIME_IDLE_WARNING_SECONDS, 30);
 const realtimePttIdleDisconnectSeconds = readNonNegativeInteger(process.env.REALTIME_PTT_IDLE_DISCONNECT_SECONDS, 900);
 const realtimeOpenMicIdleDisconnectSeconds = readNonNegativeInteger(process.env.REALTIME_OPEN_MIC_IDLE_DISCONNECT_SECONDS, 180);
+const realtimeMaxSessionMinutes = readPositiveInteger(process.env.REALTIME_MAX_SESSION_MINUTES, 25);
+const realtimeMaxResponsesPerSession = readPositiveInteger(process.env.REALTIME_MAX_RESPONSES_PER_SESSION, 18);
+const realtimeMaxTranscriptionsPerSession = readPositiveInteger(process.env.REALTIME_MAX_TRANSCRIPTIONS_PER_SESSION, 36);
+const realtimeMaxBillableTokensPerSession = readPositiveInteger(process.env.REALTIME_MAX_BILLABLE_TOKENS_PER_SESSION, 24000);
+const realtimeUsageWarningRatio = readUnitInterval(process.env.REALTIME_USAGE_WARNING_RATIO, 0.8, 0.5, 0.95);
 const realtimeTracing = process.env.REALTIME_TRACING === "false" ? null : "auto";
 const realtimeRetentionRatio = Number(process.env.REALTIME_RETENTION_RATIO ?? 0.8);
 const realtimePostInstructionsTokens = Number(process.env.REALTIME_POST_INSTRUCTIONS_TOKENS ?? 12000);
@@ -314,6 +319,13 @@ const registry = new RealtimeSessionRegistry({
   realtimeMaxOutputTokens,
   realtimeTracing,
   realtimeTruncation,
+  sessionGuardrails: {
+    maxSessionMinutes: realtimeMaxSessionMinutes,
+    maxResponsesPerSession: realtimeMaxResponsesPerSession,
+    maxTranscriptionsPerSession: realtimeMaxTranscriptionsPerSession,
+    maxBillableTokensPerSession: realtimeMaxBillableTokensPerSession,
+    warningRatio: realtimeUsageWarningRatio,
+  },
   transcriptionPromptHint: process.env.REALTIME_TRANSCRIPTION_PROMPT_HINT,
   debugRawEvents: process.env.REALTIME_DEBUG_RAW_EVENTS === "true",
   expertCommandsEnabled: expertCommandsGloballyEnabled,
@@ -477,6 +489,13 @@ app.get("/api/health", async (req, res) => {
     realtimeIdleWarningSeconds,
     realtimePttIdleDisconnectSeconds,
     realtimeOpenMicIdleDisconnectSeconds,
+    realtimeSessionGuardrails: {
+      maxSessionMinutes: realtimeMaxSessionMinutes,
+      maxResponsesPerSession: realtimeMaxResponsesPerSession,
+      maxTranscriptionsPerSession: realtimeMaxTranscriptionsPerSession,
+      maxBillableTokensPerSession: realtimeMaxBillableTokensPerSession,
+      warningRatio: realtimeUsageWarningRatio,
+    },
     defaultTarget,
     exampleCount: getExampleCatalog().length,
     scientificWorkflowCount: getScientificWorkflowCatalog().length,
@@ -511,6 +530,13 @@ app.get("/api/config", async (req, res) => {
     realtimeIdleWarningSeconds,
     realtimePttIdleDisconnectSeconds,
     realtimeOpenMicIdleDisconnectSeconds,
+    realtimeSessionGuardrails: {
+      maxSessionMinutes: realtimeMaxSessionMinutes,
+      maxResponsesPerSession: realtimeMaxResponsesPerSession,
+      maxTranscriptionsPerSession: realtimeMaxTranscriptionsPerSession,
+      maxBillableTokensPerSession: realtimeMaxBillableTokensPerSession,
+      warningRatio: realtimeUsageWarningRatio,
+    },
     defaultTarget,
     openAiKeyPresent,
     usageKeyPresent,
@@ -806,6 +832,27 @@ function parseRealtimeMaxOutputTokens(value: string): number | "inf" {
   }
 
   return Math.floor(parsed);
+}
+
+function readPositiveInteger(rawValue: string | undefined, fallback: number): number {
+  const parsed = Number(rawValue ?? fallback);
+  if (!Number.isFinite(parsed) || parsed < 1) {
+    return fallback;
+  }
+  return Math.floor(parsed);
+}
+
+function readUnitInterval(
+  rawValue: string | undefined,
+  fallback: number,
+  minimum: number,
+  maximum: number,
+): number {
+  const parsed = Number(rawValue ?? fallback);
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+  return Math.min(maximum, Math.max(minimum, parsed));
 }
 
 function markRealtimeCredentialValidated(): void {

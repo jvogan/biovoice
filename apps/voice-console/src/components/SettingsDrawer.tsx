@@ -3,6 +3,7 @@ import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
 import type {
   AuthSnapshot,
+  GuardrailsSnapshot,
   RuntimeSnapshot,
   SettingsTab,
   UsageSnapshot,
@@ -13,6 +14,7 @@ export interface SettingsDrawerProps {
   onClose: () => void;
   runtimeHealth: RuntimeSnapshot;
   auth: AuthSnapshot;
+  guardrails: GuardrailsSnapshot;
   usage?: UsageSnapshot;
   activeTab?: SettingsTab;
   onTabChange?: (tab: SettingsTab) => void;
@@ -31,6 +33,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     onClose,
     runtimeHealth,
     auth,
+    guardrails,
     usage,
     activeTab = "runtime",
     onTabChange,
@@ -142,6 +145,29 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                       />
                     </div>
                   </div>
+                  <div>
+                    <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-3">
+                      Session Guardrails
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <StatCard
+                        label="Voice Mode"
+                        value={guardrails.voiceMode === "push_to_talk" ? "Push-to-Talk" : "Open Mic"}
+                        tone={guardrails.voiceMode === "push_to_talk" ? "ok" : "warn"}
+                      />
+                      <StatCard label="Idle Disconnect" value={formatSeconds(guardrails.idleDisconnectSeconds)} />
+                      <StatCard label="Session Cap" value={`${guardrails.maxSessionMinutes}m`} />
+                      <StatCard label="Responses" value={String(guardrails.maxResponsesPerSession)} />
+                      <StatCard label="Transcriptions" value={String(guardrails.maxTranscriptionsPerSession)} />
+                      <StatCard
+                        label="Billable Tokens"
+                        value={guardrails.maxBillableTokensPerSession.toLocaleString()}
+                      />
+                    </div>
+                    <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
+                      Guardrails warn at {Math.round(guardrails.warningRatio * 100)}% of the configured session caps and disconnect the session if it crosses a limit.
+                    </p>
+                  </div>
                 </div>
               ) : null}
 
@@ -164,12 +190,55 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                         label="Total Tokens"
                         value={usage.totalTokens != null ? usage.totalTokens.toLocaleString() : "—"}
                       />
+                      <StatCard
+                        label="Session Responses"
+                        value={guardrails.currentResponses != null ? String(guardrails.currentResponses) : "—"}
+                        tone={guardrails.warningActive ? "warn" : "neutral"}
+                      />
+                      <StatCard
+                        label="Session Transcripts"
+                        value={guardrails.currentTranscriptions != null ? String(guardrails.currentTranscriptions) : "—"}
+                        tone={guardrails.warningActive ? "warn" : "neutral"}
+                      />
+                      <StatCard
+                        label="Session Billable"
+                        value={guardrails.currentBillableTokens != null ? guardrails.currentBillableTokens.toLocaleString() : "—"}
+                        tone={guardrails.warningActive ? "warn" : "neutral"}
+                      />
                     </div>
                   ) : (
-                    <p className="text-sm text-zinc-500 dark:text-zinc-600 italic">
-                      No usage data yet. Connect to the OpenAI usage endpoint to populate.
-                    </p>
+                    <>
+                      <p className="text-sm text-zinc-500 dark:text-zinc-600 italic">
+                        No organization usage data yet. Connect the OpenAI usage endpoint to populate the rolling cost summary.
+                      </p>
+                      <div className="grid grid-cols-2 gap-3">
+                        <StatCard
+                          label="Session Responses"
+                          value={guardrails.currentResponses != null ? String(guardrails.currentResponses) : "—"}
+                          tone={guardrails.warningActive ? "warn" : "neutral"}
+                        />
+                        <StatCard
+                          label="Session Transcripts"
+                          value={guardrails.currentTranscriptions != null ? String(guardrails.currentTranscriptions) : "—"}
+                          tone={guardrails.warningActive ? "warn" : "neutral"}
+                        />
+                        <StatCard
+                          label="Session Billable"
+                          value={guardrails.currentBillableTokens != null ? guardrails.currentBillableTokens.toLocaleString() : "—"}
+                          tone={guardrails.warningActive ? "warn" : "neutral"}
+                        />
+                        <StatCard
+                          label="Warning Threshold"
+                          value={`${Math.round(guardrails.warningRatio * 100)}%`}
+                        />
+                      </div>
+                    </>
                   )}
+                  {guardrails.warningMessage || guardrails.breachMessage ? (
+                    <p className={`text-sm leading-relaxed ${guardrails.breachMessage ? "text-rose-600 dark:text-rose-400" : "text-amber-700 dark:text-amber-400"}`}>
+                      {guardrails.breachMessage ?? guardrails.warningMessage}
+                    </p>
+                  ) : null}
                 </div>
               ) : null}
             </div>
@@ -178,6 +247,22 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       ) : null}
     </AnimatePresence>
   );
+}
+
+function formatSeconds(totalSeconds: number): string {
+  if (totalSeconds <= 0) {
+    return "Off";
+  }
+
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  if (!minutes) {
+    return `${seconds}s`;
+  }
+  if (!seconds) {
+    return `${minutes}m`;
+  }
+  return `${minutes}m ${seconds}s`;
 }
 
 function StatCard({

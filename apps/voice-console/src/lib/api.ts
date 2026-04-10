@@ -1,3 +1,11 @@
+export interface RealtimeSessionGuardrails {
+  maxSessionMinutes: number;
+  maxResponsesPerSession: number;
+  maxTranscriptionsPerSession: number;
+  maxBillableTokensPerSession: number;
+  warningRatio: number;
+}
+
 export interface RuntimeHealthResponse {
   appId: string;
   instanceId: string;
@@ -11,6 +19,7 @@ export interface RuntimeHealthResponse {
   realtimeIdleWarningSeconds: number;
   realtimePttIdleDisconnectSeconds: number;
   realtimeOpenMicIdleDisconnectSeconds: number;
+  realtimeSessionGuardrails: RealtimeSessionGuardrails;
   defaultTarget: "pymol" | "chimerax";
   exampleCount: number;
   openAiKeyPresent: boolean;
@@ -72,6 +81,7 @@ export interface AppConfigResponse {
   realtimeIdleWarningSeconds: number;
   realtimePttIdleDisconnectSeconds: number;
   realtimeOpenMicIdleDisconnectSeconds: number;
+  realtimeSessionGuardrails: RealtimeSessionGuardrails;
   realtimeTranscriptionModel: string;
   defaultTarget: "pymol" | "chimerax";
   openAiKeyPresent: boolean;

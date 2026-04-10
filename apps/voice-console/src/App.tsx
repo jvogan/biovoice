@@ -13,6 +13,7 @@ import {
   type ManualActionResult,
   type ManualRecipeRunResponse,
   type OrganizationUsageSummaryResponse,
+  type RealtimeSessionGuardrails,
   type RuntimeHealthResponse,
   updateSessionRecipe,
   updateSessionTarget,
@@ -40,9 +41,13 @@ import { ErrorBanner } from "./components/ErrorBanner";
 const SettingsShell = lazy(() =>
   import("./components/SettingsShell").then((module) => ({ default: module.SettingsShell })),
 );
+const OpenMicConfirmDialog = lazy(() =>
+  import("./components/OpenMicConfirmDialog").then((module) => ({ default: module.OpenMicConfirmDialog })),
+);
 import type {
   ArtifactSummary,
   ConnectionState,
+  GuardrailsSnapshot,
   LogLine,
   RecipeSummary,
   SettingsTab,
@@ -111,6 +116,13 @@ export function App() {
   const [realtimeIdleWarningSeconds, setRealtimeIdleWarningSeconds] = useState(30);
   const [realtimePttIdleDisconnectSeconds, setRealtimePttIdleDisconnectSeconds] = useState(900);
   const [realtimeOpenMicIdleDisconnectSeconds, setRealtimeOpenMicIdleDisconnectSeconds] = useState(180);
+  const [realtimeSessionGuardrails, setRealtimeSessionGuardrails] = useState<RealtimeSessionGuardrails>({
+    maxSessionMinutes: 25,
+    maxResponsesPerSession: 18,
+    maxTranscriptionsPerSession: 36,
+    maxBillableTokensPerSession: 24000,
+    warningRatio: 0.8,
+  });
   const [realtimeReady, setRealtimeReady] = useState(false);
   const [usageReady, setUsageReady] = useState(false);
   const [realtimeCredentialValidated, setRealtimeCredentialValidated] = useState(false);
@@ -129,6 +141,8 @@ export function App() {
   );
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsDrawerLoaded, setSettingsDrawerLoaded] = useState(false);
+  const [openMicDialogLoaded, setOpenMicDialogLoaded] = useState(false);
+  const [openMicConfirmOpen, setOpenMicConfirmOpen] = useState(false);
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("runtime");
   const [quickWorkflowBusyId, setQuickWorkflowBusyId] = useState<string | null>(null);
   const [logClearIndex, setLogClearIndex] = useState(0);
@@ -156,6 +170,7 @@ export function App() {
       ? resolveIdleDisconnectSeconds(voiceMode, realtimePttIdleDisconnectSeconds, realtimeOpenMicIdleDisconnectSeconds)
       : 0,
     idleWarningSeconds: realtimeIdleWarningSeconds,
+    sessionGuardrails: realtimeSessionGuardrails,
   });
 
   useEffect(() => {
@@ -168,6 +183,7 @@ export function App() {
         setRealtimeIdleWarningSeconds(config.realtimeIdleWarningSeconds);
         setRealtimePttIdleDisconnectSeconds(config.realtimePttIdleDisconnectSeconds);
         setRealtimeOpenMicIdleDisconnectSeconds(config.realtimeOpenMicIdleDisconnectSeconds);
+        setRealtimeSessionGuardrails(config.realtimeSessionGuardrails);
         setRealtimeReady(config.realtimeReady);
         setUsageReady(config.usageReady);
         setRealtimeCredentialValidated(config.realtimeCredentialValidated);
@@ -211,6 +227,7 @@ export function App() {
         setRealtimeIdleWarningSeconds(health.realtimeIdleWarningSeconds);
         setRealtimePttIdleDisconnectSeconds(health.realtimePttIdleDisconnectSeconds);
         setRealtimeOpenMicIdleDisconnectSeconds(health.realtimeOpenMicIdleDisconnectSeconds);
+        setRealtimeSessionGuardrails(health.realtimeSessionGuardrails);
         setRealtimeReady(health.realtimeReady);
         setUsageReady(health.usageReady);
         setRealtimeCredentialValidated(health.realtimeCredentialValidated);
@@ -380,6 +397,26 @@ export function App() {
   }, [connection.connectedAt]);
   const elapsedLabel = connection.connectedAt ? formatDuration(Math.max(0, Math.floor((elapsedNow - connection.connectedAt) / 1000))) : "0s";
   const widgetWorkflowLabel = selectedRecipe?.title ?? activeScientificWorkflowCard?.title ?? "—";
+  const guardrailsSnapshot: GuardrailsSnapshot = {
+    voiceMode,
+    idleDisconnectSeconds: activeIdleDisconnectSeconds,
+    maxSessionMinutes: realtimeSessionGuardrails.maxSessionMinutes,
+    maxResponsesPerSession: realtimeSessionGuardrails.maxResponsesPerSession,
+    maxTranscriptionsPerSession: realtimeSessionGuardrails.maxTranscriptionsPerSession,
+    maxBillableTokensPerSession: realtimeSessionGuardrails.maxBillableTokensPerSession,
+    warningRatio: realtimeSessionGuardrails.warningRatio,
+    currentResponses: connection.status?.usage?.responseCount,
+    currentTranscriptions: connection.status?.usage?.transcriptionCount,
+    currentBillableTokens: connection.status?.usageGuardrails?.billableTokens,
+    warningActive: connection.status?.usageGuardrails?.warningActive,
+    warningMessage: connection.status?.usageGuardrails?.warningMessage,
+    breachMessage: connection.status?.usageGuardrails?.breachMessage,
+  };
+  const sessionNoticeMessage =
+    connection.status?.usageGuardrails?.warningMessage
+    ?? (connection.idleWarningActive
+      ? `Idle disconnect in ${idleCountdownLabel}. Start a new turn or pause the session if you want to keep it alive.`
+      : null);
 
   const handleSpaceKey = useEffectEvent((event: KeyboardEvent) => {
     if (!keyboardPttEnabled) return;
@@ -410,6 +447,28 @@ export function App() {
     };
   }, [handleSpaceKey, keyboardPttEnabled, voiceMode]);
 
+  function enableOpenMicAfterConfirmation() {
+    setOpenMicConfirmOpen(false);
+    setVoiceMode("open_mic");
+    setOpenMicArmed(true);
+  }
+
+  function requestOpenMic() {
+    if (voiceMode === "open_mic" && openMicArmed) {
+      setOpenMicArmed(false);
+      setVoiceMode("push_to_talk");
+      return;
+    }
+
+    if (voiceMode === "open_mic") {
+      setOpenMicArmed(true);
+      return;
+    }
+
+    setOpenMicDialogLoaded(true);
+    setOpenMicConfirmOpen(true);
+  }
+
   function handleWidgetOpenMicToggle() {
     if (voiceMode === "open_mic" && openMicArmed) {
       setOpenMicArmed(false);
@@ -418,8 +477,7 @@ export function App() {
     }
 
     if (voiceMode !== "open_mic") {
-      setVoiceMode("open_mic");
-      setOpenMicArmed(true);
+      requestOpenMic();
       return;
     }
 
@@ -480,6 +538,16 @@ export function App() {
           />
           </Suspense>
         </main>
+        {openMicDialogLoaded ? (
+          <Suspense fallback={null}>
+            <OpenMicConfirmDialog
+              open={openMicConfirmOpen}
+              onCancel={() => setOpenMicConfirmOpen(false)}
+              onConfirm={enableOpenMicAfterConfirmation}
+              guardrails={guardrailsSnapshot}
+            />
+          </Suspense>
+        ) : null}
       </div>
     );
   }
@@ -720,6 +788,11 @@ export function App() {
       />
 
       <ErrorBanner message={bannerMessage} onDismiss={dismissBanner} />
+      {sessionNoticeMessage ? (
+        <div className="mx-6 mt-4 rounded-2xl border border-amber-300/70 dark:border-amber-700/50 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:text-amber-100">
+          {sessionNoticeMessage}
+        </div>
+      ) : null}
 
       <main className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 p-6 overflow-hidden">
         <div className="lg:col-span-7 flex flex-col gap-6 overflow-hidden min-h-0">
@@ -759,6 +832,7 @@ export function App() {
             onClose={() => setSettingsOpen(false)}
             runtimeHealth={runtimeSnapshot}
             auth={authSnapshot}
+            guardrails={guardrailsSnapshot}
             usage={usageSnapshot}
             activeTab={activeSettingsTab}
             onTabChange={setActiveSettingsTab}
@@ -795,6 +869,16 @@ export function App() {
               busyRecipeId: quickWorkflowBusyId,
               launchDisabled: manualWorkflowLaunchDisabled,
             }}
+          />
+        </Suspense>
+      ) : null}
+      {openMicDialogLoaded ? (
+        <Suspense fallback={null}>
+          <OpenMicConfirmDialog
+            open={openMicConfirmOpen}
+            onCancel={() => setOpenMicConfirmOpen(false)}
+            onConfirm={enableOpenMicAfterConfirmation}
+            guardrails={guardrailsSnapshot}
           />
         </Suspense>
       ) : null}

@@ -15,6 +15,11 @@ import {
   disconnectSessionBeacon,
   disconnectSession,
 } from "../lib/api";
+import {
+  buildSessionUsageGuardState,
+  createEmptySessionUsage,
+  type SessionUsageGuardrails,
+} from "../../../../packages/runtime-and-adapters/src/realtime/usage.js";
 import { computeIdleGuardState } from "../lib/session-guard";
 
 type TargetKind = "pymol" | "chimerax";
@@ -57,6 +62,7 @@ interface HookOptions {
   captureRawEvents?: boolean;
   idleDisconnectSeconds: number;
   idleWarningSeconds: number;
+  sessionGuardrails: SessionUsageGuardrails;
 }
 
 export function useRealtimeConnection(options: HookOptions) {
@@ -92,6 +98,7 @@ export function useRealtimeConnection(options: HookOptions) {
   const phaseResetTimerRef = useRef<number | null>(null);
   const connectInFlightRef = useRef(false);
   const idleDisconnectingRef = useRef(false);
+  const guardrailDisconnectingRef = useRef(false);
   const pushToTalkActiveRef = useRef(false);
   const seenEventIdsRef = useRef<string[]>([]);
   const seenEventIdsSetRef = useRef<Set<string>>(new Set());
@@ -259,6 +266,34 @@ export function useRealtimeConnection(options: HookOptions) {
   ]);
 
   useEffect(() => {
+    if (!connected || !connectedAt) {
+      guardrailDisconnectingRef.current = false;
+      return;
+    }
+
+    const disconnectForGuardrail = () => {
+      const usage = status?.usage ?? createEmptySessionUsage();
+      const guardState = buildSessionUsageGuardState(
+        usage,
+        options.sessionGuardrails,
+        connectedAt,
+        Date.now(),
+      );
+      if (!guardState.breachMessage || guardrailDisconnectingRef.current) {
+        return;
+      }
+      guardrailDisconnectingRef.current = true;
+      void disconnect(guardState.breachMessage);
+    };
+
+    disconnectForGuardrail();
+    const timer = window.setInterval(disconnectForGuardrail, 1000);
+    return () => {
+      window.clearInterval(timer);
+    };
+  }, [connected, connectedAt, disconnect, options.sessionGuardrails, status?.usage]);
+
+  useEffect(() => {
     if (!sessionId || !sessionAccessToken) return;
     setEventStreamState("connecting");
     const eventSource = new EventSource(buildSessionEventStreamUrl(sessionId));
@@ -368,6 +403,7 @@ export function useRealtimeConnection(options: HookOptions) {
     setIdleWarningActive(false);
     setIdleDisconnectReason(null);
     idleDisconnectingRef.current = false;
+    guardrailDisconnectingRef.current = false;
     seenEventIdsRef.current = [];
     seenEventIdsSetRef.current.clear();
 
@@ -515,6 +551,7 @@ export function useRealtimeConnection(options: HookOptions) {
     seenEventIdsSetRef.current.clear();
     connectInFlightRef.current = false;
     idleDisconnectingRef.current = false;
+    guardrailDisconnectingRef.current = false;
     closingRef.current = false;
   }
 

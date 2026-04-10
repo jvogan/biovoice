@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { RealtimeSessionRegistry } from "../../packages/runtime-and-adapters/src/realtime/session-registry.js";
+import { createEmptySessionUsage } from "../../packages/runtime-and-adapters/src/realtime/usage.js";
 
 function createRegistry() {
   return new RealtimeSessionRegistry({
@@ -11,6 +12,13 @@ function createRegistry() {
     realtimeMaxOutputTokens: 1536,
     realtimeTracing: null,
     realtimeTruncation: null,
+    sessionGuardrails: {
+      maxSessionMinutes: 25,
+      maxResponsesPerSession: 18,
+      maxTranscriptionsPerSession: 36,
+      maxBillableTokensPerSession: 24000,
+      warningRatio: 0.8,
+    },
     pymol: {
       baseUrl: "http://127.0.0.1",
       startPort: 9123,
@@ -122,5 +130,46 @@ describe("realtime session registry hardening", () => {
     ]));
     expect(registry.executeTargetActions).toHaveBeenCalledTimes(4);
     expect(registry.pymolAdapter.waitUntilCommandReady).toHaveBeenCalledTimes(3);
+  });
+
+  it("tracks session cost guardrails in the live session status", () => {
+    const registry = createRegistry() as never as {
+      createSessionRecord: (
+        sessionId: string,
+        callId: string,
+        target: "pymol" | "chimerax",
+        voiceMode: "push_to_talk" | "open_mic",
+        recipeId?: string,
+        accessToken?: string,
+        registerToken?: string,
+      ) => {
+        status: {
+          usage: ReturnType<typeof createEmptySessionUsage>;
+        };
+        connectedAtMs: number | null;
+      };
+      sessions: Map<string, unknown>;
+      refreshSessionUsageGuardrails: (sessionId: string) => void;
+      getStatus: (sessionId: string) => {
+        usageGuardrails: {
+          warningActive: boolean;
+          warningReason?: string;
+        };
+      };
+    };
+
+    const record = registry.createSessionRecord("session-guard", "", "pymol", "push_to_talk");
+    record.connectedAtMs = Date.now() - 60_000;
+    record.status.usage = {
+      ...createEmptySessionUsage(),
+      responseCount: 10,
+      totalTokens: 20000,
+    };
+    registry.sessions.set("session-guard", record);
+    registry.refreshSessionUsageGuardrails("session-guard");
+
+    const status = registry.getStatus("session-guard");
+    expect(status.usageGuardrails.warningActive).toBe(true);
+    expect(status.usageGuardrails.warningReason).toBe("billable_tokens");
   });
 });

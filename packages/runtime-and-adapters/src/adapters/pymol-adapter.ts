@@ -82,9 +82,7 @@ export class PymolAdapter {
 
   async ensureReady(): Promise<string> {
     if (this.activeUrl) {
-      const recoveredActiveUrl = await this.waitForSpecificRpcUrl(this.activeUrl, 5_000, {
-        requiredConsecutivePasses: this.hasRecentCertification(this.activeUrl) ? 1 : 3,
-      });
+      const recoveredActiveUrl = await this.recoverPinnedRpcUrl(this.activeUrl, 5_000);
       if (recoveredActiveUrl) {
         this.activeUrl = recoveredActiveUrl;
         return recoveredActiveUrl;
@@ -94,9 +92,7 @@ export class PymolAdapter {
     }
 
     if (this.configuredRpcUrl) {
-      const recoveredConfiguredUrl = await this.waitForSpecificRpcUrl(this.configuredRpcUrl, 5_000, {
-        requiredConsecutivePasses: this.hasRecentCertification(this.configuredRpcUrl) ? 1 : 3,
-      });
+      const recoveredConfiguredUrl = await this.recoverPinnedRpcUrl(this.configuredRpcUrl, 5_000);
       if (recoveredConfiguredUrl) {
         this.activeUrl = recoveredConfiguredUrl;
         return recoveredConfiguredUrl;
@@ -293,6 +289,33 @@ export class PymolAdapter {
     }
 
     throw new Error("No PyMOL RPC endpoint answered in the configured port range.");
+  }
+
+  private async recoverPinnedRpcUrl(rpcUrl: string, initialTimeoutMs: number): Promise<string | null> {
+    const recoveredPinnedUrl = await this.waitForSpecificRpcUrl(rpcUrl, initialTimeoutMs, {
+      requiredConsecutivePasses: this.hasRecentCertification(rpcUrl) ? 1 : 3,
+    });
+    if (recoveredPinnedUrl) {
+      return recoveredPinnedUrl;
+    }
+
+    const probe = await this.probeEndpoint(rpcUrl);
+    if (!probe?.reachable) {
+      return null;
+    }
+
+    this.noteReachable(rpcUrl, probe.lastError);
+    const extendedWarmupTimeoutMs = Math.min(Math.max(this.renderTimeoutMs, 10_000), 30_000);
+    const warmedPinnedUrl = await this.waitForSpecificRpcUrl(rpcUrl, extendedWarmupTimeoutMs, {
+      requiredConsecutivePasses: 1,
+    });
+    if (warmedPinnedUrl) {
+      return warmedPinnedUrl;
+    }
+
+    const totalWarmupTimeoutMs = initialTimeoutMs + extendedWarmupTimeoutMs;
+    this.noteReachable(rpcUrl, buildPinnedEndpointWarmupTimeoutError(rpcUrl, totalWarmupTimeoutMs));
+    throw new Error(buildPinnedEndpointWarmupTimeoutError(rpcUrl, totalWarmupTimeoutMs));
   }
 
   setWorkflowContext(context: { referenceHints: Record<string, ReferenceHint>; workflowState: Record<string, unknown> }): void {
@@ -1221,7 +1244,8 @@ function parsePymolPngCommand(command: string): { path: string; width: number; h
 }
 
 function requiresPymolPostCommandRecovery(command: string): boolean {
-  return /^(ray|png|save|map_new|isomesh|isosurface)\b/i.test(command.trim());
+  return /^(ray|png|save|map_new|isomesh|isosurface)\b/i.test(command.trim())
+    || /\b(show surface|set surface_|scene\b)\b/i.test(command.trim());
 }
 
 function getPymolPostCommandRecovery(
@@ -1233,19 +1257,34 @@ function getPymolPostCommandRecovery(
   }
 
   const joined = commandBatches.map((batch) => batch.command).join("\n");
-  const hasSurfaceOrSceneWork = /\b(show surface|set surface_|scene\b)\b/i.test(joined);
+  const hasSurfaceWork = /\b(show surface|set surface_|isomesh\b|isosurface\b)\b/i.test(joined);
+  const hasSceneWork = /\bscene\b/i.test(joined);
   const hasRayCommand = commandBatches.some((batch) => /^ray\b/i.test(batch.command.trim()));
   const hasRayTracedPng = commandBatches.some((batch) => (parsePymolPngCommand(batch.command)?.ray ?? 0) > 0);
 
   if (hasRayCommand || hasRayTracedPng) {
     return {
-      timeoutMs: Math.min(renderTimeoutMs, hasSurfaceOrSceneWork ? 30_000 : 20_000),
-      requiredConsecutivePasses: hasSurfaceOrSceneWork ? 2 : 1,
+      timeoutMs: Math.min(renderTimeoutMs, hasSurfaceWork || hasSceneWork ? 30_000 : 20_000),
+      requiredConsecutivePasses: hasSurfaceWork || hasSceneWork ? 2 : 1,
+    };
+  }
+
+  if (hasSurfaceWork) {
+    return {
+      timeoutMs: Math.min(renderTimeoutMs, 30_000),
+      requiredConsecutivePasses: 2,
+    };
+  }
+
+  if (hasSceneWork) {
+    return {
+      timeoutMs: Math.min(renderTimeoutMs, 20_000),
+      requiredConsecutivePasses: 1,
     };
   }
 
   return {
-    timeoutMs: Math.min(renderTimeoutMs, hasSurfaceOrSceneWork ? 15_000 : 10_000),
+    timeoutMs: Math.min(renderTimeoutMs, 10_000),
     requiredConsecutivePasses: 1,
   };
 }
@@ -1265,7 +1304,7 @@ function getPymolBatchTimeout(commands: string[], timeoutMs: number, renderTimeo
   if (!hasSurfaceOrSceneWork && commands.length <= 6) {
     return coldStart ? Math.max(timeoutMs, 20_000) : timeoutMs;
   }
-  if (hasSurfaceOrSceneWork && commands.length >= 12) {
+  if (hasSurfaceOrSceneWork && commands.length >= 6) {
     return coldStart ? Math.max(renderTimeoutMs, 45_000) : renderTimeoutMs;
   }
 

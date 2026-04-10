@@ -1,6 +1,10 @@
 import { z } from "zod";
 import { targetKindSchema, voiceModeSchema } from "../schemas/index.js";
-import { createEmptySessionUsage, sessionUsageSchema } from "./usage.js";
+import {
+  createEmptySessionUsage,
+  sessionUsageGuardStateSchema,
+  sessionUsageSchema,
+} from "./usage.js";
 
 export const sessionStatusSchema = z.object({
   sessionId: z.string(),
@@ -23,6 +27,7 @@ export const sessionStatusSchema = z.object({
   eventSubscribers: z.number().int().min(0).default(0),
   toolBusy: z.boolean().default(false),
   usage: sessionUsageSchema.default(createEmptySessionUsage()),
+  usageGuardrails: sessionUsageGuardStateSchema,
 });
 
 export const sessionUiEventSchema = z.object({

@@ -62,37 +62,12 @@ Direct command equivalents:
 - `label chain B and resi 20 and name CA, "Chain B"`
 - `label chain C and resi 20 and name CA, "Chain C"`
 - `label chain D and resi 20 and name CA, "Chain D"`
-- `bg_color gray99`
-- `set ray_opaque_background, off`
-- `set orthoscopic, on`
-- `set depth_cue, 0`
-- `set ray_shadows, 0`
-- `set antialias, 2`
-- `set antialias_shader, 2`
-- `set specular, 0.15`
-- `set specular_intensity, 0.2`
-- `set spec_direct, 0`
-- `set ambient, 0.22`
-- `set direct, 0.48`
-- `set two_sided_lighting, 1`
-- `set cartoon_fancy_helices, 1`
-- `set cartoon_flat_sheets, 1`
-- `set cartoon_smooth_loops, 1`
-- `set stick_radius, 0.16`
-- `set surface_quality, 2`
-- `set valence, 0`
-- `set label_color, gray20`
-- `set label_size, 18`
-- `set label_outline_color, gray98`
-- `set dash_color, gray45`
-- `set dash_radius, 0.05`
-- `set dash_gap, 0.18`
 
 ## Step 3: Frame the hero shot and store the scene.
 
-**Suggested voice request:** Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
+**Suggested voice request:** Orient the tetramer and store the hero scene before exporting.
 
-Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.
+Orient the tetramer and store the hero scene before exporting.
 
 Checkpoints:
 - Scene F6 is stored for the final hemoglobin presentation view.
@@ -103,31 +78,6 @@ Direct command equivalents:
 - `turn y, 14`
 - `turn x, 8`
 - `zoom 4hhb, 8`
-- `bg_color gray99`
-- `set ray_opaque_background, off`
-- `set orthoscopic, on`
-- `set depth_cue, 0`
-- `set ray_shadows, 0`
-- `set antialias, 2`
-- `set antialias_shader, 2`
-- `set specular, 0.15`
-- `set specular_intensity, 0.2`
-- `set spec_direct, 0`
-- `set ambient, 0.22`
-- `set direct, 0.48`
-- `set two_sided_lighting, 1`
-- `set cartoon_fancy_helices, 1`
-- `set cartoon_flat_sheets, 1`
-- `set cartoon_smooth_loops, 1`
-- `set stick_radius, 0.16`
-- `set surface_quality, 2`
-- `set valence, 0`
-- `set label_color, gray20`
-- `set label_size, 18`
-- `set label_outline_color, gray98`
-- `set dash_color, gray45`
-- `set dash_radius, 0.05`
-- `set dash_gap, 0.18`
 - `scene F6, store, Hemoglobin presentation view`
 
 ## Step 4: Export the final hemoglobin presentation PNG.

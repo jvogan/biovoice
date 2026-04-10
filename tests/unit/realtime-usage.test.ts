@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   accumulateResponseUsage,
   accumulateTranscriptionUsage,
+  buildSessionUsageGuardState,
   buildOrganizationUsageSummary,
   createEmptySessionUsage,
   getBillableTokenTotal,
@@ -116,5 +117,55 @@ describe("organization usage summary", () => {
     expect(summary.totals.transcriptionSeconds).toBe(45);
     expect(summary.totals.costUsd).toBe(1.23);
     expect(summary.scope.costsScope).toBe("project");
+  });
+});
+
+describe("session usage guardrails", () => {
+  it("warns before breaching the configured billable token cap", () => {
+    const usage = accumulateResponseUsage(createEmptySessionUsage(), {
+      total_tokens: 19600,
+      input_tokens: 9800,
+      output_tokens: 9800,
+      input_token_details: { text_tokens: 9800, audio_tokens: 0, image_tokens: 0, cached_tokens: 0 },
+      output_token_details: { text_tokens: 9800, audio_tokens: 0 },
+    });
+
+    const guardState = buildSessionUsageGuardState(
+      usage,
+      {
+        maxSessionMinutes: 25,
+        maxResponsesPerSession: 18,
+        maxTranscriptionsPerSession: 36,
+        maxBillableTokensPerSession: 24000,
+        warningRatio: 0.8,
+      },
+      1_000_000,
+      1_100_000,
+    );
+
+    expect(guardState.warningActive).toBe(true);
+    expect(guardState.warningReason).toBe("billable_tokens");
+    expect(guardState.warningMessage).toMatch(/approaching the per-session billable token cap/i);
+    expect(guardState.breachReason).toBeUndefined();
+  });
+
+  it("breaches when the configured session duration cap is reached", () => {
+    const guardState = buildSessionUsageGuardState(
+      createEmptySessionUsage(),
+      {
+        maxSessionMinutes: 25,
+        maxResponsesPerSession: 18,
+        maxTranscriptionsPerSession: 36,
+        maxBillableTokensPerSession: 24000,
+        warningRatio: 0.8,
+      },
+      1_000_000,
+      2_500_000,
+    );
+
+    expect(guardState.warningActive).toBe(false);
+    expect(guardState.breachReason).toBe("session_duration");
+    expect(guardState.breachMessage).toMatch(/reached the per-session duration cap/i);
+    expect(guardState.sessionSecondsRemaining).toBe(0);
   });
 });

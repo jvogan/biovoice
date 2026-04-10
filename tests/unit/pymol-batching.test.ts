@@ -73,4 +73,23 @@ describe("createPymolCommandBatches", () => {
     expect(batches).toHaveLength(1);
     expect(batches[0]?.timeoutMs).toBe(45_000);
   });
+
+  it("gives medium-sized surface and label batches the render timeout budget", () => {
+    const batches = createPymolCommandBatches(
+      [
+        "show surface, polymer.protein",
+        "color gray70, polymer.protein",
+        "set surface_transparency, 0.55, polymer.protein",
+        "label chain A and resi 20 and name CA, \"Chain A\"",
+        "label chain B and resi 20 and name CA, \"Chain B\"",
+        "label chain C and resi 20 and name CA, \"Chain C\"",
+        "label chain D and resi 20 and name CA, \"Chain D\"",
+      ],
+      8_000,
+      45_000,
+    );
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.timeoutMs).toBe(45_000);
+  });
 });

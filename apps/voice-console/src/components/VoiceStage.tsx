@@ -196,8 +196,11 @@ export function VoiceStage(props: VoiceStageProps) {
         <button
           type="button"
           onClick={() => {
+            if (onToggleOpenMic) {
+              onToggleOpenMic();
+              return;
+            }
             onVoiceModeChange("open_mic");
-            if (onToggleOpenMic && !openMicArmed) onToggleOpenMic();
           }}
           className={`px-3 py-1.5 text-xs font-medium rounded-md transition-all ${
             !pttMode

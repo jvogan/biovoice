@@ -528,7 +528,6 @@ export const exampleCatalog: RecipeManifest[] = recipeManifestSchema.array().par
           { type: "label", selection: "chain B and resi 20 and name CA", text: "Chain B" },
           { type: "label", selection: "chain C and resi 20 and name CA", text: "Chain C" },
           { type: "label", selection: "chain D and resi 20 and name CA", text: "Chain D" },
-          { type: "preset", name: "presentation_light" },
         ],
         checkpoints: ["Surface and labels are visible on a white background."],
         manualCommands: [
@@ -541,10 +540,9 @@ export const exampleCatalog: RecipeManifest[] = recipeManifestSchema.array().par
       {
         id: "frame-hero-shot",
         title: "Frame the hero shot and store the scene.",
-        summary: "Orient the tetramer, apply the presentation preset, and store the hero scene before exporting.",
+        summary: "Orient the tetramer and store the hero scene before exporting.",
         actions: [
           { type: "camera", action: "hero_frame", selection: "4hhb", buffer: 8 },
-          { type: "preset", name: "presentation_light" },
           { type: "scene", key: "F6", action: "store", message: "Hemoglobin presentation view" },
         ],
         checkpoints: ["Scene F6 is stored for the final hemoglobin presentation view."],
