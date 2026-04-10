@@ -47,6 +47,8 @@ export interface VoiceWidgetProps {
   idleSecondsRemaining: number | null;
   idleMaxSeconds: number;
   autoSleepEnabled: boolean;
+  sessionNotice?: string | null;
+  sessionNoticeTone?: "warn" | "error";
   openMicArmed: boolean;
   onConnect: () => void;
   onDisconnect: () => void;
@@ -444,6 +446,11 @@ export function VoiceWidget(props: VoiceWidgetProps) {
                 </button>
               </div>
             ) : null}
+            {props.sessionNotice ? (
+              <div className={`voice-widget-notice voice-widget-notice-${props.sessionNoticeTone ?? "warn"}`}>
+                {props.sessionNotice}
+              </div>
+            ) : null}
           </div>
         )}
       </section>
@@ -475,6 +482,12 @@ export function VoiceWidget(props: VoiceWidgetProps) {
           <div className="voice-widget-value voice-widget-value-muted">{props.hint ?? "—"}</div>
         </div>
       </div>
+
+      {props.sessionNotice ? (
+        <div className={`voice-widget-notice voice-widget-notice-${props.sessionNoticeTone ?? "warn"}`}>
+          {props.sessionNotice}
+        </div>
+      ) : null}
 
       <div className="voice-widget-mic-wrap">
         <button

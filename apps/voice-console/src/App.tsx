@@ -356,8 +356,16 @@ export function App() {
   const connectBusy = !connection.connected && (connection.phase === "arming" || connection.phase === "connecting");
   const targetRuntimeReady = target === "pymol" ? runtimeHealth?.targets.pymol.ready : runtimeHealth?.targets.chimerax.ready;
   const targetUnavailable = targetRuntimeReady === false;
+  const activeRealtimeSessionCount =
+    (runtimeHealth?.sessions.awaitingCall ?? 0)
+    + (runtimeHealth?.sessions.connecting ?? 0)
+    + (runtimeHealth?.sessions.connected ?? 0);
+  const activeSessionCapReached =
+    !connection.connected
+    && configLoaded
+    && activeRealtimeSessionCount >= realtimeSessionGuardrails.maxActiveSessions;
   const manualWorkflowLaunchDisabled = !configLoaded || targetUnavailable || connectBusy || connection.connected;
-  const connectDisabled = !configLoaded || !realtimeReady || connectBusy || targetUnavailable;
+  const connectDisabled = !configLoaded || !realtimeReady || connectBusy || targetUnavailable || activeSessionCapReached;
   const expandedConsoleHref = buildExpandedConsoleHref();
   const controllerLabel =
     !connection.connected
@@ -416,9 +424,19 @@ export function App() {
   };
   const sessionNoticeMessage =
     connection.status?.usageGuardrails?.warningMessage
+    ?? (connection.connected && connection.eventStreamState === "stalled"
+      ? "Session event stream stalled. Voice may still be live; disconnect and reconnect if you want to avoid blind spend."
+      : null)
+    ?? (activeSessionCapReached
+      ? "Realtime session limit reached. Disconnect another session or wait for a stale setup attempt to expire before starting a new call."
+      : null)
     ?? (connection.idleWarningActive
       ? `Idle disconnect in ${idleCountdownLabel}. Start a new turn or pause the session if you want to keep it alive.`
       : null);
+  const sessionNoticeTone: "warn" | "error" =
+    connection.connected && connection.eventStreamState === "stalled"
+      ? "error"
+      : "warn";
 
   const handleSpaceKey = useEffectEvent((event: KeyboardEvent) => {
     if (!keyboardPttEnabled) return;
@@ -533,6 +551,8 @@ export function App() {
             phase={connection.phase}
             ready={connection.ready}
             sessionPaused={connection.sessionPaused}
+            sessionNotice={sessionNoticeMessage}
+            sessionNoticeTone={sessionNoticeTone}
             target={target}
             targetReady={!targetUnavailable}
             voiceMode={voiceMode}

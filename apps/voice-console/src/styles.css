@@ -1172,6 +1172,28 @@ input:focus-visible,
   gap: 10px;
 }
 
+.voice-widget-notice {
+  position: relative;
+  z-index: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-size: 11px;
+  line-height: 1.45;
+  border: 0.5px solid transparent;
+}
+
+.voice-widget-notice-warn {
+  background: rgba(250, 238, 218, 0.12);
+  border-color: rgba(239, 159, 39, 0.35);
+  color: #f5d19a;
+}
+
+.voice-widget-notice-error {
+  background: rgba(252, 235, 235, 0.12);
+  border-color: rgba(228, 99, 99, 0.4);
+  color: #f4b2b2;
+}
+
 .voice-widget-context-row {
   min-height: 15px;
   position: relative;
