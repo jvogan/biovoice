@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 
-![BioVoice](./docs/social-preview-oil.png)
+![BioVoice](./docs/social-preview-lego.jpg)
 
 BioVoice is a real-time voice interface for structural biology visualization. It connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) to the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) via WebRTC, letting you control molecular visualization hands-free with natural language.
 
