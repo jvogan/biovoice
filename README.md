@@ -41,7 +41,7 @@ BioVoice connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucs
 | Rehearsal mode | Yes, local and offline |
 | Scientific workflows | AlphaFold, Rosetta, cryo-EM, ligand pocket, comparison, assembly |
 
-BioVoice ships with conservative per-session Realtime guardrails by default: idle disconnects, a session-duration cap, response and transcription caps, and a billable-token cap that triggers warnings before the session is disconnected.
+BioVoice ships with conservative Realtime guardrails by default: idle disconnects, a session-duration cap, response and transcription caps, a billable-token cap that triggers warnings before the session is disconnected, and a small concurrent-session cap to stop runaway reconnect churn.
 
 ## Quick Start
 

@@ -3,6 +3,7 @@ export interface RealtimeSessionGuardrails {
   maxResponsesPerSession: number;
   maxTranscriptionsPerSession: number;
   maxBillableTokensPerSession: number;
+  maxActiveSessions: number;
   warningRatio: number;
 }
 

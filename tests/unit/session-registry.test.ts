@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { RealtimeSessionRegistry } from "../../packages/runtime-and-adapters/src/realtime/session-registry.js";
+import { RealtimeSessionCapacityError, RealtimeSessionRegistry } from "../../packages/runtime-and-adapters/src/realtime/session-registry.js";
 import { createEmptySessionUsage } from "../../packages/runtime-and-adapters/src/realtime/usage.js";
 
 function createRegistry() {
@@ -89,6 +89,19 @@ describe("realtime session registry hardening", () => {
     expect(() => registry.validateSessionAccess(prepared.sessionId, prepared.sessionAccessToken)).toThrow(/invalid realtime session access token/i);
 
     (registry as never as { disposeSession(sessionId: string): void }).disposeSession(prepared.sessionId);
+  });
+
+  it("blocks runaway session creation when the active-session cap is reached", async () => {
+    const registry = createRegistry();
+    vi.spyOn(registry as any, "createEphemeralSession").mockResolvedValue({ value: "ephemeral-secret" });
+
+    const first = await registry.prepareSession("pymol", "push_to_talk");
+    const second = await registry.prepareSession("chimerax", "push_to_talk");
+
+    await expect(registry.prepareSession("pymol", "push_to_talk")).rejects.toBeInstanceOf(RealtimeSessionCapacityError);
+
+    (registry as never as { disposeSession(sessionId: string): void }).disposeSession(first.sessionId);
+    (registry as never as { disposeSession(sessionId: string): void }).disposeSession(second.sessionId);
   });
 
   it("downgrades post-step PyMOL stabilization failures into warnings", async () => {

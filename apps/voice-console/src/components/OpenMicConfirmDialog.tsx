@@ -52,11 +52,12 @@ export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
                   <GuardrailCard label="Responses" value={String(guardrails.maxResponsesPerSession)} />
                   <GuardrailCard label="Transcriptions" value={String(guardrails.maxTranscriptionsPerSession)} />
                   <GuardrailCard label="Billable tokens" value={guardrails.maxBillableTokensPerSession.toLocaleString()} />
+                  <GuardrailCard label="Active sessions" value={String(guardrails.maxActiveSessions)} />
                   <GuardrailCard label="Warning threshold" value={`${Math.round(guardrails.warningRatio * 100)}%`} />
                 </div>
 
                 <div className="rounded-2xl border border-amber-300/70 dark:border-amber-700/50 bg-amber-50/70 dark:bg-amber-950/30 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:text-amber-100">
-                  Best practice: start with push-to-talk, switch to open mic only when the room is quiet, and begin a fresh session when you want to reset the cost counters.
+                  Best practice: start with push-to-talk, switch to open mic only when the room is quiet, and begin a fresh session when you want to reset the cost counters. BioVoice also blocks runaway reconnect churn by refusing to open more than {guardrails.maxActiveSessions} Realtime session{guardrails.maxActiveSessions === 1 ? "" : "s"} at once.
                 </div>
               </div>
 

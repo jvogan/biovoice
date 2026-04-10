@@ -50,6 +50,7 @@ export interface RealtimeRegistryOptions {
     postInstructions: number;
   } | null;
   sessionGuardrails: SessionUsageGuardrails;
+  maxActiveSessions?: number;
   transcriptionPromptHint?: string;
   debugRawEvents?: boolean;
   expertCommandsEnabled?: boolean;
@@ -105,6 +106,13 @@ export interface RealtimeRuntimeHealth {
   };
 }
 
+export class RealtimeSessionCapacityError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "RealtimeSessionCapacityError";
+  }
+}
+
 interface SessionRecord {
   emitter: EventEmitter;
   status: SessionStatus;
@@ -151,6 +159,7 @@ export class RealtimeSessionRegistry {
     postInstructions: number;
   } | null;
   private readonly sessionGuardrails: SessionUsageGuardrails;
+  private readonly maxActiveSessions: number;
   private readonly transcriptionPromptHint?: string;
   private readonly debugRawEvents: boolean;
   private readonly expertCommandsEnabled: boolean;
@@ -172,6 +181,7 @@ export class RealtimeSessionRegistry {
     this.realtimeTracing = options.realtimeTracing;
     this.realtimeTruncation = options.realtimeTruncation;
     this.sessionGuardrails = options.sessionGuardrails;
+    this.maxActiveSessions = Math.max(1, options.maxActiveSessions ?? 2);
     this.transcriptionPromptHint = options.transcriptionPromptHint;
     this.debugRawEvents = options.debugRawEvents ?? false;
     this.expertCommandsEnabled = options.expertCommandsEnabled ?? false;
@@ -246,6 +256,7 @@ export class RealtimeSessionRegistry {
   }
 
   private prepareLocalSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string): LocalPreparedSession {
+    this.ensureSessionCapacity();
     const sessionId = crypto.randomUUID();
     const sessionAccessToken = crypto.randomUUID();
     const registerToken = crypto.randomUUID();
@@ -262,6 +273,40 @@ export class RealtimeSessionRegistry {
       registerToken,
       sessionAccessToken,
     };
+  }
+
+  private ensureSessionCapacity(): void {
+    this.pruneSessions();
+    const activeSessions = this.countActiveSessions();
+    if (activeSessions < this.maxActiveSessions) {
+      return;
+    }
+
+    throw new RealtimeSessionCapacityError(
+      `Refusing to start another Realtime session because ${activeSessions} active session${activeSessions === 1 ? " is" : "s are"} already open. Disconnect an existing session or wait for a stale setup attempt to expire before starting a new call.`,
+    );
+  }
+
+  private countActiveSessions(now = Date.now()): number {
+    let count = 0;
+    for (const record of this.sessions.values()) {
+      if (this.isSessionActive(record, now)) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
+  private isSessionActive(record: SessionRecord, now: number): boolean {
+    if (record.status.status === "disconnected") {
+      return false;
+    }
+    if (record.status.status === "connected") {
+      return now - record.lastActivityAt < CONNECTED_SESSION_IDLE_TTL_MS;
+    }
+
+    const ttlMs = record.status.status === "awaiting_call" ? PENDING_SESSION_TTL_MS : DISCONNECTED_SESSION_TTL_MS;
+    return now - record.lastActivityAt < ttlMs;
   }
 
   registerCall(sessionId: string, callId: string, registerToken: string): string {
@@ -1612,19 +1657,9 @@ export class RealtimeSessionRegistry {
   private pruneSessions(): void {
     const now = Date.now();
     for (const [sessionId, record] of this.sessions.entries()) {
-      if (record.status.status === "connected") {
-        if (now - record.lastActivityAt >= CONNECTED_SESSION_IDLE_TTL_MS) {
-          this.disposeSession(sessionId);
-        }
-        continue;
+      if (!this.isSessionActive(record, now)) {
+        this.disposeSession(sessionId);
       }
-
-      const ttlMs = record.status.status === "awaiting_call" ? PENDING_SESSION_TTL_MS : DISCONNECTED_SESSION_TTL_MS;
-      if (now - record.lastActivityAt < ttlMs) {
-        continue;
-      }
-
-      this.disposeSession(sessionId);
     }
   }
 

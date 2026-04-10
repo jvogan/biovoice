@@ -14,6 +14,7 @@ import {
   getExampleCatalog,
   getScientificWorkflowCatalog,
   getRecipe,
+  RealtimeSessionCapacityError,
   RealtimeSessionRegistry,
   resolvePublicBaseUrlOrigin,
   resolveFromRoot,
@@ -204,6 +205,7 @@ function createRateLimit(label: string, limit: number, windowMs: number) {
     }
 
     if (bucket.count >= limit) {
+      console.warn(`[realtime-rate-limit] ${label} blocked for ${req.ip ?? "local"}`);
       res.setHeader("Retry-After", String(Math.max(1, Math.ceil((bucket.resetAt - now) / 1000))));
       res.status(429).json({ error: `Rate limit exceeded for ${label}.` });
       return;
@@ -268,6 +270,7 @@ const realtimeMaxSessionMinutes = readPositiveInteger(process.env.REALTIME_MAX_S
 const realtimeMaxResponsesPerSession = readPositiveInteger(process.env.REALTIME_MAX_RESPONSES_PER_SESSION, 18);
 const realtimeMaxTranscriptionsPerSession = readPositiveInteger(process.env.REALTIME_MAX_TRANSCRIPTIONS_PER_SESSION, 36);
 const realtimeMaxBillableTokensPerSession = readPositiveInteger(process.env.REALTIME_MAX_BILLABLE_TOKENS_PER_SESSION, 24000);
+const realtimeMaxActiveSessions = readPositiveInteger(process.env.REALTIME_MAX_ACTIVE_SESSIONS, 2);
 const realtimeUsageWarningRatio = readUnitInterval(process.env.REALTIME_USAGE_WARNING_RATIO, 0.8, 0.5, 0.95);
 const realtimeTracing = process.env.REALTIME_TRACING === "false" ? null : "auto";
 const realtimeRetentionRatio = Number(process.env.REALTIME_RETENTION_RATIO ?? 0.8);
@@ -326,6 +329,7 @@ const registry = new RealtimeSessionRegistry({
     maxBillableTokensPerSession: realtimeMaxBillableTokensPerSession,
     warningRatio: realtimeUsageWarningRatio,
   },
+  maxActiveSessions: realtimeMaxActiveSessions,
   transcriptionPromptHint: process.env.REALTIME_TRANSCRIPTION_PROMPT_HINT,
   debugRawEvents: process.env.REALTIME_DEBUG_RAW_EVENTS === "true",
   expertCommandsEnabled: expertCommandsGloballyEnabled,
@@ -494,6 +498,7 @@ app.get("/api/health", async (req, res) => {
       maxResponsesPerSession: realtimeMaxResponsesPerSession,
       maxTranscriptionsPerSession: realtimeMaxTranscriptionsPerSession,
       maxBillableTokensPerSession: realtimeMaxBillableTokensPerSession,
+      maxActiveSessions: realtimeMaxActiveSessions,
       warningRatio: realtimeUsageWarningRatio,
     },
     defaultTarget,
@@ -535,6 +540,7 @@ app.get("/api/config", async (req, res) => {
       maxResponsesPerSession: realtimeMaxResponsesPerSession,
       maxTranscriptionsPerSession: realtimeMaxTranscriptionsPerSession,
       maxBillableTokensPerSession: realtimeMaxBillableTokensPerSession,
+      maxActiveSessions: realtimeMaxActiveSessions,
       warningRatio: realtimeUsageWarningRatio,
     },
     defaultTarget,
@@ -680,7 +686,7 @@ app.get("/api/usage/organization", async (req, res) => {
   }
 });
 
-app.post("/api/realtime/client-secret", createRateLimit("client-secret", 30, 60_000), async (req, res) => {
+app.post("/api/realtime/client-secret", createRateLimit("client-secret", 12, 60_000), async (req, res) => {
   try {
     const target = targetKindSchema.parse(req.body.target ?? defaultTarget);
     const voiceMode = voiceModeSchema.parse(req.body.voiceMode ?? "push_to_talk");
@@ -689,12 +695,17 @@ app.post("/api/realtime/client-secret", createRateLimit("client-secret", 30, 60_
     markRealtimeCredentialValidated();
     res.json(prepared);
   } catch (error) {
+    if (error instanceof RealtimeSessionCapacityError) {
+      console.warn(`[realtime-guardrail] ${error.message}`);
+      res.status(429).json({ error: error.message });
+      return;
+    }
     markRealtimeCredentialFailed(error);
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
 });
 
-app.post("/api/realtime/connect", createRateLimit("realtime-connect", 30, 60_000), async (req, res) => {
+app.post("/api/realtime/connect", createRateLimit("realtime-connect", 12, 60_000), async (req, res) => {
   try {
     const target = targetKindSchema.parse(req.body.target ?? defaultTarget);
     const voiceMode = voiceModeSchema.parse(req.body.voiceMode ?? "push_to_talk");
@@ -714,12 +725,17 @@ app.post("/api/realtime/connect", createRateLimit("realtime-connect", 30, 60_000
     markRealtimeCredentialValidated();
     res.json(result);
   } catch (error) {
+    if (error instanceof RealtimeSessionCapacityError) {
+      console.warn(`[realtime-guardrail] ${error.message}`);
+      res.status(429).json({ error: error.message });
+      return;
+    }
     markRealtimeCredentialFailed(error);
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
 });
 
-app.post("/api/realtime/register-call", createRateLimit("register-call", 40, 60_000), async (req, res) => {
+app.post("/api/realtime/register-call", createRateLimit("register-call", 16, 60_000), async (req, res) => {
   try {
     const sessionId = String(req.body.sessionId ?? "");
     const callId = String(req.body.callId ?? "");

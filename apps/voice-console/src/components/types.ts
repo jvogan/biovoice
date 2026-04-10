@@ -56,6 +56,7 @@ export interface GuardrailsSnapshot {
   maxResponsesPerSession: number;
   maxTranscriptionsPerSession: number;
   maxBillableTokensPerSession: number;
+  maxActiveSessions: number;
   warningRatio: number;
   currentResponses?: number;
   currentTranscriptions?: number;

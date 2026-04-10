@@ -163,9 +163,13 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                         label="Billable Tokens"
                         value={guardrails.maxBillableTokensPerSession.toLocaleString()}
                       />
+                      <StatCard
+                        label="Active Sessions"
+                        value={String(guardrails.maxActiveSessions)}
+                      />
                     </div>
                     <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                      Guardrails warn at {Math.round(guardrails.warningRatio * 100)}% of the configured session caps and disconnect the session if it crosses a limit.
+                      Guardrails warn at {Math.round(guardrails.warningRatio * 100)}% of the configured session caps, disconnect the session if it crosses a limit, and refuse to open more than {guardrails.maxActiveSessions} Realtime session{guardrails.maxActiveSessions === 1 ? "" : "s"} at once.
                     </p>
                   </div>
                 </div>

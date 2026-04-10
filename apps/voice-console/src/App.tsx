@@ -121,6 +121,7 @@ export function App() {
     maxResponsesPerSession: 18,
     maxTranscriptionsPerSession: 36,
     maxBillableTokensPerSession: 24000,
+    maxActiveSessions: 2,
     warningRatio: 0.8,
   });
   const [realtimeReady, setRealtimeReady] = useState(false);
@@ -404,6 +405,7 @@ export function App() {
     maxResponsesPerSession: realtimeSessionGuardrails.maxResponsesPerSession,
     maxTranscriptionsPerSession: realtimeSessionGuardrails.maxTranscriptionsPerSession,
     maxBillableTokensPerSession: realtimeSessionGuardrails.maxBillableTokensPerSession,
+    maxActiveSessions: realtimeSessionGuardrails.maxActiveSessions,
     warningRatio: realtimeSessionGuardrails.warningRatio,
     currentResponses: connection.status?.usage?.responseCount,
     currentTranscriptions: connection.status?.usage?.transcriptionCount,
