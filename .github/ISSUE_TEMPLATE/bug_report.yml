@@ -20,6 +20,18 @@ body:
       required: true
 
   - type: textarea
+    id: path
+    attributes:
+      label: Command / Tutorial Used
+      description: Which exact command, tutorial page, or workflow were you following?
+      placeholder: |
+        Command: `npm run showcase:chimerax:overlay`
+        Tutorial: `docs/tutorial-alphafold.md`
+        Workflow: `alphafold_vs_experiment_overlay`
+    validations:
+      required: true
+
+  - type: textarea
     id: steps
     attributes:
       label: Steps to Reproduce
@@ -42,6 +54,19 @@ body:
         - Node.js: __
         - PyMOL / ChimeraX version: __
         - Browser: __
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Session Mode
+      options:
+        - Offline rehearsal
+        - Live voice (push-to-talk)
+        - Live voice (always-on)
+        - Direct API / workflow route
+        - Not sure
     validations:
       required: true
 

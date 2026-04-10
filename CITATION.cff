@@ -20,6 +20,9 @@ keywords:
   - rosetta
   - openai-realtime
   - bioinformatics
+  - protein-design
+  - cryo-em
+  - scientific-visualization
 abstract: >-
   BioVoice is a local research prototype for voice control in
   structural biology visualization. It connects PyMOL and ChimeraX

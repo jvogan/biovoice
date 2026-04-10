@@ -40,6 +40,18 @@ body:
     validations:
       required: true
 
+  - type: dropdown
+    id: audience
+    attributes:
+      label: Primary Audience
+      options:
+        - Structural biologists / researchers
+        - Presenters / educators
+        - Developers / contributors
+        - Cross-audience
+    validations:
+      required: true
+
   - type: textarea
     id: alternatives
     attributes:
