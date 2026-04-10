@@ -2,6 +2,12 @@
 
 This catalog is the task-first launch layer for AlphaFold and Rosetta work.
 
+If you want a guided newcomer walkthrough first, start with:
+
+- [`docs/tutorial-alphafold.md`](../../docs/tutorial-alphafold.md)
+- [`docs/tutorial-rosetta.md`](../../docs/tutorial-rosetta.md)
+- [`docs/tutorial-cryo-em.md`](../../docs/tutorial-cryo-em.md)
+
 Use it from the UI `Scientific Launch` rail, or pass the workflow explicitly to the agent start path.
 
 ## Common Launch Pattern

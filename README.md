@@ -1,52 +1,45 @@
 # BioVoice
 
-**Speak to PyMOL and ChimeraX.** Say *"color by confidence and zoom the uncertain loop"* and it happens.
+**Speak to PyMOL and ChimeraX in plain English.** BioVoice is a local voice-control interface for structural biology visualization, built for demos, teaching, and exploratory molecular workflows. It is being released publicly as a **research prototype**: usable today, actively improving, and explicit about what is and is not supported yet.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue)](https://www.typescriptlang.org/)
 
-![BioVoice](./docs/social-preview-lego.jpg)
+![Lego-style BioVoice social preview showing voice-driven molecular visualization for PyMOL and ChimeraX](./docs/social-preview-lego.jpg)
 
-BioVoice is a real-time voice interface for structural biology visualization. It connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) to the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) via WebRTC, letting you control molecular visualization hands-free with natural language.
+BioVoice connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) to the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) through a local backend and a browser voice console. It can also rehearse the same workflows without live voice, so you can validate demos, AlphaFold overlays, Rosetta reviews, and cryo-EM scenes before speaking a word.
 
-![BioVoice Console](./docs/social-preview.png)
+![BioVoice console overview showing the local voice interface and workflow rail](./docs/social-preview.png)
 
-## Why?
+> BioVoice supports **OpenAI Realtime only** for live voice today. There is no interchangeable provider UI, Anthropic live voice path, Gemini live voice path, or local/offline speech stack yet.
 
-- **Voice is faster than typing** during live presentations, teaching, and collaborative analysis
-- **AlphaFold and Rosetta outputs need interactive exploration** — voice frees your hands for the mouse while you narrate
-- **No command syntax to memorize** — just describe what you want in plain English
+## What BioVoice Is
 
-## Features
+- A **local** voice interface for PyMOL and ChimeraX, not a cloud molecular viewer
+- A scientist-first workflow tool for **structural biology**, not a general-purpose chatbot shell
+- A guided way to walk through **ligand pockets, AlphaFold, Rosetta, and cryo-EM** workflows with reproducible demo data
+- A browser UI plus local backend that can run in **live voice** mode or **offline rehearsal** mode
 
-- Real-time voice control via **WebRTC** (sub-second latency)
-- **18 curated demo workflows** — 9 for PyMOL, 9 for ChimeraX
-- **AlphaFold** confidence review, prediction-vs-experiment overlays, multimer triage
-- **Rosetta** design comparison, interface packing, scaffold-vs-design overlays
-- **Cryo-EM** map cutaways, density contouring, atomic handoffs
-- Structured semantic tool dispatch (not just text-to-command piping)
-- Push-to-talk and always-on voice modes
-- **Floating companion widget** — always-on-top control surface for presentations
-- 200+ curated voice utterances for demos and rehearsal
-- Dark/light theme, live session usage tracking
-- Offline rehearsal mode (no API key needed for dry runs)
+## Who This Is For
 
-<p align="center">
-  <img src="./docs/biovoice-widget-menu.png" alt="BioVoice floating widget" width="360" />
-</p>
+- Structural biologists who want to narrate molecular scenes without memorizing command syntax
+- Presenters and educators who need hands-free control while teaching or screen-sharing
+- AlphaFold users who want confidence, overlay, and handoff walkthroughs
+- Rosetta users who want scaffold-versus-design and interface-focused reviews
+- Contributors who want a typed, structured tool surface instead of raw command prompting
 
-## Requirements
+## Current Support
 
-> **macOS only.** The autolaunch system uses `/Applications` and macOS-specific process management. Linux and Windows support is planned but not yet implemented. If you are on Linux/Windows, you can still run the server and web UI — but you will need to start PyMOL/ChimeraX manually.
-
-| Requirement | Notes |
+| Area | Supported today |
 |---|---|
-| **macOS** | Required for autolaunch. See note above for other platforms. |
-| **Node.js 20+** | Required for the local backend and build system. |
-| **curl** | Used by `npm run prepare:data` to download demo structure files. Pre-installed on macOS. |
-| **OpenAI API key** | With [Realtime API](https://platform.openai.com/docs/guides/realtime) access. Not needed for offline rehearsal mode. |
-| **PyMOL** and/or **ChimeraX** | PyMOL needs RPC mode (`pymol -R`). Both the [open-source](https://github.com/schrodinger/pymol-open-source) and commercial builds support `-R`. ChimeraX needs REST control enabled. |
+| Platform | macOS autolaunch for PyMOL and ChimeraX |
+| Linux / Windows | Local server and browser UI can run, but you must start PyMOL / ChimeraX manually |
+| Live voice provider | **OpenAI Realtime API only** |
+| Voice transport | WebRTC from the browser |
+| Input modes | Push-to-talk and always-on |
+| Rehearsal mode | Yes, local and offline |
+| Scientific workflows | AlphaFold, Rosetta, cryo-EM, ligand pocket, comparison, assembly |
 
 ## Quick Start
 
@@ -54,306 +47,191 @@ BioVoice is a real-time voice interface for structural biology visualization. It
 # 1. Install dependencies
 npm install
 
-# 2. Configure environment
-cp .env.example .env
-# Edit .env and set OPENAI_API_KEY
-
-# 3. Pull demo structure files (PDB/CIF from RCSB and AlphaFold DB)
+# 2. Pull the local demo data
 npm run prepare:data
 
-# 4. Generate example docs and prompt packs
+# 3. Generate the examples library and prompt packs
 npm run generate:examples
 
-# 5. Launch with PyMOL or ChimeraX
+# 4. Optional: configure live voice
+cp .env.example .env
+# Add OPENAI_API_KEY only if you want live voice
+
+# 5. Launch a local session
 npm run quickstart:pymol
 # or
 npm run quickstart:chimerax
 ```
 
-The quickstart command builds the app, launches PyMOL/ChimeraX (if installed at `/Applications`), starts the local server, and opens the voice console at `http://localhost:3000`.
-
-### Try Without Voice (No API Key Needed)
-
-You can evaluate the UI, run recipe dry runs, and use the REST API without an OpenAI key:
+If you only want to rehearse without live voice, skip the `.env` step and start with:
 
 ```bash
 npm run agent:start -- pymol --offline --clean-target
 ```
 
-This starts the server and opens the console in offline mode. Recipes can be dry-run from the Workflows tab or via the API:
+## Choose Your Path
+
+- **Try it without voice first**: [Getting Started](./docs/getting-started.md)
+- **Run a first live voice session**: [First Live Session](./docs/first-live-session.md)
+- **Start with AlphaFold**: [AlphaFold Tutorial](./docs/tutorial-alphafold.md)
+- **Start with Rosetta**: [Rosetta Tutorial](./docs/tutorial-rosetta.md)
+
+Additional guided docs:
+
+- [Ligand Pocket Tutorial](./docs/tutorial-ligand-pocket.md)
+- [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md)
+- [Architecture and Provider Support](./docs/architecture.md)
+- [FAQ and Glossary](./docs/faq.md)
+
+The generated reference library lives under [examples/](./examples/README.md). If you are brand new, start with the docs above first and use `examples/` as the deeper reference set.
+
+## Best Demos To Run First
+
+| Demo | Why start here | Command |
+|---|---|---|
+| PyMOL ligand pocket story | Fast, visual, and easy to explain live | `npm run showcase:pymol:pocket` |
+| ChimeraX ligand interaction explainer | Great first ChimeraX success case | `npm run showcase:chimerax:pocket` |
+| ChimeraX AlphaFold overlay | Strong prediction-versus-experiment story | `npm run showcase:chimerax:overlay` |
+| PyMOL Rosetta compare | Best scaffold-versus-design hero shot | `npm run showcase:pymol:rosetta` |
+| ChimeraX cryo-EM map review | Best real map and fit-quality walkthrough | `npm run showcase:chimerax:map` |
+| PyMOL cryo handoff | Strong atomic-plus-density narrative | `npm run showcase:pymol:cryo` |
+
+## What Leaves Your Machine
+
+BioVoice is designed so the molecular files stay local while live voice uses OpenAI.
+
+| Data | Sent to OpenAI? | Stored locally? |
+|---|---|---|
+| Voice audio | Yes, via WebRTC during live voice sessions | No, unless you explicitly enable local session-event persistence |
+| Transcripts of what you said | Yes, as part of live voice operation | Optionally, under `.runtime/` if persistence is enabled |
+| Tool-call text such as residue names, chain IDs, and file-path references | Yes, as part of the model conversation | Optionally, in local session logs |
+| PDB / CIF / map file contents | No | Yes, on your machine only |
+| Captures and exports | No | Yes, under `.runtime/` or `output/` |
+
+Normal local usage is expected to keep real credentials in `.env`. That file is ignored and stays local. The tracked file [`.env.example`](./.env.example) is a **safe template**, not a secret store.
+
+## Supported Today vs Not Yet
+
+| Category | Supported today | Not supported yet |
+|---|---|---|
+| Live voice provider | OpenAI Realtime API | Anthropic live voice, Gemini live voice, provider switching |
+| Speech stack | Browser mic + OpenAI Realtime + configurable transcription model | Local/offline speech recognition and synthesis |
+| Modes | Push-to-talk, always-on, offline rehearsal | Multi-provider voice routing |
+| Targets | PyMOL, ChimeraX | Additional visualization targets |
+| Platform convenience | macOS autolaunch | First-class Linux / Windows autolaunch |
+
+## How Voice Works Today
+
+- Your browser captures microphone audio
+- The browser opens a WebRTC session to **OpenAI Realtime**
+- The local backend manages tool registration, tool execution, state, logging, and target control
+- PyMOL is controlled through XML-RPC and ChimeraX through REST
+- `REALTIME_TRANSCRIPTION_MODEL` is configurable in `.env`
+- There is **no alternate live voice provider path today**
+
+```mermaid
+flowchart LR
+  User["Scientist with microphone"] --> Browser["Browser voice console"]
+  Browser --> OpenAI["OpenAI Realtime API"]
+  Browser -. session bootstrap .-> Server["Local BioVoice backend"]
+  Server --> OpenAI
+  Server --> PyMOL["PyMOL (XML-RPC)"]
+  Server --> ChimeraX["ChimeraX (REST)"]
+  Server --> LocalFiles["Local structures, maps, exports, and logs"]
+```
+
+For deeper detail, including the privacy boundary and support matrix, see [Architecture and Provider Support](./docs/architecture.md).
+
+## Possible Future Providers
+
+BioVoice may grow toward additional voice backends later, but that is an **architecture direction**, not current compatibility. The current implementation, testing, and documentation all assume **OpenAI Realtime** for live voice.
+
+## Guided Tutorials and Reference Material
+
+- [Getting Started](./docs/getting-started.md): install, prepare demo data, and choose a first workflow
+- [First Live Session](./docs/first-live-session.md): safest first mic-enabled walkthrough
+- [AlphaFold Tutorial](./docs/tutorial-alphafold.md): overlay and confidence-oriented workflow entry point
+- [Rosetta Tutorial](./docs/tutorial-rosetta.md): scaffold-versus-design and interface review entry point
+- [Ligand Pocket Tutorial](./docs/tutorial-ligand-pocket.md): first polished presentation workflow
+- [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md): map and model walkthrough
+- [Examples Library](./examples/README.md): generated recipe-by-recipe references
+- [Scientific Workflows Catalog](./examples/scientific-workflows/README.md): task-first AlphaFold and Rosetta launch guide
+
+## Verification and Non-Voice Testing
 
 ```bash
+npm run typecheck
+npm test
+npm run release:check
+npm run build
+npm run check
+npm run verify:examples
+npm run verify:showcases
+```
+
+Useful direct checks:
+
+```bash
+# Health check when the server is running
+curl -s http://localhost:3000/api/health | jq '.appId, .serverMode, .pid'
+
+# Run a recipe without voice
 curl -s http://localhost:3000/api/recipes/pymol-binding-pocket-story/run \
   -H 'content-type: application/json' -d '{"target":"pymol"}' | jq
 ```
 
-### First Voice Test
+## Frequently Asked Questions
 
-1. Click **Connect Voice Session** in the console
-2. Wait for the `Data`, `Controller`, and `Event Stream` indicators to turn green
-3. Stay in **Push-to-Talk** mode for your first session
-4. Pick a recipe from Quick Workflows and speak the first Voice Pack line
-5. Then switch to freestyle: *"Show as cartoon"*, *"Color chain A blue"*, *"Measure the distance between the catalytic residues"*
+### What is BioVoice?
 
-## Demo Workflows
+BioVoice is a local research prototype that lets you control PyMOL and ChimeraX with natural-language voice commands, guided workflows, and structured tool execution.
 
-### PyMOL
+### Can I use BioVoice without an OpenAI API key?
 
-| Recipe | What it does |
-|---|---|
-| `pymol-binding-pocket-story` | Ligand pocket walkthrough with measurements, labels, surface, and hero export |
-| `pymol-two-structure-comparison` | Open/closed adenylate kinase comparison with alignment and lid close-up |
-| `pymol-map-and-model-walkthrough` | Gaussian map, density contouring, clipping, and site-focused scenes |
-| `pymol-surface-and-presentation` | Surface + cartoon presentation pass with chain labels and export |
-| `pymol-selection-and-storyboarding` | Named selections and storyboard scene playback |
-| `pymol-alphafold-confidence-sweep` | Confidence coloring, uncertain-loop close-ups, and export |
-| `pymol-alphafold-experimental-overlay` | AlphaFold vs. experimental hemoglobin overlay with assembly context |
-| `pymol-crystal-packing-contacts` | Symmetry-mate expansion with crystal-packing shell export |
-| `pymol-cryo-atomic-handoff` | Cryo-EM map + model, heme-centered density cutaway, and export |
+Yes. Use offline rehearsal mode to start the server, inspect the UI, dry-run workflows, and run non-voice recipe routes without live voice.
 
-### ChimeraX
+### Which voice provider does BioVoice support today?
 
-| Recipe | What it does |
-|---|---|
-| `chimerax-ligand-interaction-explainer` | Pocket surface, H-bond and clash analysis |
-| `chimerax-homolog-alignment-showcase` | Matchmaker alignment, tiled comparisons, and export |
-| `chimerax-alphafold-confidence-review` | Confidence coloring, flexible-loop inspection, and export |
-| `chimerax-alphafold-experimental-overlay` | AlphaFold vs. experimental hemoglobin with named views and export |
-| `chimerax-biological-assembly-tour` | Biological assembly expansion with named cameras |
-| `chimerax-assembly-interface-handoff` | Assembly overview into interface-focused contact analysis |
-| `chimerax-em-map-fit-demo` | Real cryo-EM map fit with mesh, orthoplanes, and metrics |
-| `chimerax-groel-cavity-tour` | Large-assembly GroEL with domain coloring and cavity cutaway |
-| `chimerax-interface-contacts-analysis` | Chain-interface isolation, contacts, hbonds, and export |
+OpenAI Realtime only. That is the only validated live voice provider in the codebase and the docs.
 
-## Architecture
+### Does BioVoice support Anthropic, Gemini, or local speech providers?
 
-```mermaid
-flowchart LR
-  User["Operator voice"] --> Browser["Voice console (WebRTC)"]
-  Browser --> OpenAI["OpenAI Realtime API"]
-  OpenAI --> Browser
-  Browser -. offer/answer .-> Server["Local backend"]
-  Server --> OpenAI
-  Server --> PyMOL["PyMOL adapter (XML-RPC)"]
-  Server --> ChimeraX["ChimeraX adapter (REST)"]
-  Server --> Files["Examples + session logs"]
+No. Those are not implemented or supported in this release.
+
+### Does my structure data leave my machine?
+
+No. Molecular files stay local. Live voice audio, transcripts, and model-facing tool-call text go to OpenAI when you use live voice.
+
+### Can I use BioVoice on Linux or Windows?
+
+Partially. The server and UI can run, but autolaunch is macOS-specific today, so PyMOL and ChimeraX must be started manually on those platforms.
+
+### What should I try first if I want a polished demo quickly?
+
+Start with the ligand pocket walkthroughs, then move to AlphaFold overlays or Rosetta reviews once the voice flow feels natural.
+
+For more newcomer questions, see the full [FAQ and Glossary](./docs/faq.md).
+
+## Repository Map
+
+```text
+apps/voice-console/               React UI, local server, and browser voice session code
+packages/runtime-and-adapters/    Adapters, schemas, prompts, recipes, scientific workflows
+scripts/                          Startup, rehearsal, verification, and release tooling
+tests/                            Unit and integration coverage
+examples/                         Generated examples, recipes, prompts, and verification docs
+docs/                             Hand-authored newcomer guides and public architecture docs
 ```
 
-The browser posts SDP directly to OpenAI with an ephemeral client secret. The backend owns the sideband controller, tool registration, tool execution, transcripts, and session control. Audio stays browser-to-OpenAI; tool calls flow through the local backend to PyMOL/ChimeraX.
+## Community, Support, and Citation
 
-## Project Structure
+- [SUPPORT.md](./SUPPORT.md) for usage questions, bug-report paths, and privacy-safe reporting
+- [SECURITY.md](./SECURITY.md) for vulnerability handling and local-security guidance
+- [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor setup and generated-doc expectations
+- [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community expectations
+- [CITATION.cff](./CITATION.cff) if you use BioVoice in research
 
-```
-apps/voice-console/          React frontend + Express backend
-packages/runtime-and-adapters/  Shared schemas, adapters, prompts, recipe library
-scripts/                     CLI tools (startup, rehearsal, data fetch, smoke tests)
-tests/                       Unit and integration tests
-examples/                    Generated docs, prompt packs, recipe checklists
-```
-
-## Startup Commands
-
-| Command | What it does |
-|---|---|
-| `npm run quickstart:pymol` | Build, launch PyMOL, open console |
-| `npm run quickstart:chimerax` | Build, launch ChimeraX, open console |
-| `npm run overlay:pymol` | Same, but opens the floating companion widget |
-| `npm run overlay:chimerax` | Same, but opens the floating companion widget |
-| `npm run dev` | Contributor dev mode (Vite HMR on port 5173) |
-| `npm run agent:start -- pymol` | Agent-driven startup with runtime state tracking |
-| `npm run agent:start -- pymol --offline` | Start without an API key (rehearsal only) |
-| `npm run rehearse:workflow -- <recipeId> --target pymol` | Run a recipe without voice |
-| `npm run agent:status` | Check if the managed runtime is running |
-| `npm run agent:stop` | Stop the managed runtime |
-
-### Scientific Workflow Launches
-
-Launch AlphaFold or Rosetta tasks directly:
-
-```bash
-npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345
-npm run agent:start -- chimerax --workflow rosetta_top_design_compare --bundle ./designs --scorefile ./score.sc --top-n 5
-```
-
-Pair `--workflow` with `--uniprot`, `--model`, `--experimental`, `--pae`, `--map`, `--bundle`, `--scorefile`, or `--top-n` as needed.
-
-### Recommended Showcase Runs
-
-These are the strongest local-data demos to rehearse before a live voice session:
-
-```bash
-npm run showcase:pymol:pocket
-npm run showcase:pymol:overlay
-npm run showcase:pymol:cryo
-npm run showcase:pymol:rosetta
-npm run showcase:chimerax:pocket
-npm run showcase:chimerax:overlay
-npm run showcase:chimerax:map
-npm run showcase:chimerax:rosetta
-```
-
-## Configuration
-
-All configuration lives in `.env`. See [`.env.example`](./.env.example) for the full list with defaults.
-
-Key variables:
-
-| Variable | Default | Purpose |
-|---|---|---|
-| `OPENAI_API_KEY` | *(required)* | OpenAI API key with Realtime access |
-| `DEFAULT_TARGET` | `pymol` | Which app to control (`pymol` or `chimerax`) |
-| `PORT` | `3000` | Server port |
-| `HOST` | `127.0.0.1` | Bind address. Keep localhost by default. |
-| `ALLOW_REMOTE_CLIENTS` | `false` | Explicit opt-in for LAN/browser access beyond localhost |
-| `REMOTE_ACCESS_TOKEN` | *(generated if empty)* | Required remote access token for non-local browsers |
-| `LOCAL_BROWSER_ORIGINS` | *(empty)* | Additional trusted browser origins for intentional LAN use |
-| `ENABLE_AUTOLAUNCH` | `true` | Auto-start PyMOL/ChimeraX if not running |
-| `REALTIME_MODEL` | `gpt-realtime-1.5` | OpenAI Realtime model |
-| `REALTIME_VOICE` | `marin` | Voice preset |
-| `ENABLE_EXPERT_RAW_COMMANDS` | `false` | Enable raw command escape hatch |
-
-If you intentionally run BioVoice from another machine on your LAN, set `HOST=0.0.0.0`, `ALLOW_REMOTE_CLIENTS=true`, `PUBLIC_BASE_URL` to the reachable server URL, and optionally `REMOTE_ACCESS_TOKEN` to a token you control. BioVoice will otherwise generate one at startup and print a launch URL like `http://host:3000/?access_token=...`. `LOCAL_BROWSER_ORIGINS` now limits which browser origins may make cross-origin requests after that remote access token has been presented.
-
-## Verification
-
-```bash
-npm run typecheck        # TypeScript strict mode
-npm test                 # Unit tests
-npm run release:check    # Tracked-file release hygiene + secret scan
-npm run build            # Full production build
-npm run check            # All of the above
-npm run verify:showcases # Rehearse the pocket, AlphaFold, cryo, and Rosetta demos on both targets
-
-# Health check (when server is running)
-curl -s http://localhost:3000/api/health | jq '.appId, .serverMode, .pid'
-```
-
-## Voice Control Patterns
-
-BioVoice understands natural-language structural biology commands:
-
-- **Assembly**: *"Rotate the whole complex 30 degrees"*, *"Pull the prediction to the right"*
-- **AlphaFold**: *"Color by confidence"*, *"Zoom the low-confidence loop"*, *"Compare to experimental"*
-- **Rosetta**: *"Show the redesigned shell"*, *"Pull the design away for before-versus-after"*
-- **Cryo-EM**: *"Show density as mesh"*, *"Clip to the active site"*, *"Save a hero export"*
-- **Measurements**: *"Measure the distance between the catalytic residues"*
-- **Exports**: *"Save a PNG of this view"*, *"Export at high resolution"*
-
-For best results, name your loaded structures descriptively (`exp_complex`, `af_prediction`, `wt_scaffold`, `binder_model`, `density_map`) so voice commands resolve correctly.
-
-## API Endpoints
-
-The local server exposes REST endpoints for programmatic control without voice:
-
-```bash
-# Run a recipe
-curl -s http://localhost:3000/api/recipes/pymol-cryo-atomic-handoff/run \
-  -H 'content-type: application/json' -d '{"target":"pymol"}' | jq
-
-# Capture the current viewport
-curl -s http://localhost:3000/api/capture \
-  -H 'content-type: application/json' -d '{"target":"chimerax"}' | jq
-
-# Execute arbitrary structured actions
-curl -s http://localhost:3000/api/actions \
-  -H 'content-type: application/json' \
-  -d '{"target":"pymol","actions":[{"type":"reset_workspace"}]}' | jq
-```
-
-<details>
-<summary><strong>Operator Notes</strong></summary>
-
-- Default mode is **push to talk**. **Always on** switches to `semantic_vad`.
-- The UI is ready for voice when `Data`, `Controller`, and `Event Stream` all show green.
-- `Realtime Key` and `Usage Key` in the UI indicate env presence only, not that credentials are verified.
-- Realtime billing is per response and input-transcription turn, not for keeping the connection open. Idle silence is not billed. Open-mic or VAD can still create billable turns from ambient speech.
-- For a first live test, prefer push-to-talk, speak the first Voice Pack line before freestyle, and leave idle auto-sleep enabled.
-- The rehearsal panel is first-class: use `Dry Run`, `Reset Target`, and `Capture Current View` before live voice.
-- Tool results can include metrics (distances, angles, RMSD, map-fit scores). Reuse those exact numbers instead of paraphrasing.
-- `capture_view` saves a viewport image and can feed it back into the conversation for visual verification.
-- Raw commands exist as an escape hatch but the model prefers structured actions.
-- Run `npm run cleanup:runtime` to prune stale exports, captures, transcripts, and logs before sharing the workspace or filing public issues.
-
-</details>
-
-<details>
-<summary><strong>Agent Integration</strong></summary>
-
-AI coding agents (Claude Code, Codex, etc.) can use the structured startup commands:
-
-```bash
-npm run agent:start -- pymol
-npm run agent:start -- chimerax --overlay
-npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345
-npm run agent:status
-npm run agent:stop
-```
-
-The managed runtime writes state to `.runtime/agent-runtime/state.json`, so agents can reattach to the same PyMOL/ChimeraX session after restarts.
-
-`get_target_state` returns semantic `referenceHints` (`wholeComplex`, `experimentalModel`, `predictedModel`, `scaffoldModel`, `binderModel`, `map`, plus chain-aware handles like `scaffoldChainA`, `designChainA`, `partnerA`, `partnerB`). Use these selectors directly when voice requests reference scene objects.
-
-See [AGENTS.md](./AGENTS.md) for full agent workflow documentation.
-
-</details>
-
-<details>
-<summary><strong>Semantic Naming Guide</strong></summary>
-
-When loading structures, descriptive names make voice resolution more reliable:
-
-| Name | Use for |
-|---|---|
-| `exp_complex` | Experimental crystal/cryo structure |
-| `af_prediction` | AlphaFold prediction |
-| `wt_scaffold` | Wild-type scaffold |
-| `rosetta_design_v2` | Rosetta design output |
-| `binder_model` | Binder/ligand model |
-| `density_map` | Cryo-EM density map |
-
-This lets requests like *"hide the binder and center on the scaffold"* or *"compare the prediction to the experimental backbone"* resolve to the correct objects.
-
-</details>
-
-## Privacy and Data
-
-BioVoice runs entirely on your machine. Here is exactly what leaves it:
-
-| Data | Sent to OpenAI? | Stored locally? |
-|---|---|---|
-| Voice audio (your speech) | Yes — via WebRTC to OpenAI Realtime API | No (unless `PERSIST_SESSION_EVENT_LOGS=true`) |
-| Transcripts (what you said) | Yes — OpenAI transcribes your audio | Optionally, in `.runtime/sessions/` |
-| Tool call parameters (residue names, chain IDs, file paths) | Yes — as part of the Realtime conversation | Optionally, in session event logs |
-| **PDB/CIF file contents** | **No** — structure data is read locally by PyMOL/ChimeraX | On your disk only |
-| **Cryo-EM maps** | **No** | On your disk only |
-| Screenshots / exports | **No** | In `.runtime/exports/` or `output/` |
-
-Your structure files never leave your machine. Only voice audio, transcripts, and structured command parameters (such as residue names and file paths) are included in OpenAI API calls.
-
-Run `npm run cleanup:runtime` to prune session logs, transcripts, and cached exports before sharing your machine or filing public issues.
-
-## Cost
-
-The OpenAI Realtime API bills per audio input/output token. Idle silence is not billed. A typical 5-minute demo workflow costs roughly $0.50-$2.00 depending on how much you speak and how verbose the model's responses are. Push-to-talk mode is more cost-efficient than always-on.
-
-Check [OpenAI's pricing page](https://openai.com/pricing) for current Realtime API rates. Use `npm run usage:report -- 7` to see your actual costs for the last 7 days.
-
-You can evaluate BioVoice for free using `--offline` mode (see [Try Without Voice](#try-without-voice-no-api-key-needed) above).
-
-## Known Limitations
-
-- **macOS only** — autolaunch targets `/Applications`. Linux/Windows users can run the server manually but must start PyMOL/ChimeraX themselves.
-- Realtime sessions require microphone permissions and a valid `OPENAI_API_KEY`.
-- PyMOL XML-RPC is functional but less structured than ChimeraX REST.
-- Custom recipe creation currently requires editing source code (see [CONTRIBUTING.md](./CONTRIBUTING.md)).
-
-## Contributing
-
-Contributions are welcome! See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
-
-## Citation
-
-If you use BioVoice in your research, please cite it:
+If you use BioVoice in your work, cite it as:
 
 ```bibtex
 @software{biovoice,

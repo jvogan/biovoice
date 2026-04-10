@@ -1,101 +1,142 @@
 # Contributing to BioVoice
 
-Thanks for your interest in contributing! This guide will help you get started.
+Thanks for your interest in BioVoice. This project is public as a **scientist-first research prototype**, so good contributions are the ones that make the local experience clearer, safer, and easier to verify.
+
+## Before You Start
+
+- Read the main [README](./README.md) for the public product story
+- Use [docs/getting-started.md](./docs/getting-started.md) if you need the newcomer setup path
+- Treat real credentials and local machine state as private
+- Prefer structured tool improvements and verified workflows over raw-command shortcuts
 
 ## Development Setup
 
-1. Fork and clone the repository
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Copy the environment file:
-   ```bash
-   cp .env.example .env
-   ```
-4. Set your `OPENAI_API_KEY` in `.env`
-5. Pull demo data and generate examples:
-   ```bash
-   npm run prepare:data
-   npm run generate:examples
-   ```
+```bash
+npm install
+npm run prepare:data
+npm run generate:examples
+cp .env.example .env
+```
 
-## Development Workflow
+Set `OPENAI_API_KEY` in local `.env` only if you need live voice. For most development, you can still make progress with offline rehearsal and the verification scripts.
 
-Start the dev server:
+## New Contributor Flow
+
+1. Read the README and one tutorial page so you understand the public user story.
+2. Run `npm run check` to establish a clean local baseline.
+3. If your change touches workflows, run `npm run verify:examples`.
+4. If your change affects live demos or scientific walkthroughs, run `npm run verify:showcases`.
+5. Update docs when public behavior, commands, screenshots, or support expectations change.
+
+## Testing Tiers
+
+### Fast baseline
 
 ```bash
-npm run dev
+npm run typecheck
+npm test
+npm run release:check
+npm run build
 ```
 
-This runs the Vite frontend (port 5173) and the Express backend (port 3000) concurrently.
-
-### Running Checks
-
-Before submitting a PR, make sure everything passes:
+### Full baseline
 
 ```bash
-npm run typecheck   # TypeScript strict mode
-npm test            # Vitest unit tests
-npm run release:check  # Tracked-file release hygiene and secret scan
-npm run build       # Full production build
-npm run check       # All of the above
+npm run check
 ```
 
-## Project Structure
+### Workflow coverage
 
-```
-apps/voice-console/      React frontend + Express backend
-packages/runtime-and-adapters/  Shared schemas, adapters, prompts, recipes
-scripts/                 CLI tools (startup, rehearsal, data fetch)
-tests/                   Unit and integration tests
-examples/                Generated docs, workflows, prompt packs
+```bash
+npm run verify:examples
+npm run verify:showcases
 ```
 
-## What to Contribute
+### Target-specific smoke
 
-### Good First Issues
+```bash
+npm run smoke:pymol
+npm run smoke:chimerax
+```
 
-Look for issues labeled `good first issue` in the issue tracker.
+## Generated Docs Expectations
 
-### Areas Where Help is Welcome
+Parts of the public reference library are generated. Do not hand-edit them and assume the changes will stick.
 
-- **Platform support** — The autolaunch system currently targets macOS only. Linux and Windows adapter paths would be valuable.
-- **New demo workflows** — Each recipe is defined in `packages/runtime-and-adapters/src/examples/library.ts`. If you have a good structural biology workflow, we'd love to include it.
-- **Documentation** — Guides, tutorials, and examples are always appreciated.
-- **Testing** — More unit tests and integration coverage.
-- **Accessibility** — Making the voice console more accessible.
+Generated outputs include:
 
-### Adding a New Demo Workflow
+- `examples/README.md`
+- `examples/start-here/README.md`
+- `examples/scientific-workflows/README.md`
+- `examples/prompt-library/README.md`
+- `examples/tool-playbooks/README.md`
+- `examples/troubleshooting/README.md`
+- `examples/gallery/README.md`
+- `examples/workflow-recipes/**`
 
-1. Add your recipe to the catalog in `packages/runtime-and-adapters/src/examples/library.ts`
-2. Follow the existing recipe schema (typed via Zod in `packages/runtime-and-adapters/src/schemas/`)
-3. Run `npm run generate:examples` to regenerate docs
-4. Run `npm run verify:examples` to validate
-5. If possible, test with `npm run rehearse:workflow -- <your-recipe-id> --target <pymol|chimerax> --dry-run`
+Source of truth:
 
-## Pull Request Guidelines
+- `scripts/generate-example-files.ts`
+- recipe and workflow definitions under `packages/runtime-and-adapters/src/examples/`
 
-- Keep PRs focused — one feature or fix per PR
-- Include a clear description of what changed and why
-- Make sure `npm run check` passes
-- Add tests for new functionality
-- Update documentation if behavior changes
+After changing generator logic or recipe content, run:
 
-## Code Style
+```bash
+npm run generate:examples
+```
 
-- TypeScript strict mode (`"strict": true`)
-- No `any` types in production code
-- Prefer structured actions over raw commands in adapters
-- Use `resolveFromRoot()` for file paths, never hardcoded absolute paths
+## When To Update Docs
 
-## Reporting Issues
+Update hand-authored docs under `docs/` and the main README when you change:
 
-Use the GitHub issue templates for bug reports and feature requests. Include:
+- supported platforms
+- live voice provider support
+- setup steps
+- workflow commands or recommended tutorials
+- privacy or local-storage behavior
+- contributor expectations
 
-- Steps to reproduce (for bugs)
-- Your environment (OS, Node version, PyMOL/ChimeraX version)
-- Console output or error messages
+Update generated examples when you change:
+
+- recipe steps
+- scientific workflow mappings
+- prompt packs
+- sample data references
+- verification checklists
+
+## Good Contribution Areas
+
+- New validated workflows for PyMOL or ChimeraX
+- Better AlphaFold, Rosetta, or cryo-EM tutorial coverage
+- Linux / Windows startup improvements
+- UI clarity and accessibility improvements
+- Verification hardening for demos and guided workflows
+- Better privacy-safe issue reproduction and reporting flows
+
+## Pull Request Expectations
+
+- Keep the scope focused
+- Explain the user-facing change, not just the internal edit
+- Include the commands you used to verify the change
+- Update docs if the public-facing behavior changed
+- Avoid committing local secrets, `.runtime/` state, `output/`, or machine-specific files
+
+Use the PR template and make sure you can honestly check the relevant boxes.
+
+## Code and Workflow Norms
+
+- TypeScript strict mode stays on
+- Avoid `any` in production code
+- Prefer structured actions over raw commands
+- Use repo-relative path helpers instead of hardcoded personal paths
+- Keep `.env` local and keep `.env.example` as the tracked safe template
+- Keep `local/`, `private/`, `.runtime/`, `tmp/`, and `output/` out of commits
+
+## Reporting Bugs and Asking Questions
+
+- For usage questions and reporting guidance, see [SUPPORT.md](./SUPPORT.md)
+- For vulnerabilities or privacy-sensitive issues, see [SECURITY.md](./SECURITY.md)
+- For community expectations, see [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md)
 
 ## License
 

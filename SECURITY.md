@@ -1,5 +1,7 @@
 # Security Policy
 
+For normal usage questions, bug reports, or privacy-safe public reporting guidance, see [SUPPORT.md](./SUPPORT.md).
+
 ## Supported Versions
 
 | Version | Supported          |
@@ -23,6 +25,7 @@ You should receive a response within 72 hours. We will work with you to understa
 BioVoice runs as a local server on your machine. Be aware of the following:
 
 - **API keys**: Your `OPENAI_API_KEY` is stored in `.env` and never sent to any service other than OpenAI. Never commit `.env` to version control.
+- **Local-only files**: `.env`, `.runtime/`, `local/`, `private/`, `tmp/`, and `output/` are intended to stay local. The tracked `.env.example` file is the safe public template.
 - **Network binding**: The server binds to `127.0.0.1` by default (localhost only). Remote access is rejected unless you explicitly set `ALLOW_REMOTE_CLIENTS=true`.
 - **LAN access**: If you intentionally expose the service on your LAN, set `HOST=0.0.0.0`, `ALLOW_REMOTE_CLIENTS=true`, and use `REMOTE_ACCESS_TOKEN` or the generated access URL printed at startup. `LOCAL_BROWSER_ORIGINS` only controls which browser origins may make cross-origin requests after that access token is presented.
 - **File access**: Structure loading and export paths are restricted to configured allowed roots (`STRUCTURE_ALLOWED_PATHS`, `EXPORT_ALLOWED_PATHS`). The server will reject paths outside these roots.

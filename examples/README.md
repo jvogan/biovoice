@@ -1,10 +1,17 @@
-# Realtime Protein Structure Examples
+# BioVoice Examples Library
 
-This directory is the public examples library for the PyMOL and ChimeraX voice-control console.
+This directory is the generated reference library for the PyMOL and ChimeraX BioVoice console.
+
+If you are new to the project, start with the hand-authored guides first:
+
+- [`docs/getting-started.md`](../docs/getting-started.md)
+- [`docs/first-live-session.md`](../docs/first-live-session.md)
+- [`docs/tutorial-alphafold.md`](../docs/tutorial-alphafold.md)
+- [`docs/tutorial-rosetta.md`](../docs/tutorial-rosetta.md)
 
 ## Structure
-- `start-here/`: onboarding and operator setup
-- `scientific-workflows/`: AlphaFold and Rosetta launch catalog
+- `start-here/`: concise operator quick reference
+- `scientific-workflows/`: task-first AlphaFold and Rosetta launch catalog
 - `workflow-recipes/`: full demo workflows for both apps
 - `prompt-library/`: curated utterance packs and follow-up prompts
 - `tool-playbooks/`: what the structured tool surface can do

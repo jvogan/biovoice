@@ -21,9 +21,9 @@ keywords:
   - openai-realtime
   - bioinformatics
 abstract: >-
-  BioVoice is a real-time voice interface for structural biology
-  visualization. It connects PyMOL and ChimeraX to the OpenAI
-  Realtime API via WebRTC, enabling hands-free control of molecular
-  visualization through natural language. Includes 18 curated demo
-  workflows for AlphaFold, Rosetta, cryo-EM, and general structural
-  biology presentations.
+  BioVoice is a local research prototype for voice control in
+  structural biology visualization. It connects PyMOL and ChimeraX
+  to the OpenAI Realtime API via WebRTC, enabling hands-free control
+  of molecular scenes through natural language. It includes curated
+  workflows for AlphaFold, Rosetta, cryo-EM, ligand-pocket stories,
+  and structural biology presentations.

@@ -1,4 +1,8 @@
-# Start Here
+# Operator Quick Reference
+
+If you are brand new to BioVoice, start with [`docs/getting-started.md`](../../docs/getting-started.md).
+
+This page is the compact reference for operators who already know the basics and want the shortest path back to a working demo.
 
 ## Blessed Paths
 Human-first:
