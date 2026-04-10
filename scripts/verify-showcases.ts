@@ -92,7 +92,7 @@ async function verifyScenario(scenario: ShowcaseScenario): Promise<Record<string
     id: scenario.id,
     title: scenario.title,
     target: scenario.target,
-    workflowId: scenario.workflowId,
+    launchId: scenario.launchId,
     recipeId: payload.recipeId ?? null,
     metricLabels: [...metricLabels],
     artifactPath: imageArtifact.path,
@@ -101,7 +101,7 @@ async function verifyScenario(scenario: ShowcaseScenario): Promise<Record<string
 }
 
 function buildScenarioArgs(scenario: ShowcaseScenario): string[] {
-  const args = [scenario.workflowId, "--target", scenario.target, "--capture"];
+  const args = [scenario.launchId, "--target", scenario.target, "--capture"];
   appendScientificFlags(args, scenario.scientificInputs);
   return args;
 }

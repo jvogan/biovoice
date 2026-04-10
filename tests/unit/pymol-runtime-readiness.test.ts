@@ -122,6 +122,33 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     ]));
   });
 
+  it("reports stabilization timeouts without falsely declaring the pinned endpoint dead", async () => {
+    const adapter = new PymolAdapter({
+      rpcUrl: "http://127.0.0.1:9123/RPC2",
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    }) as unknown as {
+      waitUntilCommandReady: (timeoutMs?: number) => Promise<string>;
+      waitForSpecificRpcUrl: (
+        rpcUrl: string,
+        timeoutMs: number,
+        options?: { requiredConsecutivePasses?: number; coldStartOnSuccess?: boolean },
+      ) => Promise<string | null>;
+    };
+
+    adapter.waitForSpecificRpcUrl = async () => null;
+
+    await expect(adapter.waitUntilCommandReady(30_000)).rejects.toThrow(
+      /did not become command-ready within 30000 ms/i,
+    );
+    await expect(adapter.waitUntilCommandReady(30_000)).rejects.not.toThrow(
+      /stopped responding|restart the managed pymol target/i,
+    );
+  });
+
   it("collects a lightweight state summary without issuing atom-count probes", async () => {
     const adapter = new PymolAdapter({
       baseUrl: "http://127.0.0.1",

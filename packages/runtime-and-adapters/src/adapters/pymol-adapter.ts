@@ -278,7 +278,7 @@ export class PymolAdapter {
       if (readyUrl) {
         return readyUrl;
       }
-      throw new Error(buildPinnedEndpointError(pinnedUrl));
+      throw new Error(buildPinnedEndpointWarmupTimeoutError(pinnedUrl, timeoutMs));
     }
 
     const readyUrl = await this.waitForReadyRpcUrl(timeoutMs, {
@@ -1223,6 +1223,10 @@ function requiresPymolPostCommandRecovery(command: string): boolean {
 function buildPostExecutionRecoveryWarning(phase: string, error: unknown): string {
   const detail = error instanceof Error ? error.message : String(error);
   return `PyMOL ${phase} did not complete before the export route returned. The artifact was created, but the immediate ${phase} probe was skipped: ${detail}`;
+}
+
+function buildPinnedEndpointWarmupTimeoutError(rpcUrl: string, timeoutMs: number): string {
+  return `Pinned PyMOL RPC endpoint ${rpcUrl} did not become command-ready within ${timeoutMs} ms. The session may still recover, but the next step should wait for stabilization or retry.`;
 }
 
 function getPymolBatchTimeout(commands: string[], timeoutMs: number, renderTimeoutMs: number, coldStart: boolean): number {

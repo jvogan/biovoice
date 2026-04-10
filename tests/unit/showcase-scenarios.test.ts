@@ -34,14 +34,16 @@ describe("parseVerifyShowcasesArgs", () => {
 });
 
 describe("getShowcaseScenarios", () => {
-  it("returns the full six-scenario matrix by default", () => {
+  it("returns the full eight-scenario matrix by default", () => {
     const scenarios = getShowcaseScenarios();
 
-    expect(scenarios).toHaveLength(6);
+    expect(scenarios).toHaveLength(8);
     expect(scenarios.map((scenario) => scenario.id)).toEqual([
+      "pymol-pocket-story",
       "pymol-alphafold-overlay",
       "pymol-cryo-handoff",
       "pymol-rosetta-compare",
+      "chimerax-pocket-story",
       "chimerax-alphafold-overlay",
       "chimerax-cryo-handoff",
       "chimerax-rosetta-interface",

@@ -320,7 +320,7 @@ async function runManagedRecipeCheck(
   startResult: ManagedStartResult,
   label: string,
 ): Promise<Record<string, unknown>> {
-  const recipeId = target === "pymol" ? "pymol-surface-and-presentation" : "chimerax-ligand-interaction-explainer";
+  const recipeId = buildLaunchGateScenario(target).recipeId;
   const baseUrl = new URL(startResult.url);
   console.log(`[verify-launch] Running ${label} live recipe ${recipeId} for ${target}`);
 

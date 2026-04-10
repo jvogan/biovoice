@@ -182,9 +182,11 @@ Pair `--workflow` with `--uniprot`, `--model`, `--experimental`, `--pae`, `--map
 These are the strongest local-data demos to rehearse before a live voice session:
 
 ```bash
+npm run showcase:pymol:pocket
 npm run showcase:pymol:overlay
 npm run showcase:pymol:cryo
 npm run showcase:pymol:rosetta
+npm run showcase:chimerax:pocket
 npm run showcase:chimerax:overlay
 npm run showcase:chimerax:map
 npm run showcase:chimerax:rosetta
@@ -220,7 +222,7 @@ npm test                 # Unit tests
 npm run release:check    # Tracked-file release hygiene + secret scan
 npm run build            # Full production build
 npm run check            # All of the above
-npm run verify:showcases # Rehearse the strongest AlphaFold, cryo, and Rosetta demos on both targets
+npm run verify:showcases # Rehearse the pocket, AlphaFold, cryo, and Rosetta demos on both targets
 
 # Health check (when server is running)
 curl -s http://localhost:3000/api/health | jq '.appId, .serverMode, .pid'

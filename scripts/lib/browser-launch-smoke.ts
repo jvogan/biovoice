@@ -18,8 +18,8 @@ const browserScenarioByTarget: Record<TargetKind, {
   successTimeoutMs: number;
 }> = {
   pymol: {
-    workflowTitle: "Surface and Presentation View",
-    successMessage: "Finished Surface and Presentation View",
+    workflowTitle: "Binding Pocket Story",
+    successMessage: "Finished Binding Pocket Story",
     artifactLabel: "PyMOL PNG export",
     initialWorkflowTimeoutMs: 60_000,
     successTimeoutMs: 300_000,

@@ -1,7 +1,6 @@
 import {
   resolveFromRoot,
   type ScientificLaunchInputs,
-  type ScientificWorkflowKind,
   type TargetKind,
 } from "../../packages/runtime-and-adapters/src/index.js";
 
@@ -9,7 +8,7 @@ export interface ShowcaseScenario {
   id: string;
   title: string;
   target: TargetKind;
-  workflowId: ScientificWorkflowKind;
+  launchId: string;
   scientificInputs: ScientificLaunchInputs;
   expectedRecipeId: string;
   expectedArtifactLabel: string;
@@ -28,10 +27,20 @@ function localData(...segments: string[]): string {
 
 const showcaseScenarios: ShowcaseScenario[] = [
   {
+    id: "pymol-pocket-story",
+    title: "PyMOL ligand pocket story",
+    target: "pymol",
+    launchId: "pymol-binding-pocket-story",
+    scientificInputs: {},
+    expectedRecipeId: "pymol-binding-pocket-story",
+    expectedArtifactLabel: "PyMOL PNG export",
+    expectedMetricLabels: [],
+  },
+  {
     id: "pymol-alphafold-overlay",
     title: "PyMOL AlphaFold vs experiment overlay",
     target: "pymol",
-    workflowId: "alphafold_vs_experiment_overlay",
+    launchId: "alphafold_vs_experiment_overlay",
     scientificInputs: {
       model: localData("af-p69905.pdb"),
       experimental: localData("4hhb.pdb"),
@@ -44,7 +53,7 @@ const showcaseScenarios: ShowcaseScenario[] = [
     id: "pymol-cryo-handoff",
     title: "PyMOL AlphaFold-to-cryo handoff",
     target: "pymol",
-    workflowId: "alphafold_to_cryo_handoff",
+    launchId: "alphafold_to_cryo_handoff",
     scientificInputs: {
       model: localData("af-p69905.pdb"),
       experimental: localData("8wj1.cif"),
@@ -59,7 +68,7 @@ const showcaseScenarios: ShowcaseScenario[] = [
     id: "pymol-rosetta-compare",
     title: "PyMOL Rosetta top-design compare",
     target: "pymol",
-    workflowId: "rosetta_top_design_compare",
+    launchId: "rosetta_top_design_compare",
     scientificInputs: {
       model: localData("rosetta_demo", "reference_scaffold.pdb"),
       bundle: localData("rosetta_demo"),
@@ -72,10 +81,20 @@ const showcaseScenarios: ShowcaseScenario[] = [
     expectedRankedCandidates: 2,
   },
   {
+    id: "chimerax-pocket-story",
+    title: "ChimeraX ligand interaction explainer",
+    target: "chimerax",
+    launchId: "chimerax-ligand-interaction-explainer",
+    scientificInputs: {},
+    expectedRecipeId: "chimerax-ligand-interaction-explainer",
+    expectedArtifactLabel: "ChimeraX PNG export",
+    expectedMetricLabels: [],
+  },
+  {
     id: "chimerax-alphafold-overlay",
     title: "ChimeraX AlphaFold vs experiment overlay",
     target: "chimerax",
-    workflowId: "alphafold_vs_experiment_overlay",
+    launchId: "alphafold_vs_experiment_overlay",
     scientificInputs: {
       model: localData("af-p69905.pdb"),
       experimental: localData("4hhb.pdb"),
@@ -88,7 +107,7 @@ const showcaseScenarios: ShowcaseScenario[] = [
     id: "chimerax-cryo-handoff",
     title: "ChimeraX AlphaFold-to-cryo handoff",
     target: "chimerax",
-    workflowId: "alphafold_to_cryo_handoff",
+    launchId: "alphafold_to_cryo_handoff",
     scientificInputs: {
       model: localData("af-p69905.pdb"),
       experimental: localData("8wj1.cif"),
@@ -103,7 +122,7 @@ const showcaseScenarios: ShowcaseScenario[] = [
     id: "chimerax-rosetta-interface",
     title: "ChimeraX Rosetta interface packing review",
     target: "chimerax",
-    workflowId: "rosetta_interface_packing_review",
+    launchId: "rosetta_interface_packing_review",
     scientificInputs: {
       model: localData("rosetta_demo", "reference_scaffold.pdb"),
       bundle: localData("rosetta_demo"),
