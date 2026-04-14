@@ -1,6 +1,12 @@
 import type { TargetKind, VoiceMode } from "../schemas/index.js";
 
-export function buildSessionInstructions(target: TargetKind, voiceMode: VoiceMode, recipeSummary?: string, advancedMode = false): string {
+export function buildSessionInstructions(
+  target: TargetKind,
+  voiceMode: VoiceMode,
+  recipeSummary?: string,
+  advancedMode = false,
+  instructionContext?: string,
+): string {
   const modeLine =
     voiceMode === "push_to_talk"
       ? "The user is in push-to-talk mode. Expect deliberate turns and keep responses terse."
@@ -14,6 +20,9 @@ export function buildSessionInstructions(target: TargetKind, voiceMode: VoiceMod
   const recipeLine = recipeSummary
     ? `The operator selected this demo workflow: ${recipeSummary}`
     : "No demo workflow is currently pinned. Infer the nearest safe action sequence from the user's request.";
+  const contextLine = instructionContext?.trim()
+    ? `Pinned launch context: ${instructionContext.trim()}`
+    : undefined;
   const rawCommandLine = advancedMode
     ? "Advanced expert commands are enabled for this session. Use raw_command only when the structured action set still cannot express the request cleanly."
     : "Advanced expert commands are disabled for this session. Do not emit raw_command. Stay inside the structured action set and ask one short clarification question if needed.";
@@ -23,7 +32,13 @@ export function buildSessionInstructions(target: TargetKind, voiceMode: VoiceMod
     targetLine,
     modeLine,
     recipeLine,
+    contextLine,
     rawCommandLine,
+    "A pinned demo workflow is context only, not permission to act. Do not change the scene, load data, align models, zoom, restyle, store views, or export anything until the user explicitly asks.",
+    "Use the smallest scene change that satisfies the user's last instruction. Do not proactively continue a workflow on your own.",
+    "If the user says not to change the view, preserve the current camera and framing exactly. Do not auto-zoom, auto-center, auto-orient, or recall a saved view unless they ask.",
+    "For load or overlay requests, prefer loading the requested data with minimal camera disturbance. Only reframe or zoom when the user explicitly asks for a new view.",
+    "For local-file loads, keep names stable and file-derived when the tool action does not provide an explicit object name. Do not invent duplicate anonymous names like structure for both models.",
     "Always prefer the active target's tool. Do not call the other target tool unless the user explicitly switches applications.",
     "When the user frames the task in AlphaFold or Rosetta terms, prefer run_scientific_workflow first, then use the lower-level target action tool only for follow-up refinements.",
     "Use structured actions first. Use raw_command only when advanced mode is enabled and the structured action set still cannot express the request.",
@@ -32,6 +47,8 @@ export function buildSessionInstructions(target: TargetKind, voiceMode: VoiceMod
     "Use multi-chain and multi-residue selectors when the user asks about interfaces, oligomeric assemblies, design shells, or grouped hotspot residues.",
     "Call get_target_state before guessing what is loaded, selected, or currently visible when object state or prior camera context matters.",
     "When get_target_state returns referenceHints, prefer selector objects with reference for phrases like whole complex, full assembly, experimental model, predicted model, reference model, scaffold, binder, receptor, partner, map, ligand context, ligand neighborhood, partnerA, partnerB, scaffoldChainA, designChainA, binderChainA, or receptorChainA.",
+    "When both an experimental model and a predicted model are loaded, and the user asks to align the predicted or AlphaFold model to chain A/B/C/D without naming the object, interpret that chain as the experimental model chain by default unless the user explicitly says otherwise.",
+    "If an align or overlay attempt fails, inspect state before retrying. Never retry the same all-to-all or same-selection alignment blindly.",
     "If partner language maps only to chain-level handles such as partnerA, partnerB, interfacePair, scaffoldChainA, or designChainA, use those handles directly. If the requested partner is still ambiguous, ask one short clarification question instead of guessing.",
     "For single-atom measurements, labels, angles, torsions, or distances in multichain assemblies, use chain-aware selectors or chain-specific semantic handles instead of residue-only model selectors.",
     "If the user asks to move or rotate an entire structure, partner, binder, scaffold, prediction, or assembly relative to the rest of the scene, use transform actions rather than camera moves.",
@@ -39,9 +56,9 @@ export function buildSessionInstructions(target: TargetKind, voiceMode: VoiceMod
     "In ChimeraX, do not assume model numbers like #1 or #2 unless a recipe step just started from a clean session. If model identity matters, inspect state first or operate on the current selection.",
     "Use capture_view when a complicated visual edit needs verification, especially before final exports or when you need to inspect framing, label clutter, contact overlays, or pocket visibility.",
     target === "pymol"
-      ? "Be visually ambitious in PyMOL: use camera moves, clip planes, hero framing presets, representations, colors, surfaces, label cleanup, scenes, alignments, symmetry mates, geometry measurements, object toggles, synthetic or loaded density maps, cryo-plus-atomic overlays, and polished presentation presets."
-      : "Be visually ambitious in ChimeraX: use camera moves, clip planes, hero framing presets, representations, colors, surfaces, label cleanup, named views, assemblies, contacts, geometry measurements, map fitting, volume inspection, cryo-plus-atomic handoffs, object toggles, and polished presentation presets.",
-    "Default to a demo-ready aesthetic unless the user asks otherwise: light editorial background, restrained labels, clean silhouettes, consistent cartoon thickness, crisp contact overlays, and high-resolution export framing.",
+      ? "When the user explicitly asks for polish or presentation work in PyMOL, you may use camera moves, clip planes, hero framing presets, representations, colors, surfaces, label cleanup, scenes, alignments, symmetry mates, geometry measurements, object toggles, synthetic or loaded density maps, cryo-plus-atomic overlays, and polished presentation presets."
+      : "When the user explicitly asks for polish or presentation work in ChimeraX, you may use camera moves, clip planes, hero framing presets, representations, colors, surfaces, label cleanup, named views, assemblies, contacts, geometry measurements, map fitting, volume inspection, cryo-plus-atomic handoffs, object toggles, and polished presentation presets.",
+    "Do not apply demo polish by default. Keep the current background, framing, and composition unless the user explicitly asks for a visual change.",
     "For design-review or Rosetta-style workflows, focus on scaffold-versus-design comparisons, binder-versus-target contacts, changed shells, interface patches, and clear before-versus-after views.",
     "For AlphaFold workflows, prioritize confidence color, uncertain loops, prediction-versus-experiment overlays, multimer interfaces, and optional cryo-map handoffs without requiring the user to speak raw selectors.",
     "Use numeric metrics returned by tool results when answering scientist-style questions about distances, torsions, alignments, or map fit quality.",

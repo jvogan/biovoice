@@ -68,6 +68,7 @@ export function VoiceWidget(props: VoiceWidgetProps) {
   const [overlayMenuOpen, setOverlayMenuOpen] = useState(false);
   const overlayMenuRef = useRef<HTMLDivElement | null>(null);
   const overlayConfigButtonRef = useRef<HTMLButtonElement | null>(null);
+  const overlayActionRef = useRef<{ control: string; atMs: number } | null>(null);
 
   useEffect(() => {
     if (!props.overlayMode) {
@@ -147,6 +148,21 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     || widgetState === "executing"
     || widgetState === "error";
   const micActive = widgetState === "listening";
+  const overlayMicToggleActive =
+    props.connected
+    && !props.sessionPaused
+    && (
+      props.localMicEnabled
+      || props.phase === "listening"
+      || (props.voiceMode === "open_mic" && props.openMicArmed)
+    );
+  const overlayMicDisabled =
+    !props.connected
+    || props.connectBusy
+    || props.sessionPaused
+    || widgetState === "error"
+    || (!overlayMicToggleActive && (!props.ready || widgetState === "connecting" || widgetState === "executing"));
+  const overlayTalkButtonLabel = overlayMicToggleActive ? "Turn mic off" : "Turn mic on";
   const targetSwitchDisabled = props.connected || props.connectBusy;
   const instrumentLabel = props.target === "pymol" ? "PyMOL" : "ChimeraX";
   const powerButtonActive = props.connected || props.connectBusy;
@@ -163,16 +179,26 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     : props.sessionPaused
     ? "Resume session"
     : "Pause session";
-  const micArmActive = props.voiceMode === "open_mic" && props.openMicArmed;
-  const micArmButtonLabel = micArmActive ? "Return to push to talk" : "Enable open mic";
   const modeLabel = props.voiceMode === "push_to_talk" ? "PTT" : "OPEN";
   const openMicLabel = props.voiceMode === "open_mic" && props.openMicArmed ? "ptt" : "open mic";
-  const hint = describeVoiceWidgetHint({
-    widgetState,
-    connectBusy: props.connectBusy,
-    voiceMode: props.voiceMode,
-    openMicArmed: props.openMicArmed,
-  });
+  const hint = props.overlayMode
+    ? !props.connected
+      ? props.connectBusy
+        ? "arming session…"
+        : "press power"
+      : props.sessionPaused
+      ? "resume session"
+      : overlayMicToggleActive
+      ? "mic on"
+      : props.ready
+        ? "tap mic on"
+        : "wait for ready"
+    : describeVoiceWidgetHint({
+      widgetState,
+      connectBusy: props.connectBusy,
+      voiceMode: props.voiceMode,
+      openMicArmed: props.openMicArmed,
+    });
   const statusLabel = widgetState === "offline"
     ? "offline"
     : widgetState === "connecting"
@@ -180,7 +206,9 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     : widgetState === "executing"
     ? "running"
     : widgetState;
-  const contextLabel = `${statusLabel.toUpperCase()} • ${modeLabel} • ${props.elapsedLabel}`;
+  const contextLabel = props.overlayMode
+    ? `${statusLabel.toUpperCase()} • ${props.elapsedLabel}`
+    : `${statusLabel.toUpperCase()} • ${modeLabel} • ${props.elapsedLabel}`;
   const guidanceMessage = !props.connected
     ? !props.targetReady
       ? "launch app first"
@@ -191,6 +219,12 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     ? "resume session"
     : widgetState === "executing"
     ? "running command"
+    : props.overlayMode
+    ? overlayMicToggleActive
+      ? "mic on"
+      : props.ready
+        ? "tap mic on"
+        : "wait for ready"
     : props.voiceMode === "open_mic"
     ? props.openMicArmed
       ? "open mic live"
@@ -200,17 +234,36 @@ export function VoiceWidget(props: VoiceWidgetProps) {
   const terminalText = props.hint
     ? `LAST > ${compactInstrumentMessage(messageLabel)}`
     : compactInstrumentMessage(messageLabel);
+  const logOverlayControl = (control: string, detail?: string) => {
+    if (!props.overlayMode) {
+      return;
+    }
+    const suffix = detail ? ` ${detail}` : "";
+    console.info(`[overlay-control] ${control}${suffix}`);
+  };
+  const activateOverlayControl = (control: string, detail: string | undefined, action: () => void) => {
+    const now = Date.now();
+    const last = overlayActionRef.current;
+    if (last && last.control === control && now - last.atMs < 250) {
+      return;
+    }
+    overlayActionRef.current = { control, atMs: now };
+    logOverlayControl(control, detail);
+    action();
+  };
 
   if (props.overlayMode) {
     const fullTemplate = overlayTheme === "light" ? fullInstrumentLightSvg : fullInstrumentDarkSvg;
     const miniTemplate = overlayTheme === "light" ? miniInstrumentLightSvg : miniInstrumentSvg;
-    const renderFullSvg = buildInstrumentSvg({
+  const renderFullSvg = buildInstrumentSvg({
       template: fullTemplate,
       theme: overlayTheme,
       appName: truncateInstrumentText(instrumentLabel, 12),
       statusLabel: statusLabel.toUpperCase(),
       contextText: truncateInstrumentText(contextLabel, 24),
       terminalText,
+      powerLabel: truncateInstrumentText(powerButtonActive ? "STOP" : "POWER", 6),
+      holdLabel: truncateInstrumentText(props.sessionPaused ? "RESUME" : "PAUSE", 6),
     });
     const renderMiniSvg = buildMinimizedInstrumentSvg({
       template: miniTemplate,
@@ -226,13 +279,13 @@ export function VoiceWidget(props: VoiceWidgetProps) {
         aria-live="polite"
         className={`voice-widget instrument-overlay instrument-overlay-${widgetState} ${overlayMinimized ? "is-mini" : "is-full"}`}
         data-no-global-ptt="true"
+        data-live-mic-active={overlayMicToggleActive ? "true" : "false"}
         data-pressed-control={overlayPressedControl ?? undefined}
         data-hold-disabled={!props.connected || props.connectBusy ? "true" : undefined}
-        data-mic-arm-disabled={props.connectBusy ? "true" : undefined}
         data-overlay-theme={overlayTheme}
         data-overlay-target={props.target}
         data-power-disabled={powerButtonDisabled ? "true" : undefined}
-        data-talk-disabled={micDisabled ? "true" : undefined}
+        data-talk-disabled={overlayMicDisabled ? "true" : undefined}
         data-target-switch-disabled={targetSwitchDisabled ? "true" : undefined}
       >
         {overlayMinimized ? (
@@ -245,36 +298,26 @@ export function VoiceWidget(props: VoiceWidgetProps) {
             <button
               className="instrument-hitbox instrument-hitbox-mini-talk"
               type="button"
-              aria-label={props.voiceMode === "push_to_talk" ? "Hold to speak" : "Voice session indicator"}
-              aria-pressed={micActive}
-              disabled={micDisabled}
+              aria-label={overlayTalkButtonLabel}
+              aria-pressed={overlayMicToggleActive}
+              disabled={overlayMicDisabled}
               onPointerCancel={() => {
                 setOverlayPressedControl(null);
-                props.onPushToTalkEnd();
               }}
               onPointerDown={() => {
                 setOverlayPressedControl("mini-talk");
-                props.onPushToTalkStart();
               }}
               onPointerLeave={() => {
                 setOverlayPressedControl(null);
-                props.onPushToTalkEnd();
               }}
               onPointerUp={() => {
                 setOverlayPressedControl(null);
-                props.onPushToTalkEnd();
-              }}
-              onKeyDown={(event) => {
-                if ((event.key === " " || event.key === "Enter") && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && !micDisabled) {
-                  event.preventDefault();
-                  props.onPushToTalkStart();
+                if (!overlayMicDisabled) {
+                  activateOverlayControl("mini-talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
                 }
               }}
-              onKeyUp={(event) => {
-                if ((event.key === " " || event.key === "Enter") && !event.altKey && !event.ctrlKey && !event.metaKey) {
-                  event.preventDefault();
-                  props.onPushToTalkEnd();
-                }
+              onClick={() => {
+                activateOverlayControl("mini-talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
               }}
             />
             <button
@@ -302,7 +345,7 @@ export function VoiceWidget(props: VoiceWidgetProps) {
           <div className="instrument-shell instrument-shell-full">
             <div
               aria-hidden="true"
-              className={`instrument-svg-shell instrument-svg-shell-full state-${widgetState} ${props.connected ? "is-online" : "is-offline"} ${props.sessionPaused ? "is-paused" : ""} ${props.voiceMode === "open_mic" && props.openMicArmed ? "is-open-mic" : ""}`}
+              className={`instrument-svg-shell instrument-svg-shell-full state-${widgetState} ${props.connected ? "is-online" : "is-offline"} ${props.sessionPaused ? "is-paused" : ""} ${overlayMicToggleActive ? "is-live-mic" : ""}`}
               dangerouslySetInnerHTML={{ __html: renderFullSvg }}
             />
             <button
@@ -352,36 +395,26 @@ export function VoiceWidget(props: VoiceWidgetProps) {
             <button
               className="instrument-hitbox instrument-hitbox-talk"
               type="button"
-              aria-label={props.voiceMode === "push_to_talk" ? "Hold to speak" : "Voice session indicator"}
-              aria-pressed={micActive}
-              disabled={micDisabled}
+              aria-label={overlayTalkButtonLabel}
+              aria-pressed={overlayMicToggleActive}
+              disabled={overlayMicDisabled}
               onPointerCancel={() => {
                 setOverlayPressedControl(null);
-                props.onPushToTalkEnd();
               }}
               onPointerDown={() => {
                 setOverlayPressedControl("talk");
-                props.onPushToTalkStart();
               }}
               onPointerLeave={() => {
                 setOverlayPressedControl(null);
-                props.onPushToTalkEnd();
               }}
               onPointerUp={() => {
                 setOverlayPressedControl(null);
-                props.onPushToTalkEnd();
-              }}
-              onKeyDown={(event) => {
-                if ((event.key === " " || event.key === "Enter") && !event.repeat && !event.altKey && !event.ctrlKey && !event.metaKey && !micDisabled) {
-                  event.preventDefault();
-                  props.onPushToTalkStart();
+                if (!overlayMicDisabled) {
+                  activateOverlayControl("talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
                 }
               }}
-              onKeyUp={(event) => {
-                if ((event.key === " " || event.key === "Enter") && !event.altKey && !event.ctrlKey && !event.metaKey) {
-                  event.preventDefault();
-                  props.onPushToTalkEnd();
-                }
+              onClick={() => {
+                activateOverlayControl("talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
               }}
             />
             <button
@@ -393,8 +426,28 @@ export function VoiceWidget(props: VoiceWidgetProps) {
               onPointerCancel={() => setOverlayPressedControl(null)}
               onPointerDown={() => setOverlayPressedControl("power")}
               onPointerLeave={() => setOverlayPressedControl(null)}
-              onPointerUp={() => setOverlayPressedControl(null)}
-              onClick={powerButtonActive ? props.onDisconnect : props.onConnect}
+              onPointerUp={() => {
+                setOverlayPressedControl(null);
+                if (powerButtonDisabled) {
+                  return;
+                }
+                activateOverlayControl("power", powerButtonActive ? "disconnect" : "connect", () => {
+                  if (powerButtonActive) {
+                    props.onDisconnect();
+                    return;
+                  }
+                  props.onConnect();
+                });
+              }}
+              onClick={() => {
+                activateOverlayControl("power", powerButtonActive ? "disconnect" : "connect", () => {
+                  if (powerButtonActive) {
+                    props.onDisconnect();
+                    return;
+                  }
+                  props.onConnect();
+                });
+              }}
             />
             <button
               className="instrument-hitbox instrument-hitbox-hold"
@@ -405,20 +458,16 @@ export function VoiceWidget(props: VoiceWidgetProps) {
               onPointerCancel={() => setOverlayPressedControl(null)}
               onPointerDown={() => setOverlayPressedControl("hold")}
               onPointerLeave={() => setOverlayPressedControl(null)}
-              onPointerUp={() => setOverlayPressedControl(null)}
-              onClick={props.connected ? props.onPauseToggle : undefined}
-            />
-            <button
-              className="instrument-hitbox instrument-hitbox-safety"
-              type="button"
-              aria-label={micArmButtonLabel}
-              aria-pressed={micArmActive}
-              disabled={props.connectBusy}
-              onPointerCancel={() => setOverlayPressedControl(null)}
-              onPointerDown={() => setOverlayPressedControl("safety")}
-              onPointerLeave={() => setOverlayPressedControl(null)}
-              onPointerUp={() => setOverlayPressedControl(null)}
-              onClick={props.onToggleOpenMic}
+              onPointerUp={() => {
+                setOverlayPressedControl(null);
+                if (!props.connected || props.connectBusy) {
+                  return;
+                }
+                activateOverlayControl("pause", props.sessionPaused ? "resume" : "pause", props.onPauseToggle);
+              }}
+              onClick={props.connected ? () => {
+                activateOverlayControl("pause", props.sessionPaused ? "resume" : "pause", props.onPauseToggle);
+              } : undefined}
             />
             {overlayMenuOpen ? (
               <div className="instrument-menu" ref={overlayMenuRef} role="menu" aria-label="Widget menu">

@@ -1,10 +1,10 @@
 # Cryo-EM Map Fit Review
 
-Open a real local cryo-EM map with its fitted hemoglobin model, inspect mesh and orthoplanes, report the fit quality, and export a polished map-fit still.
+Open a real local cryo-EM hemoglobin map with its fitted model, review the global fit, inspect orthoplanes briefly, move into a heme-centered local cutaway, and export a polished mesh-based hero still.
 
 - App: `chimerax`
 - Difficulty: `deep-dive`
-- Estimated time: `9 minutes`
+- Estimated time: `10 minutes`
 - Voice mode: `push_to_talk`
 - Last verified: `2026-04-04`
 
@@ -14,6 +14,7 @@ Open a real local cryo-EM map with its fitted hemoglobin model, inspect mesh and
 
 ## What Success Looks Like
 - The local model and map are both open in ChimeraX.
-- Map fit is executed.
-- Map styles switch between mesh and orthoplanes.
-- Export is saved.
+- A global mesh overview is stored.
+- Map fit executes and the fitted overview is stored.
+- Orthoplane inspection appears briefly and exits cleanly.
+- A local heme-focused mesh hero is exported.

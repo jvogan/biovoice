@@ -37,6 +37,8 @@ interface PymolCommandBatch {
   commandCount: number;
 }
 
+const TRANSIENT_VIEW_KEY = "__biovoice_preserve";
+
 interface PymolEndpointProbe {
   rpcUrl: string;
   objectCount: number;
@@ -173,7 +175,9 @@ export class PymolAdapter {
           coldStart: !dryRun && this.isColdStartActive(),
         });
         const artifacts: ActionResult["artifacts"] = [];
+        const shouldPreserveView = !dryRun && shouldPreservePymolViewForActions(preparedActions, referenceHints);
         const exportActions = preparedActions.filter((action) => action.type === "export");
+        const warnings: string[] = [];
 
         for (const exportAction of exportActions) {
           const exportPath = exportAction.export.path!;
@@ -186,6 +190,9 @@ export class PymolAdapter {
         }
 
         if (!dryRun) {
+          if (shouldPreserveView) {
+            await this.callDo(rpcUrl!, `view ${TRANSIENT_VIEW_KEY}, store`, Math.min(this.timeoutMs, 2_000));
+          }
           for (const batch of commandBatches) {
             const pngExport = parsePymolPngCommand(batch.command);
             if (pngExport) {
@@ -194,13 +201,19 @@ export class PymolAdapter {
             }
             await this.callDo(rpcUrl!, batch.command, batch.timeoutMs);
           }
+          if (shouldPreserveView) {
+            try {
+              await this.callDo(rpcUrl!, `view ${TRANSIENT_VIEW_KEY}, recall`, Math.min(this.timeoutMs, 2_000));
+            } catch (error) {
+              warnings.push(buildPostExecutionRecoveryWarning("view restore", error));
+            }
+          }
           if (commands.length > 0) {
             this.noteSuccessfulCommandExecution();
           }
         }
 
         const elapsedMs = Date.now() - startedAt;
-        const warnings: string[] = [];
         const postCommandRecovery = !dryRun ? getPymolPostCommandRecovery(commandBatches, this.renderTimeoutMs) : null;
         if (postCommandRecovery) {
           await this.waitForSpecificRpcUrl(rpcUrl!, postCommandRecovery.timeoutMs, {
@@ -1122,7 +1135,7 @@ export class PymolAdapter {
         continue;
       }
 
-      const keys = new Set<string>([action.object ?? action.id ?? "structure"]);
+      const keys = new Set<string>([inferPymolLoadObjectName(action)]);
       if (action.id) {
         keys.add(action.id);
       }
@@ -1340,7 +1353,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
         ...compilePymolAction({ type: "preset", name: "presentation_light" }, referenceHints),
       ];
     case "load": {
-      const objectName = action.object ?? action.id ?? "structure";
+      const objectName = inferPymolLoadObjectName(action);
       if (action.source === "pdb" || action.source === "alphafold") {
         if (!action.id) throw new Error("PyMOL load action requires an id.");
         return [
@@ -1431,10 +1444,16 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
         throw new Error("PyMOL label action requires text unless action is clear.");
       }
       return [`label ${compilePymolSelection(action.selection, referenceHints)}, "${escapeDoubleQuotes(action.text)}"`];
-    case "align":
-      return [
-        `${action.method} ${compilePymolSelection(action.mobile, referenceHints)}, ${compilePymolSelection(action.target, referenceHints)}`,
-      ];
+    case "align": {
+      const mobileSelection = compilePymolSelection(action.mobile, referenceHints).trim();
+      const targetSelection = compilePymolSelection(action.target, referenceHints).trim();
+      if (mobileSelection === targetSelection) {
+        throw new Error(
+          "PyMOL align requires distinct mobile and target selections. Call get_target_state and align the predicted model to the experimental model instead of retrying the same selection.",
+        );
+      }
+      return [`${action.method} ${mobileSelection}, ${targetSelection}`];
+    }
     case "surface": {
       const selection = compilePymolSelection(action.selection, referenceHints);
       const commands = [`show surface, ${selection}`];
@@ -1538,8 +1557,8 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       if (action.name === "cryo_atomic_hero") {
         return [
           ...compilePymolAction({ type: "preset", name: "presentation_light" }, referenceHints),
-          "set mesh_width, 0.46",
-          "set surface_transparency, 0.24",
+          "set mesh_width, 0.24",
+          "set surface_transparency, 0.55",
           "set dash_color, teal",
           "set dash_radius, 0.06",
         ];
@@ -1760,6 +1779,25 @@ function inferPymolObjectTransformTarget(selection: unknown, referenceHints?: Se
   return hasScopedSelection ? null : objectName;
 }
 
+export function shouldPreservePymolViewForActions(
+  actions: PymolAction[],
+  referenceHints: SelectorReferenceMap,
+): boolean {
+  const wholeComplexSelector = referenceHints.wholeComplex?.selector;
+  const hasVisibleSceneContent = typeof wholeComplexSelector === "string"
+    || Boolean(wholeComplexSelector && typeof wholeComplexSelector === "object");
+  if (!hasVisibleSceneContent) {
+    return false;
+  }
+
+  const touchesLoadedModels = actions.some((action) => action.type === "load" || action.type === "align");
+  if (!touchesLoadedModels) {
+    return false;
+  }
+
+  return !actions.some((action) => action.type === "camera" || (action.type === "scene" && action.action === "view_recall"));
+}
+
 function axisAmountToVector(axis: "x" | "y" | "z", amount: number): [number, number, number] {
   if (axis === "y") return [0, amount, 0];
   if (axis === "z") return [0, 0, amount];
@@ -1816,7 +1854,7 @@ function predictPymolReferenceHintsFromActions(
     return {};
   }
 
-  const molecularObjectNames = loadActions.map((action) => action.object ?? action.id ?? "structure");
+  const molecularObjectNames = loadActions.map((action) => inferPymolLoadObjectName(action));
   const referenceSummary = buildPymolReferenceSummary({
     molecularObjectNames,
     mapObjectNames: [],
@@ -1831,6 +1869,23 @@ function predictPymolReferenceHintsFromActions(
 function trimFloat(value: number): string {
   const rounded = Math.round(value * 1000) / 1000;
   return Number.isInteger(rounded) ? String(rounded) : String(rounded);
+}
+
+function inferPymolLoadObjectName(action: Extract<PymolAction, { type: "load" }>): string {
+  if (action.object?.trim()) {
+    return action.object.trim();
+  }
+  if (action.id?.trim()) {
+    return action.id.trim();
+  }
+  if (action.path?.trim()) {
+    const basename = path.basename(action.path, path.extname(action.path)).replace(/[^A-Za-z0-9_]+/g, "_");
+    const normalized = basename.replace(/^_+|_+$/g, "");
+    if (normalized) {
+      return normalized;
+    }
+  }
+  return "structure";
 }
 
 function resolveExportPath(candidate: string | undefined, format: string, target: string): string {

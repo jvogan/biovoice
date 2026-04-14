@@ -100,8 +100,8 @@ Direct command equivalents:
 - `set dash_color, gray45`
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
-- `set mesh_width, 0.46`
-- `set surface_transparency, 0.24`
+- `set mesh_width, 0.24`
+- `set surface_transparency, 0.55`
 - `set dash_color, teal`
 - `set dash_radius, 0.06`
 - `set mesh_width, 0.4`

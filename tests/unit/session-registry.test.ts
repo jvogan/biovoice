@@ -185,4 +185,73 @@ describe("realtime session registry hardening", () => {
     expect(status.usageGuardrails.warningActive).toBe(true);
     expect(status.usageGuardrails.warningReason).toBe("billable_tokens");
   });
+
+  it("does not prune an established reconnecting session on the pending 30-second ttl", () => {
+    const registry = createRegistry() as never as {
+      createSessionRecord: (
+        sessionId: string,
+        callId: string,
+        target: "pymol" | "chimerax",
+        voiceMode: "push_to_talk" | "open_mic",
+        recipeId?: string,
+        accessToken?: string,
+        registerToken?: string,
+        instructionContext?: string,
+      ) => {
+        callId: string;
+        connectedAtMs: number | null;
+        lastActivityAt: number;
+        status: {
+          status: "awaiting_call" | "connecting" | "connected" | "error" | "disconnected";
+          sidebandStatus: "pending_call" | "connecting" | "connected" | "reconnecting" | "error" | "disconnected";
+        };
+      };
+      sessions: Map<string, unknown>;
+      pruneSessions: () => void;
+    };
+
+    const record = registry.createSessionRecord("session-reconnect", "", "pymol", "open_mic");
+    record.callId = "call-reconnect";
+    record.connectedAtMs = Date.now() - 60_000;
+    record.lastActivityAt = Date.now() - 40_000;
+    record.status = {
+      ...record.status,
+      status: "connecting",
+      sidebandStatus: "reconnecting",
+    };
+    registry.sessions.set("session-reconnect", record);
+
+    registry.pruneSessions();
+
+    expect(registry.sessions.has("session-reconnect")).toBe(true);
+  });
+
+  it("uses conservative server-side VAD settings for open mic", () => {
+    const registry = createRegistry() as never as {
+      buildSessionConfig: (
+        target: "pymol" | "chimerax",
+        voiceMode: "push_to_talk" | "open_mic",
+        recipeId?: string,
+        advancedMode?: boolean,
+        instructionContext?: string,
+      ) => {
+        audio: {
+          input: {
+            turn_detection: Record<string, unknown> | null;
+          };
+        };
+      };
+    };
+
+    const config = registry.buildSessionConfig("pymol", "open_mic");
+
+    expect(config.audio.input.turn_detection).toMatchObject({
+      type: "server_vad",
+      threshold: 0.5,
+      prefix_padding_ms: 300,
+      silence_duration_ms: 900,
+      interrupt_response: false,
+      create_response: true,
+    });
+  });
 });

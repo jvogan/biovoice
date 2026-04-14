@@ -724,7 +724,7 @@ async function fetchHealth(url: string): Promise<AppHealth | null> {
 }
 
 async function preflightRealtimeCredentials(url: string, target: TargetKind): Promise<void> {
-  const session = await fetchJson<{ clientSecret: string; sessionId: string }>(
+  const session = await fetchJson<{ clientSecret: string; sessionId: string; sessionAccessToken: string }>(
     `${url}/api/realtime/client-secret`,
     {
       method: "POST",
@@ -740,6 +740,9 @@ async function preflightRealtimeCredentials(url: string, target: TargetKind): Pr
 
   await fetchJson<{ ok: true }>(`${url}/api/sessions/${session.sessionId}/disconnect`, {
     method: "POST",
+    headers: {
+      "X-Session-Access-Token": session.sessionAccessToken,
+    },
   }).catch(() => {});
 }
 

@@ -207,7 +207,7 @@ input:focus-visible,
 }
 
 .instrument-hitbox-config {
-  top: 77.3%;
+  top: 75.4%;
   left: 85%;
   width: 6.3%;
   height: 4.8%;
@@ -223,24 +223,19 @@ input:focus-visible,
 }
 
 .instrument-hitbox-power,
-.instrument-hitbox-hold,
-.instrument-hitbox-safety {
-  top: 54.1%;
-  width: 18.9%;
-  height: 17%;
-  border-radius: 16px;
+.instrument-hitbox-hold {
+  top: 50.4%;
+  width: 25.2%;
+  height: 21.2%;
+  border-radius: 18px;
 }
 
 .instrument-hitbox-power {
-  left: 9.4%;
+  left: 10.2%;
 }
 
 .instrument-hitbox-hold {
-  left: 40.6%;
-}
-
-.instrument-hitbox-safety {
-  left: 71.9%;
+  left: 61.2%;
 }
 
 .instrument-hitbox-mini-talk {
@@ -445,51 +440,35 @@ input:focus-visible,
   animation: instrument-led-pulse 1.8s ease-in-out infinite;
 }
 
-.instrument-svg-shell-full.state-ready #talk-active-ring {
-  opacity: 0.32 !important;
-  stroke: #4fd1c5;
-}
-
-.instrument-svg-shell-full.state-listening #talk-active-ring,
-.instrument-svg-shell-mini.state-listening #btn-mini-talk circle:first-child {
-  opacity: 1 !important;
-  stroke: #4fd1c5;
-  filter: drop-shadow(0 0 8px rgba(79, 209, 197, 0.72));
-  animation: instrument-ring-pulse 1.8s ease-in-out infinite;
-}
-
-.instrument-svg-shell-full.state-executing #talk-active-ring {
-  opacity: 0.82 !important;
-  stroke: #ecc94b;
-  filter: drop-shadow(0 0 8px rgba(236, 201, 75, 0.54));
-}
-
-.instrument-svg-shell-full.state-offline #talk-active-ring,
-.instrument-svg-shell-full.state-paused #talk-active-ring,
-.instrument-svg-shell-full.state-error #talk-active-ring {
+.instrument-svg-shell-full #talk-active-ring {
   opacity: 0.14 !important;
+  stroke: #4fd1c5;
 }
 
-.instrument-svg-shell-full.state-offline #mic-mute-line,
-.instrument-svg-shell-full.state-paused #mic-mute-line,
-.instrument-svg-shell-full.state-error #mic-mute-line {
-  opacity: 0.94;
-}
-
-.instrument-svg-shell-full.state-connecting #mic-mute-line {
-  opacity: 0.42;
-}
-
-.instrument-svg-shell-full.state-listening #mic-mute-line,
-.instrument-svg-shell-full.state-executing #mic-mute-line,
-.instrument-svg-shell-full.state-ready #mic-mute-line {
+.instrument-svg-shell-full #mic-mute-line {
   opacity: 0;
 }
 
-.instrument-svg-shell-full.state-ready #mic-icon,
-.instrument-svg-shell-full.state-listening #mic-icon,
-.instrument-svg-shell-full.state-executing #mic-icon {
-  stroke: #95a3bb;
+.instrument-svg-shell-full.is-offline #mic-mute-line,
+.instrument-svg-shell-full.state-error #mic-mute-line,
+.instrument-svg-shell-full.state-paused #mic-mute-line {
+  opacity: 0.9;
+}
+
+.voice-widget.instrument-overlay[data-live-mic-active="true"] .instrument-svg-shell-full #talk-active-ring,
+.voice-widget.instrument-overlay[data-live-mic-active="true"] .instrument-svg-shell-mini #btn-mini-talk circle:first-child {
+  opacity: 1 !important;
+  stroke: #4fd1c5;
+  filter: drop-shadow(0 0 8px rgba(79, 209, 197, 0.72));
+}
+
+.voice-widget.instrument-overlay[data-live-mic-active="true"] .instrument-svg-shell-full #mic-mute-line {
+  opacity: 0;
+}
+
+.voice-widget.instrument-overlay[data-live-mic-active="true"] .instrument-svg-shell-full #mic-icon {
+  stroke: #4fd1c5;
+  filter: drop-shadow(0 0 6px rgba(79, 209, 197, 0.35));
 }
 
 .instrument-svg-shell-full.is-online #btn-power rect {

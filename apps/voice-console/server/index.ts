@@ -26,9 +26,84 @@ import {
 dotenv.config();
 
 const remoteAccessCookieName = "biovoice_remote_access";
+const managedAgentStatePath = resolveFromRoot(".runtime", "agent-runtime", "state.json");
+
+type ManagedAgentState = {
+  target?: "pymol" | "chimerax";
+  workflowId?: string;
+  scientificInputs?: {
+    uniprot?: string;
+    model?: string;
+    experimental?: string;
+    pae?: string;
+    map?: string;
+    bundle?: string;
+    scorefile?: string;
+    topN?: number;
+  };
+};
 
 function buildSessionAccessCookieName(sessionId: string): string {
   return `biovoice_session_${sessionId}`;
+}
+
+async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax"): Promise<string | undefined> {
+  const raw = await fs.readFile(managedAgentStatePath, "utf8").catch(() => null);
+  if (!raw) {
+    return undefined;
+  }
+
+  const parsed = JSON.parse(raw) as ManagedAgentState;
+  if (parsed.target !== target || !parsed.scientificInputs) {
+    return undefined;
+  }
+
+  const context: string[] = [];
+  if (parsed.workflowId) {
+    context.push(`Pinned workflow ${parsed.workflowId}.`);
+  }
+  if (parsed.scientificInputs.experimental) {
+    context.push(`Use this exact local experimental structure path: ${parsed.scientificInputs.experimental}.`);
+  }
+  if (parsed.scientificInputs.model) {
+    context.push(`Use this exact local model path: ${parsed.scientificInputs.model}.`);
+  }
+  if (parsed.scientificInputs.pae) {
+    context.push(`Pinned local PAE file: ${parsed.scientificInputs.pae}.`);
+  }
+  if (parsed.scientificInputs.map) {
+    context.push(`Pinned local map file: ${parsed.scientificInputs.map}.`);
+  }
+  if (parsed.scientificInputs.bundle) {
+    context.push(`Pinned local design bundle: ${parsed.scientificInputs.bundle}.`);
+  }
+  if (parsed.scientificInputs.scorefile) {
+    context.push(`Pinned local scorefile: ${parsed.scientificInputs.scorefile}.`);
+  }
+  if (parsed.scientificInputs.uniprot) {
+    context.push(`Pinned UniProt id: ${parsed.scientificInputs.uniprot}.`);
+  }
+  if (typeof parsed.scientificInputs.topN === "number" && Number.isFinite(parsed.scientificInputs.topN)) {
+    context.push(`Pinned top-N value: ${Math.max(1, Math.round(parsed.scientificInputs.topN))}.`);
+  }
+  if (parsed.scientificInputs.experimental && parsed.scientificInputs.model) {
+    const experimentalName = path.basename(parsed.scientificInputs.experimental, path.extname(parsed.scientificInputs.experimental));
+    const modelName = path.basename(parsed.scientificInputs.model, path.extname(parsed.scientificInputs.model)).replace(/[^A-Za-z0-9_]+/g, "_");
+    context.push(
+      [
+        "For local AlphaFold-versus-experiment requests, treat these as the canonical demo assets.",
+        `Load the experimental structure first and keep the object name close to ${experimentalName}.`,
+        `Load the predicted model second and keep the object name close to ${modelName}.`,
+        "If the user asks to align the AlphaFold or predicted model to chain A/B/C/D, align the predicted model chain to the experimental model chain, not all-to-all and never predicted-to-predicted.",
+        "Do not use selectors like `all` for overlay alignment when both structures are loaded.",
+      ].join(" "),
+    );
+  }
+  if (!context.length) {
+    return undefined;
+  }
+  context.push("When the operator says local AlphaFold or local experimental model, prefer these pinned local inputs instead of web search.");
+  return context.join(" ");
 }
 
 function normalizeOrigin(value: string): string | null {
@@ -273,8 +348,8 @@ const realtimeMaxBillableTokensPerSession = readPositiveInteger(process.env.REAL
 const realtimeMaxActiveSessions = readPositiveInteger(process.env.REALTIME_MAX_ACTIVE_SESSIONS, 2);
 const realtimeUsageWarningRatio = readUnitInterval(process.env.REALTIME_USAGE_WARNING_RATIO, 0.8, 0.5, 0.95);
 const realtimeTracing = process.env.REALTIME_TRACING === "false" ? null : "auto";
-const realtimeRetentionRatio = Number(process.env.REALTIME_RETENTION_RATIO ?? 0.8);
-const realtimePostInstructionsTokens = Number(process.env.REALTIME_POST_INSTRUCTIONS_TOKENS ?? 12000);
+const realtimeRetentionRatio = Number(process.env.REALTIME_RETENTION_RATIO ?? 0.4);
+const realtimePostInstructionsTokens = Number(process.env.REALTIME_POST_INSTRUCTIONS_TOKENS ?? 2000);
 const realtimeTruncation =
   process.env.REALTIME_ENABLE_TRUNCATION === "false"
     ? null
@@ -690,7 +765,11 @@ app.post("/api/realtime/client-secret", createRateLimit("client-secret", 12, 60_
   try {
     const target = targetKindSchema.parse(req.body.target ?? defaultTarget);
     const voiceMode = voiceModeSchema.parse(req.body.voiceMode ?? "push_to_talk");
-    const prepared = await registry.prepareSession(target, voiceMode, req.body.recipeId);
+    const instructionContext =
+      typeof req.body.instructionContext === "string" && req.body.instructionContext.trim()
+        ? req.body.instructionContext.trim()
+        : await readManagedLaunchInstructionContext(target);
+    const prepared = await registry.prepareSession(target, voiceMode, req.body.recipeId, instructionContext);
     setCookie(res, buildSessionAccessCookieName(prepared.sessionId), prepared.sessionAccessToken, { maxAgeSeconds: 43_200 });
     markRealtimeCredentialValidated();
     res.json(prepared);
@@ -709,6 +788,10 @@ app.post("/api/realtime/connect", createRateLimit("realtime-connect", 12, 60_000
   try {
     const target = targetKindSchema.parse(req.body.target ?? defaultTarget);
     const voiceMode = voiceModeSchema.parse(req.body.voiceMode ?? "push_to_talk");
+    const instructionContext =
+      typeof req.body.instructionContext === "string" && req.body.instructionContext.trim()
+        ? req.body.instructionContext.trim()
+        : await readManagedLaunchInstructionContext(target);
     const offerSdp = String(req.body.offerSdp ?? "");
     if (!offerSdp.trim()) {
       res.status(400).json({ error: "Missing offerSdp." });
@@ -720,6 +803,7 @@ app.post("/api/realtime/connect", createRateLimit("realtime-connect", 12, 60_000
       target,
       voiceMode,
       recipeId: req.body.recipeId,
+      instructionContext,
     });
     setCookie(res, buildSessionAccessCookieName(result.sessionId), result.sessionAccessToken, { maxAgeSeconds: 43_200 });
     markRealtimeCredentialValidated();
@@ -815,6 +899,10 @@ app.post("/api/sessions/:sessionId/recipe", requireSessionAccess, async (req, re
 app.post("/api/sessions/:sessionId/disconnect", requireSessionAccess, async (req, res) => {
   try {
     const sessionId = String(req.params.sessionId ?? "");
+    const reason = typeof req.body?.reason === "string" && req.body.reason.trim()
+      ? req.body.reason.trim()
+      : "unspecified";
+    console.warn(`[realtime-disconnect] session=${sessionId} reason=${reason}`);
     await registry.disconnect(sessionId);
     clearCookie(res, buildSessionAccessCookieName(sessionId));
     res.json({ ok: true });

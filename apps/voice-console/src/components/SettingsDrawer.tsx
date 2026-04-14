@@ -205,7 +205,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                         tone={guardrails.warningActive ? "warn" : "neutral"}
                       />
                       <StatCard
-                        label="Session Billable"
+                        label="Session Cost Guard"
                         value={guardrails.currentBillableTokens != null ? guardrails.currentBillableTokens.toLocaleString() : "—"}
                         tone={guardrails.warningActive ? "warn" : "neutral"}
                       />
@@ -227,7 +227,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                           tone={guardrails.warningActive ? "warn" : "neutral"}
                         />
                         <StatCard
-                          label="Session Billable"
+                          label="Session Cost Guard"
                           value={guardrails.currentBillableTokens != null ? guardrails.currentBillableTokens.toLocaleString() : "—"}
                           tone={guardrails.warningActive ? "warn" : "neutral"}
                         />

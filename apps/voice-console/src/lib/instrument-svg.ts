@@ -30,12 +30,20 @@ export function buildInstrumentSvg(input: {
   statusLabel: string;
   contextText: string;
   terminalText: string;
+  powerLabel?: string;
+  holdLabel?: string;
 }): string {
   let svg = input.template;
   svg = replaceSvgTextById(svg, "app-name", input.appName);
   svg = replaceSvgTextById(svg, "status-label", input.statusLabel);
   svg = replaceSvgTextById(svg, "context-text", input.contextText);
   svg = replaceSvgTextById(svg, "terminal-text", input.terminalText);
+  if (input.powerLabel) {
+    svg = replaceSvgTextById(svg, "label-power", input.powerLabel);
+  }
+  if (input.holdLabel) {
+    svg = replaceSvgTextById(svg, "label-hold", input.holdLabel);
+  }
   return svg;
 }
 

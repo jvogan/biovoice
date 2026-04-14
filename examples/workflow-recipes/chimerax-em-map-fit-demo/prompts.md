@@ -1,21 +1,21 @@
 # Cryo-EM Map Fit Review Prompts
 
 ## Starter Prompts
-- Open the local hemoglobin cryo-EM model and map, then show a real map-fit review.
-- Inspect the map as mesh and orthoplanes, fit the model into the map, and report the fit quality briefly.
-- Export the polished map-fit result after the framing is clean.
+- Open the local hemoglobin cryo-EM model and map, start in mesh view, and establish the whole fitted assembly clearly.
+- Run fitmap, rotate through the fit like a real validation pass, and show orthoplanes only briefly before returning to mesh.
+- Move into a local heme-centered density cutaway, keep the model legible inside the map, and export the final polished hero frame.
 
 ## Reusable Spoken Utterances
 - Open the local cryo-EM hemoglobin model and map.
-- Show the map as mesh first and then switch to orthoplanes.
-- Fit the model into the map and tell me the fit quality.
-- Rotate around the fit a little before the export.
-- Return from orthoplanes to the mesh view.
-- Use the map hero preset after the fit looks right.
-- Store a named view for the fitted state.
-- Clip the front plane more tightly around the density.
-- Export the current map-fit view once the silhouette looks balanced.
-- Keep the model readable against the density before saving the still.
+- Keep the map as mesh first and save a global fitted overview.
+- Run fitmap and rotate slowly around the fit so the density alignment reads from multiple angles.
+- Switch to orthoplanes briefly for sectional inspection, then come back out to mesh.
+- Move into a local heme-centered cutaway and keep the model readable inside the density.
+- Compare the wide fitted view against the local cutaway before settling on the close-up.
+- Store the local cryo view once the clip and framing feel balanced.
+- Use the map hero preset only after returning from orthoplanes.
+- Keep the final scene as mesh plus model, not a slice view.
+- Export the final local map-fit hero once the silhouette looks balanced.
 - If a map is loaded, identify the map model first and then report the fit metric after the move.
 - Move from a cryo overview into an atomic cutaway while keeping the named views readable and reusable.
 - Apply the light presentation preset before exporting this view.

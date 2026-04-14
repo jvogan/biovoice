@@ -1,6 +1,6 @@
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { PymolAdapter, createPymolCommandBatches } from "../../packages/runtime-and-adapters/src/adapters/pymol-adapter.js";
+import { PymolAdapter, createPymolCommandBatches, shouldPreservePymolViewForActions } from "../../packages/runtime-and-adapters/src/adapters/pymol-adapter.js";
 
 describe("PymolAdapter readiness and cold-start policy", () => {
   it("fails closed until a reachable endpoint becomes command-ready", async () => {
@@ -49,6 +49,37 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     expect(summary.commandReady).toBe(false);
     expect(summary.warmupState).toBe("warming");
     expect(summary.lastRpcError).toMatch(/command-ready probes/i);
+  });
+
+  it("preserves the current view for overlay steps unless camera work was explicitly requested", () => {
+    expect(shouldPreservePymolViewForActions(
+      [
+        { type: "load", source: "local", path: "/tmp/af.pdb", object: "af_prediction" },
+        { type: "align", method: "super", mobile: { reference: "predictedModel" }, target: { reference: "experimentalModel" } },
+      ],
+      {
+        wholeComplex: { selector: { object: "exp_complex" } },
+        predictedModel: { selector: { object: "af_prediction" } },
+        experimentalModel: { selector: { object: "exp_complex" } },
+      },
+    )).toBe(true);
+
+    expect(shouldPreservePymolViewForActions(
+      [
+        { type: "align", method: "super", mobile: "af_prediction", target: "exp_complex" },
+        { type: "camera", action: "zoom", selection: "all" },
+      ],
+      {
+        wholeComplex: { selector: { object: "exp_complex" } },
+      },
+    )).toBe(false);
+
+    expect(shouldPreservePymolViewForActions(
+      [
+        { type: "load", source: "local", path: "/tmp/af.pdb", object: "af_prediction" },
+      ],
+      {},
+    )).toBe(false);
   });
 
   it("raises timeouts during the cold-start window", () => {

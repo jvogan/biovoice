@@ -4,9 +4,10 @@ This tutorial is the best newcomer path when the story is about density, model f
 
 ## What This Walkthrough Demonstrates
 
-- Opening a validated local cryo-EM map and fitted model
-- Moving from overview to map-focused close-up
-- Inspecting a density-and-model scene with a polished export at the end
+- Opening a validated local cryo-EM map and its fitted model
+- Reviewing a global mesh-based fit before moving into sectional inspection
+- Using orthoplanes briefly as a real cryo check, not as the final presentation mode
+- Moving into a local heme-centered density cutaway and returning to a polished mesh hero
 
 ## Recommended Target
 
@@ -29,22 +30,24 @@ npm run showcase:chimerax:map
 
 ## What You Should Expect To See
 
-- The local `EMD-37575` map opens
-- The fitted hemoglobin model opens into the same scene
-- The walkthrough shifts between overview, mesh, and density-focused close-ups
-- The workflow reports fit-oriented metrics and ends with an exportable presentation frame
+- The local `EMD-37575` map opens in ChimeraX as a clean mesh around the fitted hemoglobin model
+- The walkthrough holds a whole-assembly "model inside density" frame before fitting
+- The fit is executed and revisited from multiple angles so it feels like a real validation task
+- Orthoplane inspection appears briefly, then exits back to mesh
+- The scene tightens into a heme-centered local density cutaway and ends on a polished mesh-plus-model hero
 
 ## First Commands To Say
 
 - "Open the cryo map and the fitted model."
-- "Show the density as mesh."
-- "Clip into the heme pocket and keep the model visible."
+- "Keep the density as mesh and show the whole fitted assembly first."
+- "Run fitmap and rotate slowly around the fit."
+- "Clip into the heme neighborhood and keep the model visible inside the density."
 
 Useful follow-ups:
 
-- "Show orthoplanes through the density."
-- "Quiet the rest of the assembly and keep the local fit visible."
-- "Save a polished map-fit export."
+- "Show orthoplanes through the density briefly, then return to mesh."
+- "Compare the wide fit against the local cutaway."
+- "Save a polished map-fit export once the mesh hero looks balanced."
 
 ## How To Run The Same Workflow Without Voice
 
@@ -61,6 +64,8 @@ npm run showcase:pymol:cryo
 ## Common Failure Points
 
 - **The map takes a moment to load**: wait for the workflow to complete before restyling manually
+- **The orthoplane beat looks noisy**: that is expected for the inspection phase; the workflow returns to mesh before the final hero frame
+- **The local close-up feels too tight**: recall the saved global fitted view first, then move back into the heme cutaway
 - **You expected a synthetic map demo**: this tutorial uses the real local cryo-EM map path
 - **You want more prediction context first**: start with [AlphaFold Tutorial](./tutorial-alphafold.md), then come back here
 - **The target feels heavy for a first session**: use the ligand pocket tutorial first, then return to cryo-EM
@@ -68,7 +73,7 @@ npm run showcase:pymol:cryo
 ## Where To Go Next
 
 - [AlphaFold Tutorial](./tutorial-alphafold.md) for the prediction side of the handoff
-- [Architecture and Provider Support](./architecture.md) for the local/control path
+- [Architecture and Provider Support](./architecture.md) for the local-control path and why ChimeraX is the stronger map-first target
 - [Scientific Workflows Catalog](../examples/scientific-workflows/README.md) for alternate map-oriented entries
 
 ## Generated Reference Pages

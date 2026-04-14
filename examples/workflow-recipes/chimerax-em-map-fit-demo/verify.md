@@ -2,9 +2,10 @@
 
 ## Acceptance Checklist
 - [ ] The local model and map are both open in ChimeraX.
-- [ ] Map fit is executed.
-- [ ] Map styles switch between mesh and orthoplanes.
-- [ ] Export is saved.
+- [ ] A global mesh overview is stored.
+- [ ] Map fit executes and the fitted overview is stored.
+- [ ] Orthoplane inspection appears briefly and exits cleanly.
+- [ ] A local heme-focused mesh hero is exported.
 
 ## Failure Cases To Watch
 - Chain or residue identifiers are misheard and the wrong region is selected.

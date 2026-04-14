@@ -2,6 +2,7 @@ import { z } from "zod";
 
 const counterSchema = z.number().int().min(0).default(0);
 const positiveCounterSchema = z.number().int().min(1);
+const CACHED_INPUT_GUARD_WEIGHT = 0.1;
 
 export const sessionUsageGuardrailsSchema = z.object({
   maxSessionMinutes: positiveCounterSchema,
@@ -107,7 +108,11 @@ export function accumulateTranscriptionUsage(current: SessionUsage, rawUsage: un
 }
 
 export function getBillableTokenTotal(usage: SessionUsage): number {
-  return usage.totalTokens + usage.transcriptionTotalTokens;
+  // Cached prompt tokens are billed at a discounted rate, so the local session
+  // guardrail should not count them 1:1 with uncached input/output tokens.
+  const discountedCachedInputTokens = Math.round(usage.cachedInputTokens * CACHED_INPUT_GUARD_WEIGHT);
+  const responseGuardTokens = Math.max(0, usage.totalTokens - usage.cachedInputTokens + discountedCachedInputTokens);
+  return responseGuardTokens + usage.transcriptionTotalTokens;
 }
 
 export function buildSessionUsageGuardState(
@@ -126,7 +131,7 @@ export function buildSessionUsageGuardState(
       "billable_tokens",
       billableTokens,
       parsedGuardrails.maxBillableTokensPerSession,
-      `${formatCount(billableTokens)} / ${formatCount(parsedGuardrails.maxBillableTokensPerSession)} billable tokens`,
+      `${formatCount(billableTokens)} / ${formatCount(parsedGuardrails.maxBillableTokensPerSession)} cost-guard tokens`,
     ),
     createGuardDimension(
       "transcription_count",
@@ -175,7 +180,7 @@ export function formatUsageSummary(usage: SessionUsage): string {
   return [
     `${usage.responseCount} responses`,
     `${usage.transcriptionCount} transcriptions`,
-    `${formatCount(getBillableTokenTotal(usage))} billable tokens`,
+    `${formatCount(getBillableTokenTotal(usage))} cost-guard tokens`,
     `${formatCount(usage.cachedInputTokens)} cached`,
   ].join(" · ");
 }
@@ -235,7 +240,9 @@ function chooseMostUrgentDimension(
 function buildGuardrailMessage(prefix: "Approaching" | "Reached", dimension: GuardDimension): string {
   switch (dimension.reason) {
     case "billable_tokens":
-      return `${prefix} the per-session billable token cap. ${dimension.detail}. BioVoice will disconnect this session to keep Realtime costs bounded.`;
+      return prefix === "Reached"
+        ? `${prefix} the per-session cost guardrail. ${dimension.detail}. Cached context is discounted in this estimate. BioVoice will end this session so additional Realtime spend does not continue blindly.`
+        : `${prefix} the per-session cost guardrail. ${dimension.detail}. Cached context is discounted in this estimate.`;
     case "transcription_count":
       return `${prefix} the per-session transcription cap. ${dimension.detail}. Open mic can create billable turns quickly.`;
     case "response_count":

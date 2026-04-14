@@ -140,6 +140,38 @@ describe("adapter dry-run compilation", () => {
     }
   });
 
+  it("derives a stable PyMOL object name from a local filename when the action omits one", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "load", source: "local", path: resolveFromRoot("examples", "data", "local", "af-p69905.pdb") },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      `load "${resolveFromRoot("examples", "data", "local", "af-p69905.pdb")}", af_p69905`,
+    ]));
+  });
+
+  it("rejects PyMOL align actions that resolve to the same selection", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    await expect(adapter.execute([
+      { type: "align", method: "super", mobile: "all", target: "all" },
+    ], true)).rejects.toThrow(/distinct mobile and target selections/i);
+  });
+
   it("compiles ChimeraX actions without requiring a live REST endpoint", async () => {
     const adapter = new ChimeraXAdapter({
       port: 60958,

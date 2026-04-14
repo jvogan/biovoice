@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { app, BrowserWindow, Menu, screen, shell } from "electron";
+import { app, BrowserWindow, Menu, powerSaveBlocker, screen, shell, systemPreferences } from "electron";
 
 const FULL_BOUNDS = {
   width: 340,
@@ -14,6 +14,12 @@ const MINI_BOUNDS = {
 
 const launch = parseArgs(process.argv.slice(2));
 let mainWindow = null;
+let powerSaveBlockerId = null;
+
+app.commandLine.appendSwitch("autoplay-policy", "no-user-gesture-required");
+app.commandLine.appendSwitch("disable-renderer-backgrounding");
+app.commandLine.appendSwitch("disable-background-timer-throttling");
+app.commandLine.appendSwitch("disable-backgrounding-occluded-windows");
 
 void bootstrap().catch((error) => {
   console.error("[floating-companion] bootstrap failed", error);
@@ -22,6 +28,8 @@ void bootstrap().catch((error) => {
 
 async function bootstrap() {
   await app.whenReady();
+  ensurePowerSaveBlocker();
+  await primeMediaAccess();
   installMenu();
   await createWindow();
 
@@ -32,6 +40,7 @@ async function bootstrap() {
   });
 
   app.on("window-all-closed", () => {
+    stopPowerSaveBlocker();
     app.quit();
   });
 }
@@ -57,6 +66,7 @@ async function createWindow() {
     resizable: false,
     maximizable: false,
     minimizable: true,
+    acceptFirstMouse: true,
     fullscreenable: false,
     closable: true,
     skipTaskbar: true,
@@ -75,6 +85,7 @@ async function createWindow() {
   mainWindow.setAlwaysOnTop(true, "floating", 1);
   mainWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
   mainWindow.setFullScreenable(false);
+  configureMediaPermissions(mainWindow);
   mainWindow.on("close", () => {
     void persistBounds(mainWindow);
   });
@@ -91,6 +102,24 @@ async function createWindow() {
   mainWindow.webContents.on("did-fail-load", (_event, code, description) => {
     console.error(`[floating-companion] did-fail-load code=${code} description=${description}`);
   });
+  mainWindow.webContents.on("console-message", (_event, level, message, line, sourceId) => {
+    console.warn(`[floating-companion] renderer-console level=${level} source=${sourceId}:${line} message=${message}`);
+  });
+  mainWindow.webContents.on("render-process-gone", (_event, details) => {
+    console.error(`[floating-companion] render-process-gone reason=${details.reason} exitCode=${details.exitCode}`);
+  });
+  mainWindow.webContents.on("unresponsive", () => {
+    console.error("[floating-companion] renderer unresponsive");
+  });
+  mainWindow.webContents.on("responsive", () => {
+    console.warn("[floating-companion] renderer responsive");
+  });
+  mainWindow.webContents.on("did-start-navigation", (_event, navigatedUrl, isInPlace, isMainFrame) => {
+    if (!isMainFrame) {
+      return;
+    }
+    console.warn(`[floating-companion] did-start-navigation url=${navigatedUrl} inPlace=${String(isInPlace)}`);
+  });
   mainWindow.webContents.on("did-navigate-in-page", (_event, navigatedUrl) => {
     syncWindowFromUrl(mainWindow, navigatedUrl);
   });
@@ -106,6 +135,79 @@ async function createWindow() {
 
   await waitForLocalRuntime(url, 12_000).catch(() => {});
   await mainWindow.loadURL(url);
+}
+
+function ensurePowerSaveBlocker() {
+  if (powerSaveBlockerId && powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+    return;
+  }
+  powerSaveBlockerId = powerSaveBlocker.start("prevent-app-suspension");
+  console.warn(`[floating-companion] power-save-blocker started id=${powerSaveBlockerId}`);
+}
+
+function stopPowerSaveBlocker() {
+  if (!powerSaveBlockerId) {
+    return;
+  }
+  if (powerSaveBlocker.isStarted(powerSaveBlockerId)) {
+    powerSaveBlocker.stop(powerSaveBlockerId);
+    console.warn(`[floating-companion] power-save-blocker stopped id=${powerSaveBlockerId}`);
+  }
+  powerSaveBlockerId = null;
+}
+
+async function primeMediaAccess() {
+  if (process.platform !== "darwin") {
+    return;
+  }
+
+  try {
+    const status = systemPreferences.getMediaAccessStatus("microphone");
+    if (status === "not-determined") {
+      await systemPreferences.askForMediaAccess("microphone");
+    }
+  } catch (error) {
+    console.warn("[floating-companion] microphone access check failed", error);
+  }
+}
+
+function configureMediaPermissions(window) {
+  const ses = window.webContents.session;
+  ses.setPermissionCheckHandler((_webContents, permission, requestingOrigin, details) => {
+    if (permission !== "media") {
+      return false;
+    }
+    return isTrustedCompanionOrigin(details?.requestingUrl ?? details?.securityOrigin ?? requestingOrigin);
+  });
+  ses.setPermissionRequestHandler((_webContents, permission, callback, details) => {
+    if (permission !== "media") {
+      callback(false);
+      return;
+    }
+    const securityOrigin = "securityOrigin" in details ? details.securityOrigin : undefined;
+    const requestingUrl = "requestingUrl" in details ? details.requestingUrl : undefined;
+    const mediaTypes = "mediaTypes" in details ? details.mediaTypes : undefined;
+    const allow =
+      isTrustedCompanionOrigin(requestingUrl ?? securityOrigin)
+      && Array.isArray(mediaTypes)
+      && mediaTypes.includes("audio");
+    callback(allow);
+  });
+}
+
+function isTrustedCompanionOrigin(urlString) {
+  if (!urlString) {
+    return false;
+  }
+
+  try {
+    const url = new URL(urlString);
+    return (url.protocol === "http:" || url.protocol === "https:")
+      && (url.hostname === "localhost" || url.hostname === "127.0.0.1")
+      && url.pathname.startsWith("/");
+  } catch {
+    return false;
+  }
 }
 
 function installMenu() {

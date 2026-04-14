@@ -99,6 +99,8 @@ export function App() {
   const initialQueryOverlayMode = useRef(readQueryBoolean("overlay"));
   const initialQueryNoSleep = useRef(readQueryBoolean("nosleep"));
   const initialQueryScientific = useRef(readScientificWorkflowQueryState());
+  const widgetMode = initialQueryWidgetMode.current;
+  const overlayMode = initialQueryOverlayMode.current;
   const initialScientificTarget = initialQueryTarget
     ?? (initialQueryScientific.current.workflowId
       ? getScientificWorkflowSpec(initialQueryScientific.current.workflowId).defaultTarget
@@ -305,6 +307,18 @@ export function App() {
   }, [openMicArmed, voiceMode]);
 
   useEffect(() => {
+    if (!overlayMode) {
+      return;
+    }
+    if (voiceMode !== "open_mic") {
+      setVoiceMode("open_mic");
+    }
+    if (!connection.connected && openMicArmed) {
+      setOpenMicArmed(false);
+    }
+  }, [connection.connected, openMicArmed, overlayMode, voiceMode]);
+
+  useEffect(() => {
     if (connection.sessionId === sessionSyncRef.current.sessionId) {
       return;
     }
@@ -349,8 +363,6 @@ export function App() {
 
   const visibleExamples = examples.filter((recipe) => recipe.apps.includes(target));
   const selectedRecipe = visibleExamples.find((recipe) => recipe.id === selectedRecipeId) ?? null;
-  const widgetMode = initialQueryWidgetMode.current;
-  const overlayMode = initialQueryOverlayMode.current;
   const stageArtifactPreview = findLatestStageArtifactPreview(connection.events);
   const latestWidgetAction = summarizeLatestWidgetAction(connection.events);
   const connectBusy = !connection.connected && (connection.phase === "arming" || connection.phase === "connecting");
@@ -373,7 +385,9 @@ export function App() {
       : connection.status?.controllerReady
       ? "READY"
       : connection.status?.sidebandStatus?.replaceAll("_", " ").toUpperCase() ?? "WAIT";
-  const widgetHint = latestWidgetAction;
+  const widgetHint = overlayMode && !["executing", "confirming", "error"].includes(connection.phase)
+    ? null
+    : latestWidgetAction;
   const realtimeKeyLabel = !configLoaded ? "LOADING" : realtimeReady ? "SET" : "MISSING";
   const usageKeyLabel = !configLoaded ? "LOADING" : usageReady ? "SET" : "MISSING";
   const scientificQueryState = initialQueryScientific.current;
@@ -423,7 +437,8 @@ export function App() {
     breachMessage: connection.status?.usageGuardrails?.breachMessage,
   };
   const sessionNoticeMessage =
-    connection.status?.usageGuardrails?.warningMessage
+    connection.status?.usageGuardrails?.breachMessage
+    ?? connection.status?.usageGuardrails?.warningMessage
     ?? (connection.connected && connection.eventStreamState === "stalled"
       ? "Session event stream stalled. Voice may still be live; disconnect and reconnect if you want to avoid blind spend."
       : null)
@@ -434,7 +449,8 @@ export function App() {
       ? `Idle disconnect in ${idleCountdownLabel}. Start a new turn or pause the session if you want to keep it alive.`
       : null);
   const sessionNoticeTone: "warn" | "error" =
-    connection.connected && connection.eventStreamState === "stalled"
+    connection.status?.usageGuardrails?.breachMessage
+    || (connection.connected && connection.eventStreamState === "stalled")
       ? "error"
       : "warn";
 
@@ -490,6 +506,24 @@ export function App() {
   }
 
   function handleWidgetOpenMicToggle() {
+    if (overlayMode) {
+      if (!connection.connected || connectBusy || connection.sessionPaused) {
+        return;
+      }
+      if (openMicArmed) {
+        setOpenMicArmed(false);
+        return;
+      }
+      if (!connection.ready || ["executing", "confirming", "error"].includes(connection.phase)) {
+        return;
+      }
+      if (voiceMode !== "open_mic") {
+        setVoiceMode("open_mic");
+      }
+      setOpenMicArmed(true);
+      return;
+    }
+
     if (voiceMode === "open_mic" && openMicArmed) {
       setOpenMicArmed(false);
       setVoiceMode("push_to_talk");

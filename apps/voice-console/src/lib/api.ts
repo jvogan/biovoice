@@ -152,6 +152,7 @@ export async function createRealtimeClientSecret(body: {
   target: "pymol" | "chimerax";
   voiceMode: "push_to_talk" | "open_mic";
   recipeId?: string;
+  instructionContext?: string;
 }) {
   const prepared = await requestJson<{ clientSecret: string; sessionId: string; registerToken: string; sessionAccessToken: string }>("/api/realtime/client-secret", {
     method: "POST",
@@ -168,6 +169,9 @@ export async function connectRealtimeCall(body: {
   voiceMode: "push_to_talk" | "open_mic";
   recipeId?: string;
   offerSdp: string;
+  instructionContext?: string;
+}, options?: {
+  signal?: AbortSignal;
 }) {
   return requestJson<{ answerSdp: string; sessionId: string; callId: string; sessionAccessToken: string }>("/api/realtime/connect", {
     method: "POST",
@@ -175,6 +179,7 @@ export async function connectRealtimeCall(body: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(body),
+    signal: options?.signal,
   });
 }
 
@@ -418,16 +423,20 @@ export async function updateSessionRecipe(sessionId: string, sessionAccessToken:
   });
 }
 
-export async function disconnectSession(sessionId: string, sessionAccessToken: string) {
+export async function disconnectSession(sessionId: string, sessionAccessToken: string, reason?: string) {
   return requestJson(`/api/sessions/${sessionId}/disconnect`, {
     method: "POST",
-    headers: withSessionHeaders(sessionAccessToken),
+    headers: withSessionHeaders(sessionAccessToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify(reason ? { reason } : {}),
   });
 }
 
-export function disconnectSessionBeacon(sessionId: string, sessionAccessToken: string): void {
+export function disconnectSessionBeacon(sessionId: string, sessionAccessToken: string, reason?: string): void {
   const url = `/api/sessions/${sessionId}/disconnect`;
-  const payload = JSON.stringify({ sessionAccessToken });
+  const payload = JSON.stringify({
+    sessionAccessToken,
+    ...(reason ? { reason } : {}),
+  });
   try {
     const body = new Blob([payload], { type: "application/json" });
     if (navigator.sendBeacon(url, body)) {

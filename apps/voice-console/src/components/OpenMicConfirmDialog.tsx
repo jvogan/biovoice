@@ -41,7 +41,7 @@ export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
                   Open mic needs a deliberate opt-in
                 </h2>
                 <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
-                  Push-to-talk is the lowest-risk mode for accidental spend. Open mic can create billable turns more easily from ambient speech, so BioVoice caps each session and disconnects automatically if it reaches a limit.
+                  Push-to-talk is the lowest-risk mode for accidental spend. Open mic can create extra turns more easily from ambient speech, so BioVoice caps each session and disconnects automatically if it reaches a limit.
                 </p>
               </div>
 
@@ -51,7 +51,7 @@ export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
                   <GuardrailCard label="Session cap" value={`${guardrails.maxSessionMinutes}m`} />
                   <GuardrailCard label="Responses" value={String(guardrails.maxResponsesPerSession)} />
                   <GuardrailCard label="Transcriptions" value={String(guardrails.maxTranscriptionsPerSession)} />
-                  <GuardrailCard label="Billable tokens" value={guardrails.maxBillableTokensPerSession.toLocaleString()} />
+                  <GuardrailCard label="Cost guard tokens" value={guardrails.maxBillableTokensPerSession.toLocaleString()} />
                   <GuardrailCard label="Active sessions" value={String(guardrails.maxActiveSessions)} />
                   <GuardrailCard label="Warning threshold" value={`${Math.round(guardrails.warningRatio * 100)}%`} />
                 </div>

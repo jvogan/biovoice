@@ -38,11 +38,11 @@ async function main() {
     realtimeVoice: process.env.REALTIME_VOICE ?? "marin",
     audioTranscriptionModel: process.env.REALTIME_TRANSCRIPTION_MODEL ?? "gpt-4o-mini-transcribe",
     realtimeOutputSpeed: Number(process.env.REALTIME_OUTPUT_SPEED ?? 1),
-    realtimeMaxOutputTokens: 1536,
+    realtimeMaxOutputTokens: Number(process.env.REALTIME_MAX_OUTPUT_TOKENS ?? 384),
     realtimeTracing: "auto",
     realtimeTruncation: {
-      retentionRatio: Number(process.env.REALTIME_RETENTION_RATIO ?? 0.8),
-      postInstructions: Number(process.env.REALTIME_POST_INSTRUCTIONS_TOKENS ?? 12000),
+      retentionRatio: Number(process.env.REALTIME_RETENTION_RATIO ?? 0.4),
+      postInstructions: Number(process.env.REALTIME_POST_INSTRUCTIONS_TOKENS ?? 2000),
     },
     sessionGuardrails: {
       maxSessionMinutes: Number(process.env.REALTIME_MAX_SESSION_MINUTES ?? 25),

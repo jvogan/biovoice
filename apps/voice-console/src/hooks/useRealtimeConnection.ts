@@ -41,6 +41,7 @@ type EventStreamState = "idle" | "connecting" | "open" | "stalled" | "closed";
 
 const EVENT_STREAM_STALL_DELAY_MS = 4_000;
 const EVENT_STREAM_USER_ERROR_DELAY_MS = 15_000;
+const REMOTE_AUDIO_MIC_RESUME_DELAY_MS = 5_000;
 
 export function isEventStreamErrorMessage(message: string | null | undefined): boolean {
   return message === "Session event stream disconnected."
@@ -53,10 +54,34 @@ export function isManualDisconnectReason(message: string | null | undefined): bo
     || message === "Session manually disconnected from the widget.";
 }
 
+export function isAssistantResponseStartEvent(eventType: string | null | undefined): boolean {
+  if (!eventType) {
+    return false;
+  }
+  return /^response\.created$/i.test(eventType)
+    || /^response\.output_item\.created$/i.test(eventType)
+    || /^response\.content_part\.added$/i.test(eventType)
+    || /^response\.output_(?:audio|text)\.delta$/i.test(eventType)
+    || /^response\.function_call_arguments\.(?:delta|done)$/i.test(eventType);
+}
+
+export function isAssistantResponseEndEvent(eventType: string | null | undefined): boolean {
+  return Boolean(eventType && /^response\.done$/i.test(eventType));
+}
+
+export function isInputSpeechStartEvent(eventType: string | null | undefined): boolean {
+  return Boolean(eventType && /^input_audio_buffer\.speech_started$/i.test(eventType));
+}
+
+export function isInputSpeechEndEvent(eventType: string | null | undefined): boolean {
+  return Boolean(eventType && /^input_audio_buffer\.(?:speech_stopped|committed)$/i.test(eventType));
+}
+
 interface HookOptions {
   target: TargetKind;
   voiceMode: VoiceMode;
   recipeId?: string;
+  instructionContext?: string;
   muted: boolean;
   openMicArmed: boolean;
   captureRawEvents?: boolean;
@@ -83,6 +108,9 @@ export function useRealtimeConnection(options: HookOptions) {
   const [idleSecondsRemaining, setIdleSecondsRemaining] = useState<number | null>(null);
   const [idleWarningActive, setIdleWarningActive] = useState(false);
   const [idleDisconnectReason, setIdleDisconnectReason] = useState<string | null>(null);
+  const [assistantResponseActive, setAssistantResponseActive] = useState(false);
+  const [remoteAudioPlaying, setRemoteAudioPlaying] = useState(false);
+  const [remoteAudioCooldownUntil, setRemoteAudioCooldownUntil] = useState<number | null>(null);
 
   const remoteAudioRef = useRef<HTMLAudioElement | null>(null);
   const remoteStreamRef = useRef<MediaStream | null>(null);
@@ -97,6 +125,8 @@ export function useRealtimeConnection(options: HookOptions) {
   const eventStreamUserErrorTimerRef = useRef<number | null>(null);
   const phaseResetTimerRef = useRef<number | null>(null);
   const connectInFlightRef = useRef(false);
+  const connectAbortControllerRef = useRef<AbortController | null>(null);
+  const connectAttemptRef = useRef(0);
   const idleDisconnectingRef = useRef(false);
   const guardrailDisconnectingRef = useRef(false);
   const pushToTalkActiveRef = useRef(false);
@@ -136,8 +166,37 @@ export function useRealtimeConnection(options: HookOptions) {
     markInteraction();
     setError((previous) => (isEventStreamErrorMessage(previous) ? null : previous));
 
-    if (incoming.kind === "raw" && !options.captureRawEvents) {
-      return;
+    if (incoming.kind === "raw") {
+      if (isInputSpeechStartEvent(incoming.eventType)) {
+        if (options.voiceMode === "open_mic" && options.openMicArmed && !sessionPaused) {
+          setPhase("listening");
+          markInteraction();
+        }
+      } else if (isInputSpeechEndEvent(incoming.eventType)) {
+        if (options.voiceMode === "open_mic" && options.openMicArmed && !sessionPaused) {
+          setPhase("transcribing");
+          markInteraction();
+        }
+      } else if (isAssistantResponseStartEvent(incoming.eventType)) {
+        setAssistantResponseActive(true);
+        if (options.voiceMode === "open_mic" && !sessionPaused) {
+          setPhase((previous) => (
+            previous === "executing" || previous === "confirming" ? previous : "planning"
+          ));
+        }
+      } else if (isAssistantResponseEndEvent(incoming.eventType)) {
+        setAssistantResponseActive(false);
+        if (!closingRef.current && controllerReadyRef.current && dataChannelReadyRef.current && !sessionPaused) {
+          setPhase(status?.toolBusy ? "executing" : "ready");
+          markInteraction();
+        }
+      } else if (incoming.eventType === "error") {
+        setAssistantResponseActive(false);
+      }
+
+      if (!options.captureRawEvents) {
+        return;
+      }
     }
 
     if (incoming.kind !== "usage") {
@@ -150,6 +209,11 @@ export function useRealtimeConnection(options: HookOptions) {
       const nextStatus = incoming.payload as SessionStatus;
       setStatus(nextStatus);
       controllerReadyRef.current = nextStatus.controllerReady;
+
+      if (incoming.kind === "status" && nextStatus.status === "disconnected" && !closingRef.current) {
+        void disconnect(nextStatus.lastError ?? incoming.text ?? "Realtime session ended.");
+        return;
+      }
 
       if (nextStatus.controllerReady && dataChannelReadyRef.current && !nextStatus.toolBusy) {
         setPhase("ready");
@@ -194,8 +258,70 @@ export function useRealtimeConnection(options: HookOptions) {
   }, [options.muted]);
 
   useEffect(() => {
-    const shouldEnableTrack =
+    const audio = remoteAudioRef.current;
+    if (!audio) {
+      return;
+    }
+
+    const handlePlaybackStart = () => {
+      setRemoteAudioPlaying(true);
+      setRemoteAudioCooldownUntil(null);
+    };
+    const handlePlaybackStop = () => {
+      setRemoteAudioPlaying(false);
+      setRemoteAudioCooldownUntil(Date.now() + REMOTE_AUDIO_MIC_RESUME_DELAY_MS);
+    };
+
+    audio.addEventListener("play", handlePlaybackStart);
+    audio.addEventListener("playing", handlePlaybackStart);
+    audio.addEventListener("pause", handlePlaybackStop);
+    audio.addEventListener("ended", handlePlaybackStop);
+    audio.addEventListener("emptied", handlePlaybackStop);
+    audio.addEventListener("abort", handlePlaybackStop);
+
+    return () => {
+      audio.removeEventListener("play", handlePlaybackStart);
+      audio.removeEventListener("playing", handlePlaybackStart);
+      audio.removeEventListener("pause", handlePlaybackStop);
+      audio.removeEventListener("ended", handlePlaybackStop);
+      audio.removeEventListener("emptied", handlePlaybackStop);
+      audio.removeEventListener("abort", handlePlaybackStop);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!remoteAudioCooldownUntil) {
+      return;
+    }
+    const remainingMs = remoteAudioCooldownUntil - Date.now();
+    if (remainingMs <= 0) {
+      setRemoteAudioCooldownUntil(null);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      setRemoteAudioCooldownUntil((current) => (
+        current === remoteAudioCooldownUntil ? null : current
+      ));
+    }, remainingMs);
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [remoteAudioCooldownUntil]);
+
+  useEffect(() => {
+    const assistantAudioOutputActive =
+      remoteAudioPlaying
+      || remoteAudioCooldownUntil != null;
+    const blockOpenMicTrack =
+      assistantResponseActive
+      || assistantAudioOutputActive
+      || status?.toolBusy === true
+      || ["arming", "connecting", "transcribing", "planning", "executing", "confirming", "error"].includes(phase);
+    const allowOpenMicTrack =
       options.voiceMode === "open_mic"
+      && !blockOpenMicTrack;
+    const shouldEnableTrack =
+      allowOpenMicTrack
       && options.openMicArmed
       && status?.controllerReady === true
       && dataChannelReady
@@ -204,7 +330,7 @@ export function useRealtimeConnection(options: HookOptions) {
       track.enabled = shouldEnableTrack;
     });
     setLocalMicEnabled(shouldEnableTrack);
-  }, [dataChannelReady, options.openMicArmed, options.voiceMode, sessionPaused, status?.controllerReady]);
+  }, [assistantResponseActive, dataChannelReady, options.openMicArmed, options.voiceMode, phase, remoteAudioCooldownUntil, remoteAudioPlaying, sessionPaused, status?.controllerReady, status?.toolBusy]);
 
   useEffect(() => {
     if (!sessionId || !connected || options.idleDisconnectSeconds <= 0) {
@@ -245,7 +371,7 @@ export function useRealtimeConnection(options: HookOptions) {
 
       idleDisconnectingRef.current = true;
       const timeoutMinutes = Math.max(1, Math.round(options.idleDisconnectSeconds / 60));
-      const reason = `Disconnected idle Realtime session after ${timeoutMinutes} minute${timeoutMinutes === 1 ? "" : "s"} without a new turn.`;
+      const reason = `idle-timeout:${timeoutMinutes}m`;
       void disconnect(reason);
     };
 
@@ -279,11 +405,14 @@ export function useRealtimeConnection(options: HookOptions) {
         connectedAt,
         Date.now(),
       );
-      if (!guardState.breachMessage || guardrailDisconnectingRef.current) {
+      if (!guardState.breachMessage) {
+        return;
+      }
+      if (guardrailDisconnectingRef.current) {
         return;
       }
       guardrailDisconnectingRef.current = true;
-      void disconnect(guardState.breachMessage);
+      void disconnect(`guardrail:${guardState.breachReason ?? "unknown"}`);
     };
 
     disconnectForGuardrail();
@@ -359,7 +488,7 @@ export function useRealtimeConnection(options: HookOptions) {
     }
 
     const disconnectOnPageHide = () => {
-      disconnectSessionBeacon(sessionId, sessionAccessToken);
+      disconnectSessionBeacon(sessionId, sessionAccessToken, "pagehide");
       forceStopPushToTalk(true);
     };
     const handleBlur = () => {
@@ -387,6 +516,10 @@ export function useRealtimeConnection(options: HookOptions) {
       return;
     }
     connectInFlightRef.current = true;
+    const attemptId = connectAttemptRef.current + 1;
+    connectAttemptRef.current = attemptId;
+    const abortController = new AbortController();
+    connectAbortControllerRef.current = abortController;
     closingRef.current = true;
     releaseLocalTransport();
     closingRef.current = false;
@@ -404,6 +537,7 @@ export function useRealtimeConnection(options: HookOptions) {
     setIdleDisconnectReason(null);
     idleDisconnectingRef.current = false;
     guardrailDisconnectingRef.current = false;
+    setAssistantResponseActive(false);
     seenEventIdsRef.current = [];
     seenEventIdsSetRef.current.clear();
 
@@ -498,9 +632,19 @@ export function useRealtimeConnection(options: HookOptions) {
         voiceMode: options.voiceMode,
         recipeId: options.recipeId,
         offerSdp: offer.sdp ?? "",
+        instructionContext: options.instructionContext,
+      }, {
+        signal: abortController.signal,
       });
       createdSessionId = connection.sessionId;
       createdSessionAccessToken = connection.sessionAccessToken;
+      if (abortController.signal.aborted || attemptId !== connectAttemptRef.current) {
+        await disconnectSession(createdSessionId, createdSessionAccessToken, "connect-aborted-before-answer").catch(() => {});
+        closingRef.current = true;
+        releaseLocalTransport();
+        closingRef.current = false;
+        return;
+      }
       setSessionId(connection.sessionId);
       setSessionAccessToken(connection.sessionAccessToken);
       markInteraction();
@@ -509,28 +653,43 @@ export function useRealtimeConnection(options: HookOptions) {
         type: "answer",
         sdp: connection.answerSdp,
       });
+      if (abortController.signal.aborted || attemptId !== connectAttemptRef.current) {
+        await disconnectSession(createdSessionId, createdSessionAccessToken, "connect-aborted-after-answer").catch(() => {});
+        closingRef.current = true;
+        releaseLocalTransport();
+        closingRef.current = false;
+        return;
+      }
 
       setCallId(connection.callId);
     } catch (connectError) {
+      const cancelled = abortController.signal.aborted || attemptId !== connectAttemptRef.current;
       if (createdSessionId && createdSessionAccessToken) {
-        await disconnectSession(createdSessionId, createdSessionAccessToken).catch(() => {});
+        await disconnectSession(createdSessionId, createdSessionAccessToken, "connect-failed").catch(() => {});
       }
       closingRef.current = true;
       releaseLocalTransport();
       closingRef.current = false;
-      setError(connectError instanceof Error ? connectError.message : String(connectError));
-      setPhase("error");
+      if (!cancelled) {
+        setError(connectError instanceof Error ? connectError.message : String(connectError));
+        setPhase("error");
+      }
     } finally {
+      if (connectAbortControllerRef.current === abortController) {
+        connectAbortControllerRef.current = null;
+      }
       connectInFlightRef.current = false;
     }
   }
 
   async function disconnect(reason?: string): Promise<void> {
     const benignDisconnect = isManualDisconnectReason(reason);
+    const currentSessionId = sessionId;
+    const currentSessionAccessToken = sessionAccessToken;
+    connectAttemptRef.current += 1;
+    connectAbortControllerRef.current?.abort();
+    connectAbortControllerRef.current = null;
     closingRef.current = true;
-    if (sessionId && sessionAccessToken) {
-      await disconnectSession(sessionId, sessionAccessToken).catch(() => {});
-    }
 
     releaseLocalTransport();
     setSessionId(null);
@@ -547,12 +706,19 @@ export function useRealtimeConnection(options: HookOptions) {
     setIdleWarningActive(false);
     setIdleDisconnectReason(benignDisconnect ? null : reason ?? null);
     pushToTalkActiveRef.current = false;
+    setAssistantResponseActive(false);
+    setRemoteAudioPlaying(false);
+    setRemoteAudioCooldownUntil(null);
     seenEventIdsRef.current = [];
     seenEventIdsSetRef.current.clear();
     connectInFlightRef.current = false;
     idleDisconnectingRef.current = false;
     guardrailDisconnectingRef.current = false;
     closingRef.current = false;
+
+    if (currentSessionId && currentSessionAccessToken) {
+      void disconnectSession(currentSessionId, currentSessionAccessToken, reason).catch(() => {});
+    }
   }
 
   function forceStopPushToTalk(cancelResponse: boolean): void {
@@ -615,6 +781,13 @@ export function useRealtimeConnection(options: HookOptions) {
   }
 
   function pauseSession(): void {
+    const dataChannel = dataChannelRef.current;
+    if (dataChannel?.readyState === "open") {
+      dataChannel.send(JSON.stringify({ type: "response.cancel" }));
+      dataChannel.send(JSON.stringify({ type: "output_audio_buffer.clear" }));
+      dataChannel.send(JSON.stringify({ type: "input_audio_buffer.clear" }));
+    }
+    remoteAudioRef.current?.pause();
     localStreamRef.current?.getAudioTracks().forEach((track) => {
       track.enabled = false;
     });
@@ -672,6 +845,9 @@ export function useRealtimeConnection(options: HookOptions) {
     setDataChannelReady(false);
     setLocalMicEnabled(false);
     setEventStreamState("closed");
+    setAssistantResponseActive(false);
+    setRemoteAudioPlaying(false);
+    setRemoteAudioCooldownUntil(null);
     pushToTalkActiveRef.current = false;
   }
 

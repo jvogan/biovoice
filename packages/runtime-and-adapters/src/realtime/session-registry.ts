@@ -1,5 +1,6 @@
 import { EventEmitter } from "node:events";
 import fs from "node:fs/promises";
+import path from "node:path";
 import { WebSocket } from "ws";
 import type { Request, Response } from "express";
 import {
@@ -64,6 +65,7 @@ interface ConnectRequest {
   target: TargetKind;
   voiceMode: VoiceMode;
   recipeId?: string;
+  instructionContext?: string;
 }
 
 export interface PreparedRealtimeSession {
@@ -123,9 +125,11 @@ interface SessionRecord {
   callId: string;
   accessToken: string;
   registerToken: string | null;
+  instructionContext?: string;
   disconnectRequested: boolean;
   connectedAtMs: number | null;
   sessionDeadlineTimer: NodeJS.Timeout | null;
+  sidebandPingTimer: NodeJS.Timeout | null;
   lastGuardrailNoticeKey: string | null;
   reconnectAttempts: number;
   reconnectTimer: NodeJS.Timeout | null;
@@ -139,10 +143,15 @@ interface BufferedSessionEvent {
 
 const SESSION_EVENT_HISTORY_LIMIT = 250;
 const SESSION_HEARTBEAT_INTERVAL_MS = 15_000;
+const SIDEBAND_PING_INTERVAL_MS = 20_000;
 const DISCONNECTED_SESSION_TTL_MS = 10 * 60 * 1000;
-const PENDING_SESSION_TTL_MS = 2 * 60 * 1000;
+const PENDING_SESSION_TTL_MS = 30 * 1000;
 const CONNECTED_SESSION_IDLE_TTL_MS = 60 * 60 * 1000;
-const MAX_SIDEBAND_RECONNECT_ATTEMPTS = 4;
+const RECONNECTING_SESSION_TTL_MS = 10 * 60 * 1000;
+const SESSION_PRUNE_INTERVAL_MS = 10 * 1000;
+const MAX_INITIAL_SIDEBAND_RECONNECT_ATTEMPTS = 4;
+const MAX_CONNECTED_SIDEBAND_RECONNECT_ATTEMPTS = 20;
+const MAX_SIDEBAND_RECONNECT_DELAY_MS = 15_000;
 const REALTIME_CLIENT_SECRET_TTL_SECONDS = 600;
 const MAX_TOOL_ARGUMENTS_JSON_BYTES = 48_000;
 
@@ -190,19 +199,19 @@ export class RealtimeSessionRegistry {
     this.chimeraXAdapter = new ChimeraXAdapter(options.chimerax);
     this.cleanupTimer = setInterval(() => {
       this.pruneSessions();
-    }, 60_000);
+    }, SESSION_PRUNE_INTERVAL_MS);
     this.cleanupTimer.unref?.();
   }
 
-  async createClientSecret(target: TargetKind, voiceMode: VoiceMode, recipeId?: string): Promise<string> {
-    const prepared = await this.prepareSession(target, voiceMode, recipeId);
+  async createClientSecret(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): Promise<string> {
+    const prepared = await this.prepareSession(target, voiceMode, recipeId, instructionContext);
     return prepared.clientSecret;
   }
 
-  async prepareSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string): Promise<PreparedRealtimeSession> {
-    const prepared = this.prepareLocalSession(target, voiceMode, recipeId);
+  async prepareSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): Promise<PreparedRealtimeSession> {
+    const prepared = this.prepareLocalSession(target, voiceMode, recipeId, instructionContext);
     try {
-      const clientSecret = await this.createEphemeralSession(target, voiceMode, recipeId);
+      const clientSecret = await this.createEphemeralSession(target, voiceMode, recipeId, instructionContext);
       return {
         sessionId: prepared.sessionId,
         clientSecret: clientSecret.value,
@@ -217,11 +226,11 @@ export class RealtimeSessionRegistry {
 
   async connect(request: ConnectRequest): Promise<{ answerSdp: string; sessionId: string; callId: string; sessionAccessToken: string }> {
     this.requireOpenAiApiKey();
-    const prepared = this.prepareLocalSession(request.target, request.voiceMode, request.recipeId);
+    const prepared = this.prepareLocalSession(request.target, request.voiceMode, request.recipeId, request.instructionContext);
     try {
       const formData = new FormData();
       formData.set("sdp", request.offerSdp);
-      formData.set("session", JSON.stringify(this.buildSessionConfig(request.target, request.voiceMode, request.recipeId, false)));
+      formData.set("session", JSON.stringify(this.buildSessionConfig(request.target, request.voiceMode, request.recipeId, false, request.instructionContext)));
 
       const response = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
@@ -255,12 +264,12 @@ export class RealtimeSessionRegistry {
     }
   }
 
-  private prepareLocalSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string): LocalPreparedSession {
+  private prepareLocalSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): LocalPreparedSession {
     this.ensureSessionCapacity();
     const sessionId = crypto.randomUUID();
     const sessionAccessToken = crypto.randomUUID();
     const registerToken = crypto.randomUUID();
-    const record = this.createSessionRecord(sessionId, "", target, voiceMode, recipeId, sessionAccessToken, registerToken);
+    const record = this.createSessionRecord(sessionId, "", target, voiceMode, recipeId, sessionAccessToken, registerToken, instructionContext);
     this.sessions.set(sessionId, record);
     this.broadcast(sessionId, {
       kind: "status",
@@ -301,11 +310,20 @@ export class RealtimeSessionRegistry {
     if (record.status.status === "disconnected") {
       return false;
     }
+    if (record.connectedAtMs) {
+      const ttlMs = record.status.status === "connected"
+        ? CONNECTED_SESSION_IDLE_TTL_MS
+        : RECONNECTING_SESSION_TTL_MS;
+      return now - record.lastActivityAt < ttlMs;
+    }
     if (record.status.status === "connected") {
       return now - record.lastActivityAt < CONNECTED_SESSION_IDLE_TTL_MS;
     }
 
-    const ttlMs = record.status.status === "awaiting_call" ? PENDING_SESSION_TTL_MS : DISCONNECTED_SESSION_TTL_MS;
+    const ttlMs =
+      record.status.status === "awaiting_call" || record.status.status === "connecting"
+        ? PENDING_SESSION_TTL_MS
+        : DISCONNECTED_SESSION_TTL_MS;
     return now - record.lastActivityAt < ttlMs;
   }
 
@@ -357,6 +375,7 @@ export class RealtimeSessionRegistry {
     recipeId?: string,
     accessToken?: string,
     registerToken?: string,
+    instructionContext?: string,
   ): SessionRecord {
     const createdAtMs = Date.now();
     const status = sessionStatusSchema.parse({
@@ -393,9 +412,11 @@ export class RealtimeSessionRegistry {
       callId,
       accessToken: accessToken ?? crypto.randomUUID(),
       registerToken: registerToken ?? null,
+      instructionContext,
       disconnectRequested: false,
       connectedAtMs: null,
       sessionDeadlineTimer: null,
+      sidebandPingTimer: null,
       lastGuardrailNoticeKey: null,
       reconnectAttempts: 0,
       reconnectTimer: null,
@@ -591,6 +612,7 @@ export class RealtimeSessionRegistry {
       clearTimeout(record.reconnectTimer);
       record.reconnectTimer = null;
     }
+    this.stopSidebandPing(record);
     record.sidebandGeneration += 1;
     record.ws?.close();
     record.ws = null;
@@ -809,6 +831,9 @@ export class RealtimeSessionRegistry {
     }
 
     ws.on("open", () => {
+      if (!this.hasSession(sessionId)) {
+        return;
+      }
       if (record.ws !== ws || record.sidebandGeneration !== generation) {
         return;
       }
@@ -818,6 +843,8 @@ export class RealtimeSessionRegistry {
         clearTimeout(record.reconnectTimer);
         record.reconnectTimer = null;
       }
+      this.startSidebandPing(record, ws, sessionId, generation);
+      console.warn(`[realtime-sideband-open] session=${sessionId} callId=${callId}`);
       this.setStatus(sessionId, {
         status: "connecting",
         sidebandStatus: "connecting",
@@ -834,17 +861,50 @@ export class RealtimeSessionRegistry {
     });
 
     ws.on("message", (buffer: WebSocket.RawData) => {
+      if (!this.hasSession(sessionId)) {
+        return;
+      }
       if (record.ws !== ws || record.sidebandGeneration !== generation) {
         return;
       }
       const raw = buffer.toString();
-      void this.handleSidebandMessage(sessionId, raw);
+      void this.handleSidebandMessage(sessionId, raw).catch((error) => {
+        if (isUnknownRealtimeSessionError(error)) {
+          return;
+        }
+        if (!this.hasSession(sessionId)) {
+          return;
+        }
+        this.broadcast(sessionId, {
+          kind: "log",
+          level: "error",
+          text: error instanceof Error ? error.message : String(error),
+        });
+      });
     });
 
-    ws.on("close", () => {
+    ws.on("pong", () => {
+      if (!this.hasSession(sessionId)) {
+        return;
+      }
       if (record.ws !== ws || record.sidebandGeneration !== generation) {
         return;
       }
+      record.lastActivityAt = Date.now();
+    });
+
+    ws.on("close", (code: number, reasonBuffer: Buffer) => {
+      if (!this.hasSession(sessionId)) {
+        return;
+      }
+      if (record.ws !== ws || record.sidebandGeneration !== generation) {
+        return;
+      }
+      this.stopSidebandPing(record);
+      const reason = reasonBuffer.toString("utf8");
+      console.warn(
+        `[realtime-sideband-close] session=${sessionId} callId=${record.callId || "none"} code=${code} reason=${reason || "none"} requested=${String(record.disconnectRequested)}`,
+      );
       record.ws = null;
       if (record.disconnectRequested) {
         if (record.status.status !== "disconnected") {
@@ -867,10 +927,30 @@ export class RealtimeSessionRegistry {
     });
 
     ws.on("error", (error: Error) => {
+      if (!this.hasSession(sessionId)) {
+        return;
+      }
       if (record.ws !== ws || record.sidebandGeneration !== generation) {
         return;
       }
+      this.stopSidebandPing(record);
       record.ws = null;
+      console.warn(
+        `[realtime-sideband-error] session=${sessionId} callId=${record.callId || "none"} message=${error.message}`,
+      );
+      if (isTerminalSidebandReconnectError(error)) {
+        if (record.reconnectTimer) {
+          clearTimeout(record.reconnectTimer);
+          record.reconnectTimer = null;
+        }
+        this.broadcast(sessionId, {
+          kind: "log",
+          level: "error",
+          text: `Sideband controller dropped permanently: ${error.message}`,
+        });
+        void this.disconnect(sessionId).catch(() => {});
+        return;
+      }
       this.setStatus(sessionId, {
         sidebandStatus: "error",
         controllerReady: false,
@@ -887,6 +967,9 @@ export class RealtimeSessionRegistry {
   }
 
   private async handleSidebandMessage(sessionId: string, raw: string): Promise<void> {
+    if (!this.hasSession(sessionId)) {
+      return;
+    }
     let payload: Record<string, unknown>;
     try {
       payload = JSON.parse(raw) as Record<string, unknown>;
@@ -1086,6 +1169,9 @@ export class RealtimeSessionRegistry {
   }
 
   private async executeToolCall(sessionId: string, callId: string, toolName: string, argumentsJson: string): Promise<void> {
+    if (!this.hasSession(sessionId)) {
+      return;
+    }
     const record = this.requireSession(sessionId);
     if (argumentsJson.length > MAX_TOOL_ARGUMENTS_JSON_BYTES) {
       throw new Error(`Tool arguments exceeded the ${MAX_TOOL_ARGUMENTS_JSON_BYTES}-byte safety limit.`);
@@ -1197,6 +1283,10 @@ export class RealtimeSessionRegistry {
       }
     }
 
+    if (!this.hasSession(sessionId)) {
+      return;
+    }
+
     const resultText =
       resultLevel === "error"
         ? String((result as { error?: string }).error ?? "Tool call failed.")
@@ -1226,7 +1316,7 @@ export class RealtimeSessionRegistry {
         item: {
           type: "function_call_output",
           call_id: callId,
-          output: JSON.stringify(result),
+          output: JSON.stringify(this.buildConversationToolOutput(toolName, result)),
         },
       }),
     );
@@ -1345,7 +1435,7 @@ export class RealtimeSessionRegistry {
 
   private broadcastGuardrailSummary(sessionId: string): void {
     const record = this.requireSession(sessionId);
-    const summary = `Realtime session guardrails active: ${this.sessionGuardrails.maxSessionMinutes}m max session, ${this.sessionGuardrails.maxResponsesPerSession} responses, ${this.sessionGuardrails.maxTranscriptionsPerSession} transcriptions, ${new Intl.NumberFormat("en-US").format(this.sessionGuardrails.maxBillableTokensPerSession)} billable tokens. Push-to-talk remains the lowest-risk default.`;
+    const summary = `Realtime session guardrails active: ${this.sessionGuardrails.maxSessionMinutes}m max session, ${this.sessionGuardrails.maxResponsesPerSession} responses, ${this.sessionGuardrails.maxTranscriptionsPerSession} transcriptions, ${new Intl.NumberFormat("en-US").format(this.sessionGuardrails.maxBillableTokensPerSession)} cost-guard tokens. Push-to-talk remains the lowest-risk default.`;
     if (record.lastGuardrailNoticeKey === "summary") {
       return;
     }
@@ -1367,6 +1457,151 @@ export class RealtimeSessionRegistry {
         mimeType: artifact.mimeType ?? inferArtifactMimeType(artifact.path, artifact.kind),
       })),
     };
+  }
+
+  private buildConversationToolOutput(
+    toolName: string,
+    result: ActionResult | ScientificWorkflowResult | Record<string, unknown>,
+  ): Record<string, unknown> {
+    if ("error" in result && typeof result.error === "string" && result.error.trim()) {
+      return { ok: false, tool: toolName, error: result.error.trim() };
+    }
+
+    if (toolName === "get_target_state") {
+      return {
+        ok: true,
+        tool: toolName,
+        state: this.compactTargetStateForConversation((result as { state?: unknown }).state),
+      };
+    }
+
+    if (this.isScientificWorkflowResult(result)) {
+      return {
+        ok: true,
+        tool: toolName,
+        target: result.target,
+        workflow: result.workflow,
+        warnings: result.warnings.slice(0, 4),
+        metrics: result.metrics.slice(0, 8).map((metric) => this.compactMetricForConversation(metric)),
+        artifacts: result.artifacts.slice(0, 4).map((artifact) => this.compactArtifactForConversation(artifact)),
+        rankedCandidates: result.rankedCandidates?.slice(0, 3).map((candidate) => ({
+          rank: candidate.rank,
+          tag: candidate.tag,
+          score: candidate.score,
+          scoreLabel: candidate.scoreLabel,
+          matched: candidate.matched,
+          warnings: candidate.warnings.slice(0, 2),
+          path: candidate.path ? path.basename(candidate.path) : undefined,
+        })),
+        referenceHints: this.compactReferenceHintsForConversation(result.referenceHints),
+      };
+    }
+
+    if (this.isActionResult(result)) {
+      return {
+        ok: true,
+        tool: toolName,
+        target: result.target,
+        warnings: result.warnings.slice(0, 4),
+        metrics: result.metrics.slice(0, 8).map((metric) => this.compactMetricForConversation(metric)),
+        artifacts: result.artifacts.slice(0, 4).map((artifact) => this.compactArtifactForConversation(artifact)),
+      };
+    }
+
+    return {
+      ok: true,
+      tool: toolName,
+      result: this.compactUnknownForConversation(result),
+    };
+  }
+
+  private compactMetricForConversation(metric: ActionResult["metrics"][number]): Record<string, unknown> {
+    return {
+      kind: metric.kind,
+      label: metric.label,
+      value: metric.value,
+      valueText: metric.valueText,
+      unit: metric.unit,
+    };
+  }
+
+  private compactArtifactForConversation(artifact: ActionResult["artifacts"][number]): Record<string, unknown> {
+    return {
+      kind: artifact.kind,
+      label: artifact.label,
+      file: path.basename(artifact.path),
+    };
+  }
+
+  private compactReferenceHintsForConversation(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== "object") {
+      return undefined;
+    }
+    const entries = Object.entries(value as Record<string, unknown>);
+    if (!entries.length) {
+      return undefined;
+    }
+    return Object.fromEntries(entries.slice(0, 20).map(([key, raw]) => {
+      const record = raw && typeof raw === "object" ? raw as Record<string, unknown> : {};
+      return [key, {
+        label: typeof record.label === "string" ? record.label : key,
+      }];
+    }));
+  }
+
+  private compactTargetStateForConversation(value: unknown): Record<string, unknown> | undefined {
+    if (!value || typeof value !== "object") {
+      return undefined;
+    }
+    const record = value as Record<string, unknown>;
+    return this.removeUndefined({
+      objectNames: this.compactStringArray(record.objectNames, 16),
+      molecularObjectNames: this.compactStringArray(record.molecularObjectNames, 12),
+      mapObjectNames: this.compactStringArray(record.mapObjectNames, 8),
+      measurementObjectNames: this.compactStringArray(record.measurementObjectNames, 8),
+      selectionNames: this.compactStringArray(record.selectionNames, 12),
+      sceneNames: this.compactStringArray(record.sceneNames, 12),
+      namedViews: this.compactStringArray(record.namedViews, 12),
+      visibleChains: this.compactStringArray(record.visibleChains, 12),
+      modelNames: this.compactStringArray(record.modelNames, 12),
+      openModels: this.compactStringArray(record.openModels, 12),
+      currentState: typeof record.currentState === "number" ? record.currentState : undefined,
+      viewport: this.compactUnknownForConversation(record.viewport),
+      referenceHints: this.compactReferenceHintsForConversation(record.referenceHints),
+    });
+  }
+
+  private compactStringArray(value: unknown, limit: number): string[] | undefined {
+    if (!Array.isArray(value)) {
+      return undefined;
+    }
+    const compact = value.filter((item): item is string => typeof item === "string").slice(0, limit);
+    return compact.length ? compact : undefined;
+  }
+
+  private compactUnknownForConversation(value: unknown): unknown {
+    if (Array.isArray(value)) {
+      return value.slice(0, 8).map((item) => this.compactUnknownForConversation(item));
+    }
+    if (value && typeof value === "object") {
+      const record = value as Record<string, unknown>;
+      return this.removeUndefined(Object.fromEntries(
+        Object.entries(record).slice(0, 12).map(([key, entry]) => [key, this.compactUnknownForConversation(entry)]),
+      ));
+    }
+    return value;
+  }
+
+  private removeUndefined(record: Record<string, unknown>): Record<string, unknown> {
+    return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined));
+  }
+
+  private isActionResult(value: unknown): value is ActionResult {
+    return Boolean(value && typeof value === "object" && "target" in value && "commandsExecuted" in value);
+  }
+
+  private isScientificWorkflowResult(value: unknown): value is ScientificWorkflowResult {
+    return Boolean(value && typeof value === "object" && "workflow" in value && "actionsExecuted" in value);
   }
 
   private buildArtifactUrl(filePath: string): string {
@@ -1428,12 +1663,18 @@ export class RealtimeSessionRegistry {
     record.ws.send(
       JSON.stringify({
         type: "session.update",
-        session: this.buildSessionConfig(record.status.target, record.status.voiceMode, record.status.recipeId, record.status.advancedMode),
+        session: this.buildSessionConfig(
+          record.status.target,
+          record.status.voiceMode,
+          record.status.recipeId,
+          record.status.advancedMode,
+          record.instructionContext,
+        ),
       }),
     );
   }
 
-  private buildSessionConfig(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, advancedMode = false) {
+  private buildSessionConfig(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, advancedMode = false, instructionContext?: string) {
     const recipe = this.safeGetRecipe(recipeId);
     const recipeSummary = recipe ? `${recipe.title}: ${recipe.goal}` : undefined;
     const expertModeEnabled = advancedMode || this.expertCommandsEnabled;
@@ -1441,7 +1682,7 @@ export class RealtimeSessionRegistry {
       type: "realtime",
       model: this.realtimeModel,
       output_modalities: ["audio"],
-      instructions: buildSessionInstructions(target, voiceMode, recipeSummary, expertModeEnabled),
+      instructions: buildSessionInstructions(target, voiceMode, recipeSummary, expertModeEnabled, instructionContext),
       tool_choice: "auto",
       tools: buildRealtimeTools(target, { advancedMode: expertModeEnabled }),
       max_output_tokens: this.realtimeMaxOutputTokens,
@@ -1449,17 +1690,22 @@ export class RealtimeSessionRegistry {
       audio: {
         input: {
           noise_reduction: { type: "near_field" },
-          transcription: {
-            model: this.audioTranscriptionModel,
-            language: "en",
-            prompt: this.buildTranscriptionPrompt(target, recipe?.sampleData.map((item) => item.id)),
-          },
+          transcription:
+            voiceMode === "open_mic"
+              ? null
+              : {
+                  model: this.audioTranscriptionModel,
+                  language: "en",
+                  prompt: this.buildTranscriptionPrompt(target, recipe?.sampleData.map((item) => item.id)),
+                },
           turn_detection:
             voiceMode === "open_mic"
               ? {
-                  type: "semantic_vad",
-                  eagerness: "medium",
-                  interrupt_response: true,
+                  type: "server_vad",
+                  threshold: 0.5,
+                  prefix_padding_ms: 300,
+                  silence_duration_ms: 900,
+                  interrupt_response: false,
                   create_response: true,
                 }
               : null,
@@ -1487,7 +1733,7 @@ export class RealtimeSessionRegistry {
     };
   }
 
-  private async createEphemeralSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string): Promise<{ value: string }> {
+  private async createEphemeralSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): Promise<{ value: string }> {
     this.requireOpenAiApiKey();
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
@@ -1500,7 +1746,7 @@ export class RealtimeSessionRegistry {
           anchor: "created_at",
           seconds: REALTIME_CLIENT_SECRET_TTL_SECONDS,
         },
-        session: this.buildSessionConfig(target, voiceMode, recipeId, false),
+        session: this.buildSessionConfig(target, voiceMode, recipeId, false, instructionContext),
       }),
     });
 
@@ -1526,6 +1772,10 @@ export class RealtimeSessionRegistry {
     const created = new Set<string>();
     this.handledCalls.set(sessionId, created);
     return created;
+  }
+
+  private hasSession(sessionId: string): boolean {
+    return this.sessions.has(sessionId);
   }
 
   private safeGetRecipe(recipeId?: string) {
@@ -1601,6 +1851,7 @@ export class RealtimeSessionRegistry {
       clearTimeout(record.sessionDeadlineTimer);
       record.sessionDeadlineTimer = null;
     }
+    this.stopSidebandPing(record);
     record.ws?.removeAllListeners();
     record.ws?.close();
     if (record.reconnectTimer) {
@@ -1658,6 +1909,9 @@ export class RealtimeSessionRegistry {
     const now = Date.now();
     for (const [sessionId, record] of this.sessions.entries()) {
       if (!this.isSessionActive(record, now)) {
+        console.warn(
+          `[realtime-prune] session=${sessionId} status=${record.status.status} sideband=${record.status.sidebandStatus} ageMs=${now - record.lastActivityAt} callId=${record.callId || "none"}`,
+        );
         this.disposeSession(sessionId);
       }
     }
@@ -1669,7 +1923,10 @@ export class RealtimeSessionRegistry {
       return;
     }
 
-    if (record.reconnectAttempts >= MAX_SIDEBAND_RECONNECT_ATTEMPTS) {
+    const maxAttempts = record.connectedAtMs
+      ? MAX_CONNECTED_SIDEBAND_RECONNECT_ATTEMPTS
+      : MAX_INITIAL_SIDEBAND_RECONNECT_ATTEMPTS;
+    if (record.reconnectAttempts >= maxAttempts) {
       this.setStatus(sessionId, {
         status: "disconnected",
         sidebandStatus: "error",
@@ -1677,6 +1934,9 @@ export class RealtimeSessionRegistry {
         configSyncPending: false,
         lastError: "Sideband controller dropped and reconnect attempts were exhausted.",
       });
+      console.warn(
+        `[realtime-sideband-giveup] session=${sessionId} callId=${record.callId || "none"} attempts=${record.reconnectAttempts}`,
+      );
       this.broadcast(sessionId, {
         kind: "status",
         text: "Sideband controller disconnected.",
@@ -1686,7 +1946,7 @@ export class RealtimeSessionRegistry {
     }
 
     record.reconnectAttempts += 1;
-    const delayMs = Math.min(1_000 * 2 ** (record.reconnectAttempts - 1), 8_000);
+    const delayMs = Math.min(1_000 * 2 ** (record.reconnectAttempts - 1), MAX_SIDEBAND_RECONNECT_DELAY_MS);
     this.setStatus(sessionId, {
       status: "connecting",
       sidebandStatus: "reconnecting",
@@ -1694,6 +1954,9 @@ export class RealtimeSessionRegistry {
       configSyncPending: true,
       lastError: `Sideband reconnect attempt ${record.reconnectAttempts} scheduled in ${delayMs}ms.`,
     });
+    console.warn(
+      `[realtime-sideband-reconnect] session=${sessionId} callId=${record.callId || "none"} attempt=${record.reconnectAttempts} delayMs=${delayMs}`,
+    );
     this.broadcast(sessionId, {
       kind: "status",
       text: `Sideband controller reconnecting in ${Math.round(delayMs / 1000)}s.`,
@@ -1716,6 +1979,42 @@ export class RealtimeSessionRegistry {
       });
     }, delayMs);
     record.reconnectTimer.unref?.();
+  }
+
+  private startSidebandPing(
+    record: SessionRecord,
+    ws: WebSocket,
+    sessionId: string,
+    generation: number,
+  ): void {
+    this.stopSidebandPing(record);
+    record.sidebandPingTimer = setInterval(() => {
+      if (!this.hasSession(sessionId)) {
+        this.stopSidebandPing(record);
+        return;
+      }
+      if (record.ws !== ws || record.sidebandGeneration !== generation) {
+        this.stopSidebandPing(record);
+        return;
+      }
+      if (ws.readyState !== WebSocket.OPEN) {
+        return;
+      }
+      try {
+        ws.ping();
+      } catch {
+        // Let the normal close/error path handle reconnect scheduling.
+      }
+    }, SIDEBAND_PING_INTERVAL_MS);
+    record.sidebandPingTimer.unref?.();
+  }
+
+  private stopSidebandPing(record: SessionRecord): void {
+    if (!record.sidebandPingTimer) {
+      return;
+    }
+    clearInterval(record.sidebandPingTimer);
+    record.sidebandPingTimer = null;
   }
 
   private shouldMirrorRawEvent(eventType: string): boolean {
@@ -1745,6 +2044,14 @@ function doesRealtimeSessionRequireSync(actual: Record<string, unknown>, expecte
     || JSON.stringify(actualOutputModalities) !== JSON.stringify(expectedOutputModalities)
     || JSON.stringify(actualTurnDetection ?? null) !== JSON.stringify(expectedTurnDetection ?? null)
     || JSON.stringify(actualToolNames) !== JSON.stringify(expectedToolNames);
+}
+
+function isTerminalSidebandReconnectError(error: Error): boolean {
+  return /Unexpected server response:\s*(401|403|404|410)\b/i.test(error.message);
+}
+
+function isUnknownRealtimeSessionError(error: unknown): boolean {
+  return error instanceof Error && /^Unknown realtime session: /i.test(error.message);
 }
 
 function resolveCaptureDimensions(

@@ -73,8 +73,8 @@ Direct command equivalents:
 - `set dash_color, gray45`
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
-- `set mesh_width, 0.46`
-- `set surface_transparency, 0.24`
+- `set mesh_width, 0.24`
+- `set surface_transparency, 0.55`
 - `set dash_color, teal`
 - `set dash_radius, 0.06`
 - `center hb_cryo and polymer.protein`
@@ -96,10 +96,14 @@ Checkpoints:
 - The framing now reads as a cryo-plus-atomic cutaway.
 
 Direct command equivalents:
-- `select heme_shell, byres (hb_cryo and (organic) around 5)`
-- `show sticks, heme_shell or hb_cryo and organic`
-- `isomesh emd_37575_mesh, emd_37575, 1.4, heme_shell or hb_cryo and organic, 6`
-- `color cyan, emd_37575_mesh`
+- `select heme_a, hb_cryo and resn HEM and chain A`
+- `select heme_shell, byres (hb_cryo and (heme_a) around 4)`
+- `hide cartoon, hb_cryo and polymer.protein and not chain A`
+- `hide sticks, hb_cryo and organic and not chain A`
+- `show sticks, heme_shell or heme_a or hb_cryo and organic and chain A`
+- `color marine, hb_cryo and polymer.protein and chain A`
+- `isosurface emd_37575_surface, emd_37575, 2.4, heme_shell or heme_a, 2.5, 1, 1.8`
+- `color cyan, emd_37575_surface`
 - `bg_color gray99`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
@@ -125,17 +129,18 @@ Direct command equivalents:
 - `set dash_color, gray45`
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
-- `set mesh_width, 0.46`
-- `set surface_transparency, 0.24`
+- `set mesh_width, 0.24`
+- `set surface_transparency, 0.55`
 - `set dash_color, teal`
 - `set dash_radius, 0.06`
-- `center heme_shell or hb_cryo and organic`
-- `orient heme_shell or hb_cryo and organic`
+- `set transparency, 0.72, emd_37575_surface`
+- `center heme_shell or heme_a`
+- `orient heme_shell or heme_a`
 - `turn y, 20`
 - `turn x, 12`
-- `zoom heme_shell or hb_cryo and organic, 7`
+- `zoom heme_shell or heme_a, 4.5`
 - `clip slab, 14`
-- `clip slab, 14`
+- `clip slab, 9`
 
 ## Step 3: Store the cutaway and export the polished still.
 

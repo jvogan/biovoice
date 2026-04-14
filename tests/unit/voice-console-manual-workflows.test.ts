@@ -6,7 +6,14 @@ import {
   chooseLatestArtifactPreview,
   findLatestStageArtifactPreview,
 } from "../../apps/voice-console/src/App";
-import { isEventStreamErrorMessage, isManualDisconnectReason } from "../../apps/voice-console/src/hooks/useRealtimeConnection";
+import {
+  isAssistantResponseEndEvent,
+  isAssistantResponseStartEvent,
+  isEventStreamErrorMessage,
+  isInputSpeechEndEvent,
+  isInputSpeechStartEvent,
+  isManualDisconnectReason,
+} from "../../apps/voice-console/src/hooks/useRealtimeConnection";
 
 describe("voice console manual workflow helpers", () => {
   it("keeps the artifact preview tied to the artifact-bearing event timestamp", () => {
@@ -156,5 +163,20 @@ describe("voice console manual workflow helpers", () => {
     expect(isManualDisconnectReason("Session manually disconnected from the widget.")).toBe(true);
     expect(isManualDisconnectReason("Session event stream disconnected.")).toBe(false);
     expect(isManualDisconnectReason(null)).toBe(false);
+  });
+
+  it("detects open-mic speech lifecycle events", () => {
+    expect(isInputSpeechStartEvent("input_audio_buffer.speech_started")).toBe(true);
+    expect(isInputSpeechEndEvent("input_audio_buffer.speech_stopped")).toBe(true);
+    expect(isInputSpeechEndEvent("input_audio_buffer.committed")).toBe(true);
+    expect(isInputSpeechStartEvent("response.created")).toBe(false);
+  });
+
+  it("detects assistant response lifecycle events", () => {
+    expect(isAssistantResponseStartEvent("response.created")).toBe(true);
+    expect(isAssistantResponseStartEvent("response.output_audio.delta")).toBe(true);
+    expect(isAssistantResponseStartEvent("response.function_call_arguments.done")).toBe(true);
+    expect(isAssistantResponseEndEvent("response.done")).toBe(true);
+    expect(isAssistantResponseEndEvent("response.output_text.delta")).toBe(false);
   });
 });
