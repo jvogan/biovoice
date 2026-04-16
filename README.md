@@ -10,7 +10,11 @@
 
 BioVoice connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) to the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) through a local backend and a browser voice console. It can also rehearse the same workflows without live voice, so you can validate demos, AlphaFold overlays, Rosetta reviews, and cryo-EM scenes before speaking a word.
 
-![BioVoice console overview showing the local voice interface and workflow rail](./docs/social-preview.png)
+![BioVoice controlling PyMOL mid-session: the 4HHB hemoglobin tetramer in dark cartoon with orange heme ligands and a purple surface isolated on a single chain, with the floating voice console showing the LISTENING state](./docs/biovoice-console.jpg)
+
+*Voice-driven work on PyMOL. A single BioVoice session loaded the 4HHB tetramer, overlaid an AlphaFold alpha chain, highlighted heme-contacting side chains, and isolated a purple surface on one subunit — all without typing a command.*
+
+![Short clip of BioVoice isolating one AlphaFold-overlaid chain with a purple surface while the full hemoglobin tetramer remains in view](./docs/biovoice-demo.gif)
 
 > BioVoice supports **OpenAI Realtime only** for live voice today. There is no interchangeable provider UI, Anthropic live voice path, Gemini live voice path, or local/offline speech stack yet.
 
@@ -133,6 +137,8 @@ BioVoice is designed so the molecular files stay local while live voice uses Ope
 | Captures and exports | No | Yes, under `.runtime/` or `output/` |
 
 Normal local usage is expected to keep real credentials in `.env`. That file is ignored and stays local. The tracked file [`.env.example`](./.env.example) is a **safe template**, not a secret store.
+
+Structure loading is allowlisted. By default, BioVoice reads demo inputs from `examples/data/local`, `.runtime`, and `output`; wider private folders require an explicit `STRUCTURE_ALLOWED_PATHS` entry in your local `.env`.
 
 ## Supported Today vs Not Yet
 
