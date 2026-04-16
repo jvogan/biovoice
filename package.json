@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "description": "Local voice control for PyMOL and ChimeraX, and a working reference for OpenAI Realtime API tool calling applied to AlphaFold, Rosetta, and cryo-EM workflows.",
+  "description": "Voice control for PyMOL and ChimeraX built on the OpenAI Realtime API, and a working reference for Realtime function-tool calling applied to AlphaFold, Rosetta, and cryo-EM workflows.",
   "license": "MIT",
   "author": "Jacob Vogan",
   "homepage": "https://github.com/jvogan/biovoice#readme",

@@ -8,7 +8,7 @@ BioVoice is ready to publish as a **research prototype**, not as a packaged comm
 
 Ready:
 
-- Local voice-control prototype for PyMOL and ChimeraX
+- Self-hosted voice-control prototype for PyMOL and ChimeraX using the OpenAI Realtime API
 - OpenAI Realtime is the only supported live voice provider
 - Offline rehearsal mode works without an OpenAI key
 - Demo data is downloaded locally with `npm run prepare:data`

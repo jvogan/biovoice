@@ -1,6 +1,6 @@
 # BioVoice
 
-**Speak to PyMOL and ChimeraX in plain English.** BioVoice is a local voice-control interface for structural biology visualization, built for demos, teaching, and exploratory molecular workflows. It is being released publicly as a **research prototype**: usable today, actively improving, and explicit about what is and is not supported yet.
+**Speak to PyMOL and ChimeraX in plain English.** BioVoice is a voice-control interface for structural biology visualization, built on the OpenAI Realtime API, for demos, teaching, and exploratory molecular workflows. The backend and your molecular files stay on your machine; the voice audio streams to OpenAI. It is being released publicly as a **research prototype**: usable today, actively improving, and explicit about what is and is not supported yet.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Node.js](https://img.shields.io/badge/node-%3E%3D20-brightgreen)](https://nodejs.org/)
@@ -37,7 +37,7 @@ If you are building a voice agent, a Realtime API integration, or any LLM tool-c
 
 ## What BioVoice Is
 
-- A **local** voice interface for PyMOL and ChimeraX, not a cloud molecular viewer
+- A **self-hosted** voice interface for PyMOL and ChimeraX, not a cloud molecular viewer (the backend runs on your machine; the voice layer goes to the OpenAI Realtime API)
 - A scientist-first workflow tool for **structural biology**, not a general-purpose chatbot shell
 - A guided way to walk through **ligand pockets, AlphaFold, Rosetta, and cryo-EM** workflows with reproducible demo data
 - A browser UI plus local backend that can run in **live voice** mode or **offline rehearsal** mode
@@ -268,7 +268,7 @@ curl -s http://localhost:3000/api/recipes/pymol-binding-pocket-story/run \
 
 ### What is BioVoice?
 
-BioVoice is a local research prototype that lets you control PyMOL and ChimeraX with natural-language voice commands, guided workflows, and structured tool execution.
+BioVoice is a self-hosted research prototype that lets you control PyMOL and ChimeraX with natural-language voice commands, guided workflows, and structured tool execution. The backend runs on your machine; live voice uses the OpenAI Realtime API.
 
 ### Can I use BioVoice without an OpenAI API key?
 
