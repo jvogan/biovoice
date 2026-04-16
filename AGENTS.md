@@ -1,4 +1,4 @@
-# Realtime Protein Structure Agent Guide
+# BioVoice Agent Guide
 
 This repo is meant to be operable by coding agents without extra discovery.
 

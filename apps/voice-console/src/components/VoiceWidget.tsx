@@ -174,6 +174,11 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     : props.connected
     ? "Disconnect session"
     : "Connect session";
+  const miniPrimaryUsesPower = !props.connected;
+  const miniPrimaryDisabled = miniPrimaryUsesPower ? powerButtonDisabled : overlayMicDisabled;
+  const miniPrimaryLabel = miniPrimaryUsesPower ? "Connect session and prepare mic" : overlayTalkButtonLabel;
+  const miniPrimaryPressed = miniPrimaryUsesPower ? powerButtonActive : overlayMicToggleActive;
+  const miniPowerButtonLabel = `Mini power: ${powerButtonLabel}`;
   const holdButtonLabel = !props.connected
     ? "Pause unavailable"
     : props.sessionPaused
@@ -251,11 +256,39 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     logOverlayControl(control, detail);
     action();
   };
+  const activateMiniPrimaryControl = () => {
+    if (miniPrimaryDisabled) {
+      return;
+    }
+    if (miniPrimaryUsesPower) {
+      activateOverlayControl("mini-talk", powerButtonActive ? "disconnect" : "connect", () => {
+        if (powerButtonActive) {
+          props.onDisconnect();
+          return;
+        }
+        props.onConnect();
+      });
+      return;
+    }
+    activateOverlayControl("mini-talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
+  };
+  const activateMiniPowerControl = () => {
+    if (powerButtonDisabled) {
+      return;
+    }
+    activateOverlayControl("mini-power", powerButtonActive ? "disconnect" : "connect", () => {
+      if (powerButtonActive) {
+        props.onDisconnect();
+        return;
+      }
+      props.onConnect();
+    });
+  };
 
   if (props.overlayMode) {
     const fullTemplate = overlayTheme === "light" ? fullInstrumentLightSvg : fullInstrumentDarkSvg;
     const miniTemplate = overlayTheme === "light" ? miniInstrumentLightSvg : miniInstrumentSvg;
-  const renderFullSvg = buildInstrumentSvg({
+    const renderFullSvg = buildInstrumentSvg({
       template: fullTemplate,
       theme: overlayTheme,
       appName: truncateInstrumentText(instrumentLabel, 12),
@@ -285,7 +318,7 @@ export function VoiceWidget(props: VoiceWidgetProps) {
         data-overlay-theme={overlayTheme}
         data-overlay-target={props.target}
         data-power-disabled={powerButtonDisabled ? "true" : undefined}
-        data-talk-disabled={overlayMicDisabled ? "true" : undefined}
+        data-talk-disabled={(overlayMinimized ? miniPrimaryDisabled : overlayMicDisabled) ? "true" : undefined}
         data-target-switch-disabled={targetSwitchDisabled ? "true" : undefined}
       >
         {overlayMinimized ? (
@@ -296,11 +329,28 @@ export function VoiceWidget(props: VoiceWidgetProps) {
               dangerouslySetInnerHTML={{ __html: renderMiniSvg }}
             />
             <button
+              className="instrument-hitbox instrument-hitbox-mini-power"
+              type="button"
+              aria-label={miniPowerButtonLabel}
+              aria-pressed={powerButtonActive}
+              disabled={powerButtonDisabled}
+              onPointerCancel={() => setOverlayPressedControl(null)}
+              onPointerDown={() => setOverlayPressedControl("mini-power")}
+              onPointerLeave={() => setOverlayPressedControl(null)}
+              onPointerUp={() => {
+                setOverlayPressedControl(null);
+                activateMiniPowerControl();
+              }}
+              onClick={() => {
+                activateMiniPowerControl();
+              }}
+            />
+            <button
               className="instrument-hitbox instrument-hitbox-mini-talk"
               type="button"
-              aria-label={overlayTalkButtonLabel}
-              aria-pressed={overlayMicToggleActive}
-              disabled={overlayMicDisabled}
+              aria-label={miniPrimaryLabel}
+              aria-pressed={miniPrimaryPressed}
+              disabled={miniPrimaryDisabled}
               onPointerCancel={() => {
                 setOverlayPressedControl(null);
               }}
@@ -312,12 +362,10 @@ export function VoiceWidget(props: VoiceWidgetProps) {
               }}
               onPointerUp={() => {
                 setOverlayPressedControl(null);
-                if (!overlayMicDisabled) {
-                  activateOverlayControl("mini-talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
-                }
+                activateMiniPrimaryControl();
               }}
               onClick={() => {
-                activateOverlayControl("mini-talk", overlayMicToggleActive ? "off" : "on", props.onToggleOpenMic);
+                activateMiniPrimaryControl();
               }}
             />
             <button

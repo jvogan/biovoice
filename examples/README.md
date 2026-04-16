@@ -9,12 +9,20 @@ If you are new to the project, start with the hand-authored guides first:
 - [`docs/tutorial-alphafold.md`](../docs/tutorial-alphafold.md)
 - [`docs/tutorial-rosetta.md`](../docs/tutorial-rosetta.md)
 
+If you are a **developer or AI engineer** studying the Realtime API tool-calling pattern, start with:
+
+- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) — the 7 function tools, selector schema, state grounding, and workflow compilation
+- [`tool-playbooks/`](./tool-playbooks/) — the atomic PyMOL and ChimeraX action surface available to the model
+- [`scientific-workflows/`](./scientific-workflows/) — the task-level AlphaFold / Rosetta catalog exposed behind `run_scientific_workflow`
+- The source of truth: [`packages/runtime-and-adapters/src/realtime/tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts)
+
 ## Structure
 - `start-here/`: concise operator quick reference
 - `scientific-workflows/`: task-first AlphaFold and Rosetta launch catalog
 - `workflow-recipes/`: full demo workflows for both apps
 - `prompt-library/`: curated utterance packs and follow-up prompts
 - `tool-playbooks/`: what the structured tool surface can do
+- `guided-tutorials/`: narrated AlphaFold / Rosetta and natural-language structure control walkthroughs
 - `troubleshooting/`: speech, ambiguity, and export recovery
 - `gallery/`: demo ideas and operator-facing hero shots
 

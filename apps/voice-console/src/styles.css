@@ -246,6 +246,14 @@ input:focus-visible,
   border-radius: 999px;
 }
 
+.instrument-hitbox-mini-power {
+  top: 24%;
+  left: 6.1%;
+  width: 13.6%;
+  height: 52%;
+  border-radius: 999px;
+}
+
 .instrument-hitbox-mini-restore {
   top: 31%;
   left: 80.3%;
@@ -340,6 +348,9 @@ input:focus-visible,
 .instrument-svg-shell-full #btn-hold,
 .instrument-svg-shell-full #btn-safety,
 .instrument-svg-shell-full #btn-talk,
+.instrument-svg-shell-mini #mini-target-indicator,
+.instrument-svg-shell-mini #mini-status-led,
+.instrument-svg-shell-mini #mini-power-glyph,
 .instrument-svg-shell-mini #btn-mini-talk,
 .instrument-svg-shell-mini #btn-restore,
 .instrument-svg-shell-mini #btn-mini-close {
@@ -594,7 +605,10 @@ input:focus-visible,
 .voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-full #btn-power rect,
 .voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-full #btn-power circle,
 .voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-full #btn-power line,
-.voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-full #label-power {
+.voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-full #label-power,
+.voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-mini #mini-target-indicator,
+.voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-mini #mini-status-led,
+.voice-widget.instrument-overlay[data-power-disabled="true"] .instrument-svg-shell-mini #mini-power-glyph {
   opacity: 0.38;
   filter: none;
 }
@@ -662,6 +676,9 @@ input:focus-visible,
 .voice-widget.instrument-overlay[data-pressed-control="talk"] .instrument-svg-shell-full #btn-talk circle,
 .voice-widget.instrument-overlay[data-pressed-control="talk"] .instrument-svg-shell-full #btn-talk path,
 .voice-widget.instrument-overlay[data-pressed-control="talk"] .instrument-svg-shell-full #btn-talk line,
+.voice-widget.instrument-overlay[data-pressed-control="mini-power"] .instrument-svg-shell-mini #mini-target-indicator,
+.voice-widget.instrument-overlay[data-pressed-control="mini-power"] .instrument-svg-shell-mini #mini-status-led,
+.voice-widget.instrument-overlay[data-pressed-control="mini-power"] .instrument-svg-shell-mini #mini-power-glyph,
 .voice-widget.instrument-overlay[data-pressed-control="mini-talk"] .instrument-svg-shell-mini #btn-mini-talk circle,
 .voice-widget.instrument-overlay[data-pressed-control="mini-talk"] .instrument-svg-shell-mini #btn-mini-talk path,
 .voice-widget.instrument-overlay[data-pressed-control="mini-restore"] .instrument-svg-shell-mini #btn-restore rect,

@@ -18,9 +18,10 @@
   <rect x="8" y="8" width="228" height="42" rx="21" fill="url(#mini-inner)" stroke="rgba(0,0,0,0.38)" stroke-opacity="0.18" stroke-width="0.7" />
   <rect x="9.2" y="9.2" width="225.6" height="39.6" rx="19.8" fill="none" stroke="rgba(255,255,255,0.08)" stroke-opacity="0.12" stroke-width="0.8" />
   <path d="M18 15H226" stroke="rgba(255,255,255,0.08)" stroke-opacity="0.16" stroke-width="0.8" stroke-linecap="round" />
-  <circle id="mini-target-indicator" cx="24" cy="29" r="5" fill="#ECC94B" />
-  <circle id="mini-status-led" cx="34" cy="29" r="4.5" fill="#F56565" />
-  <text id="mini-target-status" x="48" y="33.2" font-family="monospace" font-size="12.2" font-weight="bold" fill="#EAF0FA">PYMOL • OFFLINE</text>
+  <circle id="mini-target-indicator" cx="24" cy="29" r="8.4" fill="#ECC94B" />
+  <path id="mini-power-glyph" d="M24 23.6V28.7M20.8 26.5C19.7 27.4 19.1 28.8 19.1 30.2C19.1 33 21.3 35.1 24 35.1C26.7 35.1 28.9 33 28.9 30.2C28.9 28.8 28.3 27.4 27.2 26.5" stroke="#0D1118" stroke-width="1.35" stroke-linecap="round" />
+  <circle id="mini-status-led" cx="40" cy="29" r="4.5" fill="#F56565" />
+  <text id="mini-target-status" x="55" y="33.2" font-family="monospace" font-size="12.2" font-weight="bold" fill="#EAF0FA">PYMOL • OFFLINE</text>
 
   <g id="btn-mini-talk" transform="translate(174, 29)" cursor="pointer">
     <circle r="14" fill="#4FD1C5" opacity="0.12" />

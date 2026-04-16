@@ -105,5 +105,6 @@ The architecture could grow toward additional providers later, but that is only 
 
 - [Getting Started](./getting-started.md)
 - [First Live Session](./first-live-session.md)
+- [How Tool Calling Works](./realtime-tool-calling.md) — developer-audience deep dive on the Realtime function-tool surface
 - [FAQ and Glossary](./faq.md)
 - [Security Policy](../SECURITY.md)

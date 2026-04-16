@@ -14,6 +14,23 @@ BioVoice connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucs
 
 > BioVoice supports **OpenAI Realtime only** for live voice today. There is no interchangeable provider UI, Anthropic live voice path, Gemini live voice path, or local/offline speech stack yet.
 
+## Why BioVoice Matters
+
+BioVoice is useful to two different audiences in the same repository:
+
+**For structural biologists**, speak plain English and the model calls structured tools that drive PyMOL and ChimeraX directly. No command syntax to memorize, no selector rot between sessions, no second monitor full of cheat sheets. AlphaFold confidence reviews, Rosetta scaffold-versus-design comparisons, cryo-EM handoffs, and ligand-pocket walkthroughs all run as named workflows.
+
+**For developers and AI engineers**, BioVoice is a working reference for **OpenAI Realtime API tool calling applied to real scientific software** — not a toy. You get, in one readable TypeScript repo:
+
+- **7 Realtime function tools** wired to a WebRTC voice session: `run_pymol_actions`, `run_chimerax_actions`, `run_scientific_workflow`, `get_target_state`, `run_recipe_step`, `export_artifact`, `capture_view`.
+- **9 task-level AlphaFold and Rosetta workflows** exposed behind a single `run_scientific_workflow` tool that compiles domain concepts ("prediction-vs-experiment overlay", "PAE-guided triage", "scaffold-versus-design review") into target-specific adapter calls — a realistic pattern for turning science vocabulary into structured function arguments.
+- **Production-grade JSON Schema selectors** — chain-aware residue ranges, ligand / cofactor handles, proximity selections (`around` + `withinAngstroms`), and semantic references like `predictedModel`, `scaffoldModel`, `binderChainA`, and `partnerB`. This is the kind of tool argument design you usually only see inside closed-source agents.
+- A **two-adapter pattern**: PyMOL over XML-RPC and ChimeraX over REST, both driven by the same typed action schema. Study either adapter to learn how to wrap a domain tool without reimplementing the schema layer.
+- **`get_target_state` grounding**: before picking an action, the model can ask the backend what is currently loaded and get back concrete selectors. This is a clean, copyable pattern for any tool-calling agent that needs to act on mutable external state.
+- **Offline rehearsal mode** so you can read the tool surface, dry-run it against the adapters, and instrument it without an OpenAI key or a live microphone.
+
+If you are building a voice agent, a Realtime API integration, or any LLM tool-calling layer against a complex external application, jump to [How Tool Calling Works](./docs/realtime-tool-calling.md) first.
+
 ## What BioVoice Is
 
 - A **local** voice interface for PyMOL and ChimeraX, not a cloud molecular viewer
@@ -77,6 +94,7 @@ npm run agent:start -- pymol --offline --clean-target
 - **Run a first live voice session**: [First Live Session](./docs/first-live-session.md)
 - **Start with AlphaFold**: [AlphaFold Tutorial](./docs/tutorial-alphafold.md)
 - **Start with Rosetta**: [Rosetta Tutorial](./docs/tutorial-rosetta.md)
+- **Study the tool-calling pattern**: [How Tool Calling Works](./docs/realtime-tool-calling.md)
 
 Additional guided docs:
 
@@ -84,6 +102,8 @@ Additional guided docs:
 - [Ligand Pocket Tutorial](./docs/tutorial-ligand-pocket.md)
 - [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md)
 - [Architecture and Provider Support](./docs/architecture.md)
+- [Tool Playbooks (action surface)](./examples/tool-playbooks/README.md)
+- [Scientific Workflows Catalog](./examples/scientific-workflows/README.md)
 - [FAQ and Glossary](./docs/faq.md)
 - [Public Release Checklist](./docs/public-release.md)
 
@@ -146,6 +166,58 @@ flowchart LR
 
 For deeper detail, including the privacy boundary and support matrix, see [Architecture and Provider Support](./docs/architecture.md).
 
+## How Tool Calling Works
+
+When you speak, the browser streams audio over WebRTC to OpenAI Realtime. The model decides which of the registered function tools to call and emits a structured JSON payload. The BioVoice backend validates it, routes it to the right target adapter (PyMOL XML-RPC or ChimeraX REST), executes it, and streams the result back into the session context so the model can pick the next action.
+
+Here is the real `run_scientific_workflow` tool definition from [`packages/runtime-and-adapters/src/realtime/tool-definitions.ts`](./packages/runtime-and-adapters/src/realtime/tool-definitions.ts):
+
+```ts
+{
+  type: "function",
+  name: "run_scientific_workflow",
+  description:
+    "Run a domain-level AlphaFold or Rosetta workflow and compile it into " +
+    "the existing PyMOL or ChimeraX action wrappers. Prefer this for task-level " +
+    "requests such as AlphaFold confidence review, prediction-vs-experiment " +
+    "overlay, multimer interface triage, PAE-guided uncertainty review, cryo " +
+    "handoff, Rosetta scaffold-versus-design review, scorefile-ranked " +
+    "top-design compare, interface packing review, or ligand redesign review.",
+  parameters: {
+    type: "object",
+    properties: {
+      target: { type: "string", enum: ["pymol", "chimerax"] },
+      workflow: {
+        type: "string",
+        enum: [
+          "alphafold_confidence_review",
+          "alphafold_vs_experiment_overlay",
+          "alphafold_multimer_interface_review",
+          "alphafold_pae_guided_triage",
+          "alphafold_to_cryo_handoff",
+          "rosetta_scaffold_design_review",
+          "rosetta_interface_packing_review",
+          "rosetta_ligand_redesign_review",
+          "rosetta_top_design_compare",
+        ],
+      },
+      inputs: { oneOf: [alphaFoldInputsSchema, rosettaInputsSchema] },
+      presentationMode: { type: "string", enum: ["analysis", "demo", "publication"] },
+      export: scientificWorkflowExportSchema,
+      dryRun: { type: "boolean" },
+      summary: { type: "string" },
+      recipeId: { type: "string" },
+    },
+    required: ["target", "workflow", "inputs"],
+    additionalProperties: false,
+  },
+}
+```
+
+The model never types raw PyMOL or ChimeraX commands. It picks a workflow ID, the backend compiles it into structured per-target actions, and the adapters execute them. This keeps the conversation robust against command rot, hallucinated syntax, and app-version drift — the three biggest failure modes for naive tool calling against scientific software.
+
+Read the full pattern in [How Tool Calling Works](./docs/realtime-tool-calling.md): tool registration, selector design, `get_target_state` grounding, dry-run mode, error handling, session policies, and how AlphaFold / Rosetta workflows compile down to adapter calls.
+
 ## Possible Future Providers
 
 BioVoice may grow toward additional voice backends later, but that is an **architecture direction**, not current compatibility. The current implementation, testing, and documentation all assume **OpenAI Realtime** for live voice.
@@ -154,12 +226,14 @@ BioVoice may grow toward additional voice backends later, but that is an **archi
 
 - [Getting Started](./docs/getting-started.md): install, prepare demo data, and choose a first workflow
 - [First Live Session](./docs/first-live-session.md): safest first mic-enabled walkthrough
+- [How Tool Calling Works](./docs/realtime-tool-calling.md): developer-audience deep dive on the Realtime function-tool surface
 - [AlphaFold Tutorial](./docs/tutorial-alphafold.md): overlay and confidence-oriented workflow entry point
 - [Rosetta Tutorial](./docs/tutorial-rosetta.md): scaffold-versus-design and interface review entry point
 - [Ligand Pocket Tutorial](./docs/tutorial-ligand-pocket.md): first polished presentation workflow
 - [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md): map and model walkthrough
 - [Examples Library](./examples/README.md): generated recipe-by-recipe references
 - [Scientific Workflows Catalog](./examples/scientific-workflows/README.md): task-first AlphaFold and Rosetta launch guide
+- [Tool Playbooks](./examples/tool-playbooks/README.md): the atomic action surface the model can call
 
 ## Verification and Non-Voice Testing
 

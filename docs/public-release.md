@@ -30,9 +30,12 @@ Run these from a clean checkout:
 ```bash
 npm ci
 npm run prepare:data
+npm run generate:examples
 npm run check
 npm run verify:examples
 ```
+
+`npm run check` already chains `generate:examples` into its build step, but running it explicitly up front keeps the generated doc tree and the release-readiness scan aligned before `verify:examples` hits it.
 
 Run showcase verification when demo workflows changed:
 
@@ -65,7 +68,11 @@ Before publishing:
 Before switching visibility to public:
 
 - Repository description matches the README one-line story
-- Topics include `pymol`, `chimerax`, `structural-biology`, `molecular-visualization`, `voice-control`, `openai-realtime`, `alphafold`, and `rosetta`
+- Topics include the full discoverability set covering both audiences (structural biology **and** developers researching Realtime API tool calling):
+  - Scientific: `pymol`, `chimerax`, `structural-biology`, `molecular-visualization`, `alphafold`, `rosetta`, `cryo-em`, `protein-structure`, `protein-design`, `bioinformatics`, `computational-biology`, `scientific-visualization`
+  - Voice / UX: `voice-control`, `voice-interface`, `voice-agent`, `natural-language-interface`, `speech-to-action`, `webrtc`, `webrtc-voice-agent`
+  - AI / tool calling: `openai`, `openai-realtime`, `openai-realtime-api`, `realtime-api`, `realtime-tool-calling`, `function-calling`, `tool-calling`, `tool-use`, `llm-tool-calling`, `structured-outputs`, `json-schema`, `ai-agents`, `llm-agents`, `agent-examples`, `agent-tool-use`, `openai-agents`
+- GitHub's topic-count cap is 20; pick a balanced subset from each cluster rather than dropping one cluster entirely.
 - Issues are enabled
 - Private vulnerability reporting is enabled if available
 - `main` is the default branch
