@@ -75,6 +75,21 @@ describe("path policy", () => {
     expect(resolveLocalStructureInputPath(undefined, ["af_p69905"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "af-p69905.pdb"));
   });
 
+  it("requires explicit opt-in for private structure folders", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "rt-protein-private-root-"));
+    const privateFile = path.join(tempDir, "model.pdb");
+    await fs.writeFile(privateFile, "ATOM\n", "utf8");
+    const canonicalPrivateFile = await fs.realpath(privateFile);
+
+    try {
+      expect(() => ensureAllowedStructureInputPath(privateFile)).toThrow(/outside the allowed roots/i);
+      process.env.STRUCTURE_ALLOWED_PATHS = tempDir;
+      expect(ensureAllowedStructureInputPath(privateFile)).toBe(canonicalPrivateFile);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
   it("still validates explicit local structure paths through the allowed-root policy", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "rt-protein-local-explicit-"));
     const outsideFile = path.join(tempDir, "outside.pdb");

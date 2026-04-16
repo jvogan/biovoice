@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { localDataDir, resolveFromRoot, runtimeDir } from "./paths.js";
 
@@ -52,9 +51,6 @@ export function getAllowedStructureInputRoots(): string[] {
     localDataDir,
     runtimeDir,
     outputDir,
-    path.join(os.homedir(), "Desktop"),
-    path.join(os.homedir(), "Documents"),
-    path.join(os.homedir(), "Downloads"),
     ...parseConfiguredRoots(process.env.STRUCTURE_ALLOWED_PATHS),
   ]);
 }
@@ -80,7 +76,7 @@ export function ensureAllowedStructureInputPath(candidate: string, label = "Stru
   }
   if (!isPathInsideRoots(resolved, getAllowedStructureInputRoots())) {
     throw new Error(
-      `${label} is outside the allowed roots. Move it under examples/data/local, .runtime, output, Desktop, Documents, Downloads, or extend STRUCTURE_ALLOWED_PATHS.`,
+      `${label} is outside the allowed roots. Move it under examples/data/local, .runtime, output, or explicitly extend STRUCTURE_ALLOWED_PATHS in local .env.`,
     );
   }
   return resolved;

@@ -71,8 +71,10 @@ flowchart LR
 
 - microphone audio
 - transcripts
-- structured tool-call text, such as residue names, chain IDs, and file-path references
+- structured tool-call text, such as residue names, chain IDs, object names, and file-path references
 - session instructions and model context needed to drive the live turn
+
+BioVoice does not upload molecular file contents to OpenAI for normal local tool execution, but path names and labels can appear in the model context. Keep sensitive project names out of paths if you plan to screen-share or file public issues.
 
 ## Current Voice Implementation
 

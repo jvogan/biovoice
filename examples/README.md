@@ -11,9 +11,9 @@ If you are new to the project, start with the hand-authored guides first:
 
 If you are a **developer or AI engineer** studying the Realtime API tool-calling pattern, start with:
 
-- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) — the 7 function tools, selector schema, state grounding, and workflow compilation
-- [`tool-playbooks/`](./tool-playbooks/) — the atomic PyMOL and ChimeraX action surface available to the model
-- [`scientific-workflows/`](./scientific-workflows/) — the task-level AlphaFold / Rosetta catalog exposed behind `run_scientific_workflow`
+- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 7 function tools, selector schema, state grounding, and workflow compilation
+- [`tool-playbooks/`](./tool-playbooks/) - the atomic PyMOL and ChimeraX action surface available to the model
+- [`scientific-workflows/`](./scientific-workflows/) - the task-level AlphaFold / Rosetta catalog exposed behind `run_scientific_workflow`
 - The source of truth: [`packages/runtime-and-adapters/src/realtime/tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts)
 
 ## Structure

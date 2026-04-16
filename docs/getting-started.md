@@ -33,6 +33,8 @@ cp .env.example .env
 
 Add `OPENAI_API_KEY` only when you are ready for live voice. Keeping your real credentials in local `.env` is the normal supported setup.
 
+By default, BioVoice only loads structure inputs from the prepared demo-data folder plus local runtime/output folders. If you want it to load private structures from another folder, add that folder to `STRUCTURE_ALLOWED_PATHS` in your local `.env`.
+
 ## Newcomer Journey
 
 ```mermaid
