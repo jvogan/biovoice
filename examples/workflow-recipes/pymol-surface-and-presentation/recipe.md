@@ -13,6 +13,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -56,8 +57,8 @@ Checkpoints:
 
 Direct command equivalents:
 - `show surface, polymer.protein`
-- `color gray70, polymer.protein`
-- `set surface_transparency, 0.55, polymer.protein`
+- `set surface_color, gray70, polymer.protein`
+- `set transparency, 0.55, polymer.protein`
 - `label chain A and resi 20 and name CA, "Chain A"`
 - `label chain B and resi 20 and name CA, "Chain B"`
 - `label chain C and resi 20 and name CA, "Chain C"`

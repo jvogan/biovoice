@@ -451,7 +451,10 @@ function buildCaptureDoc(recipe: ReturnType<typeof getExampleCatalog>[number]) {
 }
 
 async function compileRecipeDocBundle(recipe: ReturnType<typeof getExampleCatalog>[number]) {
-  const steps = await Promise.all(recipe.steps.map((step) => compileRecipeStepDoc(recipe, step)));
+  const steps = [];
+  for (const step of recipe.steps) {
+    steps.push(await compileRecipeStepDoc(recipe, step));
+  }
   return { steps };
 }
 

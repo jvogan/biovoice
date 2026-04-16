@@ -46,6 +46,8 @@ export const selectorObjectSchema = z.object({
   chains: z.array(buildSafeIdentifierSchema(12, "selector chain")).min(1).max(24).optional(),
   residue: buildSafeResidueTokenSchema(80, "selector residue").optional(),
   residues: z.array(buildSafeResidueTokenSchema(80, "selector residue")).min(1).max(64).optional(),
+  residueName: buildSafeResidueTokenSchema(40, "selector residue name").optional(),
+  residueNames: z.array(buildSafeResidueTokenSchema(40, "selector residue name")).min(1).max(24).optional(),
   atom: buildSafeIdentifierSchema(40, "selector atom").optional(),
   ligand: buildSafeIdentifierSchema(40, "selector ligand").optional(),
   entity: z.enum(["protein", "nucleic", "polymer", "organic", "solvent", "ions", "backbone", "sidechain"]).optional(),
@@ -82,19 +84,22 @@ export function compilePymolSelection(
   const parts: string[] = [];
   const chainTerms = uniqueTerms([resolved.chain, ...(resolved.chains ?? [])]);
   const residueTerms = uniqueTerms([resolved.residue, ...(resolved.residues ?? [])]);
+  const residueNameTerms = uniqueTerms([resolved.residueName, ...(resolved.residueNames ?? []), resolved.ligand]);
+  const splitResidues = splitPymolResidueTerms(residueTerms);
+  const pymolResidueNameTerms = uniqueTerms([...splitResidues.residueNames, ...residueNameTerms]);
 
   if (resolved.object) parts.push(resolved.object);
   if (resolved.model) parts.push(resolved.model);
   if (chainTerms.length) parts.push(`chain ${chainTerms.join("+")}`);
-  if (residueTerms.length) parts.push(`resi ${residueTerms.join("+")}`);
+  const residueClause = compilePymolResidueClause(splitResidues.residueIds, pymolResidueNameTerms);
+  if (residueClause) parts.push(residueClause);
   if (resolved.atom) parts.push(`name ${resolved.atom}`);
-  if (resolved.ligand) parts.push(`resn ${resolved.ligand}`);
   if (resolved.entity) parts.push(mapPymolEntity(resolved.entity));
 
   const base = parts.length ? parts.join(" and ") : "all";
 
   if (resolved.around && resolved.withinAngstroms) {
-    const shell = `(${resolved.around}) around ${resolved.withinAngstroms}`;
+    const shell = `((${resolved.around}) around ${resolved.withinAngstroms})`;
     return resolved.byResidue ? `byres (${base} and ${shell})` : `${base} and ${shell}`;
   }
 
@@ -120,11 +125,12 @@ export function compileChimeraXAtomspec(
 
   const chainTerms = uniqueTerms([resolved.chain, ...(resolved.chains ?? [])]);
   const residueTerms = uniqueTerms([resolved.residue, ...(resolved.residues ?? [])]);
+  const residueNameTerms = uniqueTerms([resolved.residueName, ...(resolved.residueNames ?? []), resolved.ligand]);
+  const chimeraxResidueTerms = uniqueTerms([...residueTerms, ...residueNameTerms]);
   let prefix = resolved.model ?? resolved.object ?? "";
   if (chainTerms.length) prefix += `/${chainTerms.join(",")}`;
-  if (residueTerms.length) prefix += `:${residueTerms.join(",")}`;
+  if (chimeraxResidueTerms.length) prefix += `:${chimeraxResidueTerms.join(",")}`;
   if (resolved.atom) prefix += `@${resolved.atom}`;
-  if (resolved.ligand) prefix += `:${resolved.ligand}`;
   if (resolved.entity) {
     prefix = prefix ? `${prefix} & ${mapChimeraXEntity(resolved.entity)}` : mapChimeraXEntity(resolved.entity);
   }
@@ -172,6 +178,44 @@ function uniqueTerms(values: Array<string | undefined>): string[] {
   return terms;
 }
 
+function splitPymolResidueTerms(terms: string[]): { residueIds: string[]; residueNames: string[] } {
+  const residueIds: string[] = [];
+  const residueNames: string[] = [];
+
+  for (const term of terms) {
+    for (const piece of term.split("+").map((entry) => entry.trim()).filter(Boolean)) {
+      if (isPymolResidueNameToken(piece)) {
+        residueNames.push(piece);
+      } else {
+        residueIds.push(piece);
+      }
+    }
+  }
+
+  return {
+    residueIds: uniqueTerms(residueIds),
+    residueNames: uniqueTerms(residueNames),
+  };
+}
+
+function compilePymolResidueClause(residueIds: string[], residueNames: string[]): string | null {
+  const clauses: string[] = [];
+  if (residueIds.length) {
+    clauses.push(`resi ${residueIds.join("+")}`);
+  }
+  if (residueNames.length) {
+    clauses.push(`resn ${residueNames.join("+")}`);
+  }
+  if (!clauses.length) {
+    return null;
+  }
+  return clauses.length === 1 ? clauses[0] : `(${clauses.join(" or ")})`;
+}
+
+function isPymolResidueNameToken(term: string): boolean {
+  return /^[A-Za-z][A-Za-z0-9_]{1,5}$/.test(term) && !/^\d/.test(term);
+}
+
 function resolveSelectorReference(
   selection: SelectorObject,
   referenceHints: SelectorReferenceMap | undefined,
@@ -207,6 +251,7 @@ function resolveSelectorReference(
     ...overlay,
     chains: overlay.chains ?? base.chains,
     residues: overlay.residues ?? base.residues,
+    residueNames: overlay.residueNames ?? base.residueNames,
   };
 }
 
@@ -223,11 +268,12 @@ function compileSelectorOverlay(selection: SelectorObject, target: "pymol" | "ch
   if (target === "chimerax") {
     const chainTerms = uniqueTerms([selection.chain, ...(selection.chains ?? [])]);
     const residueTerms = uniqueTerms([selection.residue, ...(selection.residues ?? [])]);
+    const residueNameTerms = uniqueTerms([selection.residueName, ...(selection.residueNames ?? []), selection.ligand]);
+    const chimeraxResidueTerms = uniqueTerms([...residueTerms, ...residueNameTerms]);
     let prefix = selection.model ?? selection.object ?? "";
     if (chainTerms.length) prefix += `/${chainTerms.join(",")}`;
-    if (residueTerms.length) prefix += `:${residueTerms.join(",")}`;
+    if (chimeraxResidueTerms.length) prefix += `:${chimeraxResidueTerms.join(",")}`;
     if (selection.atom) prefix += `@${selection.atom}`;
-    if (selection.ligand) prefix += `:${selection.ligand}`;
     if (selection.entity) {
       prefix = prefix ? `${prefix} & ${mapChimeraXEntity(selection.entity)}` : mapChimeraXEntity(selection.entity);
     }
@@ -241,13 +287,16 @@ function compileSelectorOverlay(selection: SelectorObject, target: "pymol" | "ch
   const parts: string[] = [];
   const chainTerms = uniqueTerms([selection.chain, ...(selection.chains ?? [])]);
   const residueTerms = uniqueTerms([selection.residue, ...(selection.residues ?? [])]);
+  const residueNameTerms = uniqueTerms([selection.residueName, ...(selection.residueNames ?? []), selection.ligand]);
+  const splitResidues = splitPymolResidueTerms(residueTerms);
+  const pymolResidueNameTerms = uniqueTerms([...splitResidues.residueNames, ...residueNameTerms]);
 
   if (selection.object) parts.push(selection.object);
   if (selection.model) parts.push(selection.model);
   if (chainTerms.length) parts.push(target === "pymol" ? `chain ${chainTerms.join("+")}` : chainTerms.length === 1 ? `/${chainTerms[0]}` : `/${chainTerms.join(",")}`);
-  if (residueTerms.length) parts.push(target === "pymol" ? `resi ${residueTerms.join("+")}` : `:${residueTerms.join(",")}`);
+  const residueClause = compilePymolResidueClause(splitResidues.residueIds, pymolResidueNameTerms);
+  if (residueClause) parts.push(target === "pymol" ? residueClause : `:${[...splitResidues.residueIds, ...pymolResidueNameTerms].join(",")}`);
   if (selection.atom) parts.push(target === "pymol" ? `name ${selection.atom}` : `@${selection.atom}`);
-  if (selection.ligand) parts.push(target === "pymol" ? `resn ${selection.ligand}` : `:${selection.ligand}`);
   if (selection.entity) parts.push(target === "pymol" ? mapPymolEntity(selection.entity) : mapChimeraXEntity(selection.entity));
 
   const base = parts
@@ -257,7 +306,7 @@ function compileSelectorOverlay(selection: SelectorObject, target: "pymol" | "ch
 
   if (selection.around && selection.withinAngstroms) {
     if (target === "pymol") {
-      const shell = `(${selection.around}) around ${selection.withinAngstroms}`;
+      const shell = `((${selection.around}) around ${selection.withinAngstroms})`;
       const scoped = base || "all";
       return selection.byResidue ? `byres (${scoped} and ${shell})` : `${scoped} and ${shell}`;
     }

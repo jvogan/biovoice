@@ -3,8 +3,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { actionResultSchema, type ActionResult, type PymolAction } from "../schemas/index.js";
 import { CommandQueue } from "../utils/command-queue.js";
-import { localDataDir } from "../utils/paths.js";
-import { defaultExportPath, ensureAllowedExportPath, ensureAllowedStructureInputPath, quoteCommandValue } from "../utils/path-policy.js";
+import { normalizePymolColorSpec } from "../utils/colors.js";
+import { defaultExportPath, ensureAllowedExportPath, quoteCommandValue, resolveLocalStructureInputPath } from "../utils/path-policy.js";
 import { isProcessLockActive, withProcessLock } from "../utils/process-lock.js";
 import { compilePymolSelection, selectorUsesReference, type SelectorReferenceMap } from "../utils/selectors.js";
 import { buildPymolReferenceSummary, type ReferenceHint, type SceneAnnotation } from "../utils/semantic-handles.js";
@@ -167,9 +167,7 @@ export class PymolAdapter {
           this.clearTransientSceneState();
         }
         const rpcUrl = dryRun ? null : await this.ensureReady();
-        const referenceHints = dryRun
-          ? this.mergeReferenceHints(this.lastReferenceHints)
-          : await this.resolveReferenceHintsForActions(preparedActions, rpcUrl!);
+        const referenceHints = await this.resolveReferenceHintsForActions(preparedActions, rpcUrl);
         const commands = preparedActions.flatMap((action) => compilePymolAction(action, referenceHints, allowExpertRawCommands));
         const commandBatches = createPymolCommandBatches(commands, this.timeoutMs, this.renderTimeoutMs, {
           coldStart: !dryRun && this.isColdStartActive(),
@@ -1028,19 +1026,30 @@ export class PymolAdapter {
     }
   }
 
-  private async resolveReferenceHintsForActions(actions: PymolAction[], rpcUrl: string): Promise<SelectorReferenceMap> {
+  private async resolveReferenceHintsForActions(actions: PymolAction[], rpcUrl: string | null): Promise<SelectorReferenceMap> {
     this.registerActionAnnotations(actions);
+
+    const predictedHints = predictPymolReferenceHintsFromActions(actions, this.sceneAnnotations);
+    if (Object.keys(predictedHints).length) {
+      this.lastReferenceHints = {
+        ...this.lastReferenceHints,
+        ...predictedHints,
+      };
+    }
 
     if (!actions.some((action) => selectorUsesReference(action))) {
       return this.mergeReferenceHints(this.lastReferenceHints);
     }
 
-    const predictedHints = predictPymolReferenceHintsFromActions(actions, this.sceneAnnotations);
     if (Object.keys(predictedHints).length) {
-      return predictedHints;
+      return this.mergeReferenceHints(this.lastReferenceHints);
     }
 
     if (Object.keys(this.lastReferenceHints).length) {
+      return this.mergeReferenceHints(this.lastReferenceHints);
+    }
+
+    if (!rpcUrl) {
       return this.mergeReferenceHints(this.lastReferenceHints);
     }
 
@@ -1362,7 +1371,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
         ];
       }
       if (action.source === "local") {
-        const localPath = ensureAllowedStructureInputPath(action.path ?? path.join(localDataDir, `${action.id ?? objectName}.cif`));
+        const localPath = resolveLocalStructureInputPath(action.path, [action.id, action.object, objectName], objectName);
         return [
           `delete ${objectName}`,
           `load ${quoteCommandValue(localPath)}, ${objectName}`,
@@ -1380,8 +1389,23 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       if (action.scheme === "by_chain") return [`util.cbc ${compilePymolSelection(action.selection, referenceHints)}`];
       if (action.scheme === "by_element") return [`util.cnc ${compilePymolSelection(action.selection, referenceHints)}`];
       if (action.scheme === "rainbow") return [`spectrum count, rainbow, ${compilePymolSelection(action.selection, referenceHints)}`];
-      if (action.scheme === "b_factor") return [`spectrum b, blue_white_red, ${compilePymolSelection(action.selection, referenceHints)}`];
-      return [`color ${action.color ?? "tv_orange"}, ${compilePymolSelection(action.selection, referenceHints)}`];
+      if (action.scheme === "b_factor") return [`spectrum b, red_yellow_green_cyan_blue, ${compilePymolSelection(action.selection, referenceHints)}`];
+      return [`color ${normalizePymolColorSpec(action.color ?? "tv_orange")}, ${compilePymolSelection(action.selection, referenceHints)}`];
+    case "cartoon": {
+      const selection = compilePymolSelection(action.selection, referenceHints);
+      const style = normalizePymolCartoonStyle(action.style);
+      const commands = [
+        `show cartoon, ${selection}`,
+        `cartoon ${style}, ${selection}`,
+      ];
+      if (typeof action.radius === "number") {
+        const setting = style === "putty" ? "cartoon_putty_radius" : style === "tube" ? "cartoon_tube_radius" : null;
+        if (setting) {
+          commands.push(`set ${setting}, ${action.radius}, ${selection}`);
+        }
+      }
+      return commands;
+    }
     case "camera": {
       const selection = compilePymolSelection(action.selection, referenceHints);
       switch (action.action) {
@@ -1443,7 +1467,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       if (!action.text) {
         throw new Error("PyMOL label action requires text unless action is clear.");
       }
-      return [`label ${compilePymolSelection(action.selection, referenceHints)}, "${escapeDoubleQuotes(action.text)}"`];
+      return [`label ${compilePymolSelection(action.selection, referenceHints)}, "${escapeDoubleQuotes(normalizePymolLabelText(action.text, action.selection))}"`];
     case "align": {
       const mobileSelection = compilePymolSelection(action.mobile, referenceHints).trim();
       const targetSelection = compilePymolSelection(action.target, referenceHints).trim();
@@ -1457,9 +1481,9 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
     case "surface": {
       const selection = compilePymolSelection(action.selection, referenceHints);
       const commands = [`show surface, ${selection}`];
-      if (action.color) commands.push(`color ${action.color}, ${selection}`);
+      if (action.color) commands.push(`set surface_color, ${normalizePymolColorSpec(action.color)}, ${selection}`);
       if (typeof action.transparency === "number") {
-        commands.push(`set surface_transparency, ${action.transparency}, ${selection}`);
+        commands.push(`set transparency, ${action.transparency}, ${selection}`);
       }
       return commands;
     }
@@ -1490,7 +1514,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
             : `isosurface ${displayName}, ${action.mapName}, ${action.level}`,
       ];
       if (action.color) {
-        commands.push(`color ${action.color}, ${displayName}`);
+        commands.push(`color ${normalizePymolColorSpec(action.color)}, ${displayName}`);
       }
       return commands;
     }
@@ -1506,9 +1530,18 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       }
       return [`${action.action} ${action.name}`];
     case "preset":
+      if (action.name === "cartoon_overview") {
+        return [
+          "hide everything, polymer.protein",
+          "show cartoon, polymer.protein",
+          "show sticks, organic",
+          "show spheres, inorganic",
+        ];
+      }
       if (action.name === "presentation_light") {
         return [
           "bg_color gray99",
+          "set auto_zoom, 0",
           "set ray_opaque_background, off",
           "set orthoscopic, on",
           "set depth_cue, 0",
@@ -1541,7 +1574,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
           "set stick_radius, 0.2",
           "set dash_radius, 0.06",
           "set dash_gap, 0.16",
-          "set surface_transparency, 0.5",
+          "set transparency, 0.5",
           "set label_size, 20",
         ];
       }
@@ -1558,7 +1591,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
         return [
           ...compilePymolAction({ type: "preset", name: "presentation_light" }, referenceHints),
           "set mesh_width, 0.24",
-          "set surface_transparency, 0.55",
+          "set transparency, 0.55",
           "set dash_color, teal",
           "set dash_radius, 0.06",
         ];
@@ -1566,7 +1599,7 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       if (action.name === "pocket_hero") {
         return [
           ...compilePymolAction({ type: "preset", name: "ligand_editorial" }, referenceHints),
-          "set surface_transparency, 0.42",
+          "set transparency, 0.42",
           "set mesh_width, 0.35",
           "set label_outline_color, gray98",
         ];
@@ -1602,9 +1635,15 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
         "set antialias, 2",
       ];
     case "setting":
-      return [
-        `set ${action.name}, ${String(action.value)}${action.selection ? `, ${compilePymolSelection(action.selection, referenceHints)}` : ""}`,
-      ];
+      {
+        const settingName = normalizePymolSettingName(action.name);
+        const selection = action.selection && !isGlobalOnlyPymolSetting(settingName)
+          ? `, ${compilePymolSelection(action.selection, referenceHints)}`
+          : "";
+        return [
+          `set ${settingName}, ${String(action.value)}${selection}`,
+        ];
+      }
     case "export": {
       const exportPath = resolveExportPath(action.export.path, action.export.format, "pymol");
       if (action.export.format === "png") {
@@ -1624,6 +1663,18 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       }
       return [action.command];
   }
+}
+
+function normalizePymolSettingName(name: string): string {
+  return name === "surface_transparency" ? "transparency" : name;
+}
+
+function normalizePymolCartoonStyle(style: string): string {
+  return style === "pipe" ? "tube" : style;
+}
+
+function isGlobalOnlyPymolSetting(name: string): boolean {
+  return name.startsWith("label_");
 }
 
 function buildXmlRpcCall(methodName: string, params: unknown[]): string {
@@ -1678,6 +1729,52 @@ function escapeXml(value: string): string {
 
 function escapeDoubleQuotes(value: string): string {
   return value.replaceAll("\"", "\\\"");
+}
+
+function normalizePymolLabelText(text: string, selection: unknown): string {
+  const trimmed = text.trim();
+  if (!isBarePymolPlaceholderLabel(trimmed)) {
+    return trimmed;
+  }
+  return inferPlainLabelText(selection) ?? "label";
+}
+
+function isBarePymolPlaceholderLabel(value: string): boolean {
+  return /^%[A-Za-z]$/.test(value);
+}
+
+function inferPlainLabelText(selection: unknown): string | null {
+  if (typeof selection === "string") {
+    const atomMatch = /\bname\s+([A-Za-z][A-Za-z0-9]*)\b/i.exec(selection);
+    if (atomMatch?.[1]) {
+      return formatAtomLabel(atomMatch[1]);
+    }
+    if (/\bresn\s+HEM\b/i.test(selection)) {
+      return "heme";
+    }
+    return null;
+  }
+  if (!selection || typeof selection !== "object") {
+    return null;
+  }
+
+  const candidate = selection as Record<string, unknown>;
+  if (typeof candidate.atom === "string" && candidate.atom.trim()) {
+    return formatAtomLabel(candidate.atom);
+  }
+  const residueName = typeof candidate.residueName === "string" ? candidate.residueName : typeof candidate.ligand === "string" ? candidate.ligand : null;
+  if (residueName?.trim().toUpperCase() === "HEM") {
+    return "heme";
+  }
+  return null;
+}
+
+function formatAtomLabel(atom: string): string {
+  const trimmed = atom.trim();
+  if (/^[A-Za-z]{1,2}$/.test(trimmed)) {
+    return trimmed[0]!.toUpperCase() + trimmed.slice(1).toLowerCase();
+  }
+  return trimmed;
 }
 
 function buildPymolTransformCommands(
@@ -1774,7 +1871,7 @@ function inferPymolObjectTransformTarget(selection: unknown, referenceHints?: Se
     return null;
   }
 
-  const extraKeys = ["chain", "chains", "residue", "residues", "atom", "ligand", "entity", "around", "withinAngstroms", "byResidue"];
+  const extraKeys = ["chain", "chains", "residue", "residues", "residueName", "residueNames", "atom", "ligand", "entity", "around", "withinAngstroms", "byResidue"];
   const hasScopedSelection = extraKeys.some((key) => candidate[key] !== undefined);
   return hasScopedSelection ? null : objectName;
 }

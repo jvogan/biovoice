@@ -14,6 +14,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -43,6 +44,7 @@ Direct command equivalents:
 - `hide everything, all`
 - `show cartoon, af_q9h255`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -111,6 +113,7 @@ Checkpoints:
 Direct command equivalents:
 - `scene F11, recall`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`

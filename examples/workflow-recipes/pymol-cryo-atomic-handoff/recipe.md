@@ -15,6 +15,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -49,6 +50,7 @@ Direct command equivalents:
 - `util.cbc hb_cryo and polymer.protein`
 - `util.cnc hb_cryo and organic`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -74,7 +76,7 @@ Direct command equivalents:
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
 - `set mesh_width, 0.24`
-- `set surface_transparency, 0.55`
+- `set transparency, 0.55`
 - `set dash_color, teal`
 - `set dash_radius, 0.06`
 - `center hb_cryo and polymer.protein`
@@ -97,7 +99,7 @@ Checkpoints:
 
 Direct command equivalents:
 - `select heme_a, hb_cryo and resn HEM and chain A`
-- `select heme_shell, byres (hb_cryo and (heme_a) around 4)`
+- `select heme_shell, byres (hb_cryo and ((heme_a) around 4))`
 - `hide cartoon, hb_cryo and polymer.protein and not chain A`
 - `hide sticks, hb_cryo and organic and not chain A`
 - `show sticks, heme_shell or heme_a or hb_cryo and organic and chain A`
@@ -105,6 +107,7 @@ Direct command equivalents:
 - `isosurface emd_37575_surface, emd_37575, 2.4, heme_shell or heme_a, 2.5, 1, 1.8`
 - `color cyan, emd_37575_surface`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -130,7 +133,7 @@ Direct command equivalents:
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
 - `set mesh_width, 0.24`
-- `set surface_transparency, 0.55`
+- `set transparency, 0.55`
 - `set dash_color, teal`
 - `set dash_radius, 0.06`
 - `set transparency, 0.72, emd_37575_surface`

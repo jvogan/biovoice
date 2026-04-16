@@ -43,6 +43,54 @@ describe("selector compilers", () => {
     ).toBe("#1 & ligand");
   });
 
+  it("treats PyMOL alphabetic residue tokens as residue names", () => {
+    expect(
+      compilePymolSelection({
+        object: "4hhb",
+        residue: "HEM",
+      }),
+    ).toBe("4hhb and resn HEM");
+
+    expect(
+      compilePymolSelection({
+        object: "4hhb",
+        chain: "A",
+        residue: "58",
+        residueName: "HEM",
+      }),
+    ).toBe("4hhb and chain A and (resi 58 or resn HEM)");
+
+    expect(
+      compilePymolSelection({
+        object: "4hhb",
+        residue: "58+HEM",
+      }),
+    ).toBe("4hhb and (resi 58 or resn HEM)");
+  });
+
+  it("combines ChimeraX residue ids and residue names into one residue clause", () => {
+    expect(
+      compileChimeraXAtomspec({
+        model: "#1",
+        chain: "A",
+        residue: "58",
+        residueName: "HEM",
+      }),
+    ).toBe("#1/A:58,HEM");
+  });
+
+  it("wraps PyMOL around selectors so nearby side-chain selections retain coordinates", () => {
+    expect(
+      compilePymolSelection({
+        object: "4hhb",
+        entity: "sidechain",
+        around: "4hhb and resn HEM",
+        withinAngstroms: 5,
+        byResidue: true,
+      }),
+    ).toBe("byres (4hhb and sidechain and ((4hhb and resn HEM) around 5))");
+  });
+
   it("supports multi-chain and multi-residue selectors for both targets", () => {
     expect(
       compilePymolSelection({

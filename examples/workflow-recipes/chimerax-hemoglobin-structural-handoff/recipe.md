@@ -27,7 +27,7 @@ Direct command equivalents:
 - `cartoon #2`
 - `color #1 bychain cartoons`
 - `color #1 & ligand byelement atoms`
-- `color #2 hot pink`
+- `color #2 hotpink`
 - `preset publication 1`
 - `graphics bgColor #FBFBF7`
 - `graphics silhouettes true color #3A3A3A width 1.6`

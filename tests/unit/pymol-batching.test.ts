@@ -55,7 +55,7 @@ describe("createPymolCommandBatches", () => {
         "distance cat_contact_a, chain A and resi 25 and name OD1, organic, 3.5, 2",
         "distance cat_contact_b, chain B and resi 25 and name OD1, organic, 3.5, 2",
         "show surface, pocket",
-        "set surface_transparency, 0.42, pocket",
+        "set transparency, 0.42, pocket",
         "bg_color gray98",
         "set antialias, 2",
         "set ambient, 0.22",
@@ -79,7 +79,7 @@ describe("createPymolCommandBatches", () => {
       [
         "show surface, polymer.protein",
         "color gray70, polymer.protein",
-        "set surface_transparency, 0.55, polymer.protein",
+        "set transparency, 0.55, polymer.protein",
         "label chain A and resi 20 and name CA, \"Chain A\"",
         "label chain B and resi 20 and name CA, \"Chain B\"",
         "label chain C and resi 20 and name CA, \"Chain C\"",

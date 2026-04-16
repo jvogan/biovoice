@@ -95,6 +95,12 @@ export const pymolActionSchema = z.discriminatedUnion("type", [
     scheme: z.enum(["by_chain", "by_element", "rainbow", "b_factor"]).optional(),
   }),
   z.object({
+    type: z.literal("cartoon"),
+    selection: selectionValueSchema.optional(),
+    style: z.enum(["automatic", "tube", "pipe", "putty", "oval", "rectangle", "loop", "arrow", "dumbbell", "skip"]).default("tube"),
+    radius: z.number().min(0.05).max(5).optional(),
+  }),
+  z.object({
     type: z.literal("camera"),
     action: z.enum(["orient", "zoom", "center", "turn", "move", "clip", "hero_frame", "pocket_frame", "comparison_frame", "map_cutaway"]),
     selection: selectionValueSchema.optional(),
@@ -207,6 +213,7 @@ export const pymolActionSchema = z.discriminatedUnion("type", [
       "comparison_hero",
       "map_hero",
       "confidence_putty",
+      "cartoon_overview",
     ]),
   }),
   z.object({
@@ -360,6 +367,7 @@ export const chimeraXActionSchema = z.discriminatedUnion("type", [
       "comparison_hero",
       "map_hero",
       "confidence_hero",
+      "cartoon_overview",
     ]),
   }),
   z.object({

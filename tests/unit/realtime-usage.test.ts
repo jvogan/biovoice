@@ -34,7 +34,7 @@ describe("realtime usage aggregation", () => {
     expect(usage.outputAudioTokens).toBe(91);
   });
 
-  it("accumulates transcription usage separately and computes a billable total", () => {
+  it("accumulates transcription usage separately and computes a discounted cost-guard total", () => {
     const responseUsage = accumulateResponseUsage(createEmptySessionUsage(), {
       total_tokens: 100,
       input_tokens: 60,
@@ -52,7 +52,7 @@ describe("realtime usage aggregation", () => {
     expect(combinedUsage.transcriptionCount).toBe(1);
     expect(combinedUsage.transcriptionInputTokens).toBe(17);
     expect(combinedUsage.transcriptionOutputTokens).toBe(9);
-    expect(getBillableTokenTotal(combinedUsage)).toBe(126);
+    expect(getBillableTokenTotal(combinedUsage)).toBe(108);
   });
 });
 
@@ -145,7 +145,7 @@ describe("session usage guardrails", () => {
 
     expect(guardState.warningActive).toBe(true);
     expect(guardState.warningReason).toBe("billable_tokens");
-    expect(guardState.warningMessage).toMatch(/approaching the per-session billable token cap/i);
+    expect(guardState.warningMessage).toMatch(/approaching the per-session cost guardrail/i);
     expect(guardState.breachReason).toBeUndefined();
   });
 

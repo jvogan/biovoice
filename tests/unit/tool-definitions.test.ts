@@ -61,9 +61,16 @@ describe("realtime tool definitions", () => {
     expect(measure.properties).toHaveProperty("selection4");
     expect(measure.properties).toHaveProperty("cutoff");
 
+    const cartoon = getActionVariant("run_pymol_actions", "pymol", "cartoon");
+    expect(cartoon.properties).toHaveProperty("style");
+    expect(cartoon.properties).toHaveProperty("radius");
+    expect(((cartoon.properties as Record<string, unknown>).style as { enum: string[] }).enum).toEqual(
+      expect.arrayContaining(["tube", "pipe", "putty"]),
+    );
+
     const preset = getActionVariant("run_pymol_actions", "pymol", "preset");
     expect(((preset.properties as Record<string, unknown>).name as { enum: string[] }).enum).toEqual(
-      expect.arrayContaining(["pocket_hero", "comparison_hero", "map_hero", "confidence_putty"]),
+      expect.arrayContaining(["pocket_hero", "comparison_hero", "map_hero", "confidence_putty", "cartoon_overview"]),
     );
 
     const symmetry = getActionVariant("run_pymol_actions", "pymol", "symmetry");
@@ -117,6 +124,11 @@ describe("realtime tool definitions", () => {
     expect(volume.properties).toHaveProperty("resolution");
     expect(volume.properties).toHaveProperty("level");
     expect(volume.properties).toHaveProperty("transparency");
+
+    const preset = getActionVariant("run_chimerax_actions", "chimerax", "preset");
+    expect(((preset.properties as Record<string, unknown>).name as { enum: string[] }).enum).toEqual(
+      expect.arrayContaining(["comparison_hero", "confidence_hero", "cartoon_overview"]),
+    );
   });
 
   it("exposes ChimeraX measurement, view, and lighting controls", () => {
@@ -255,7 +267,11 @@ describe("realtime tool definitions", () => {
     const chimeraStructured = chimeraSelectionSchema.oneOf.find((candidate) => candidate.properties)?.properties ?? {};
 
     expect(pymolStructured).toHaveProperty("reference");
+    expect(pymolStructured).toHaveProperty("residueName");
+    expect(pymolStructured).toHaveProperty("ligand");
     expect(chimeraStructured).toHaveProperty("reference");
+    expect(chimeraStructured).toHaveProperty("residueName");
+    expect(chimeraStructured).toHaveProperty("ligand");
   });
 
   it("keeps structure loading limited to approved sources", () => {

@@ -15,6 +15,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -53,6 +54,7 @@ Direct command equivalents:
 - `color hotpink, hb_af_alpha and polymer.protein`
 - `set cartoon_transparency, 0.55, hb_exp and polymer.protein and not chain A`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -123,8 +125,8 @@ Checkpoints:
 - Scene F17 stores the exploded comparison view.
 
 Direct command equivalents:
-- `translate [18,0,0], all, -1, 1`
-- `rotate y, 24, all, -1, 1`
+- `translate [18,0,0], object=hb_af_alpha, camera=1`
+- `rotate y, 24, object=hb_af_alpha, camera=1`
 - `center hb_exp and chain A or hb_af_alpha or organic`
 - `orient hb_exp and chain A or hb_af_alpha or organic`
 - `turn y, 12`
@@ -145,6 +147,7 @@ Checkpoints:
 Direct command equivalents:
 - `scene F17, recall`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`

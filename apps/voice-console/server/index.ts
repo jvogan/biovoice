@@ -48,17 +48,21 @@ function buildSessionAccessCookieName(sessionId: string): string {
 }
 
 async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax"): Promise<string | undefined> {
+  const defaultContext = buildDefaultDemoAssetInstructionContext(target);
   const raw = await fs.readFile(managedAgentStatePath, "utf8").catch(() => null);
   if (!raw) {
-    return undefined;
+    return defaultContext;
   }
 
   const parsed = JSON.parse(raw) as ManagedAgentState;
-  if (parsed.target !== target || !parsed.scientificInputs) {
-    return undefined;
+  if (parsed.target !== target) {
+    return defaultContext;
   }
 
-  const context: string[] = [];
+  const context: string[] = [defaultContext];
+  if (!parsed.scientificInputs) {
+    return context.join(" ");
+  }
   if (parsed.workflowId) {
     context.push(`Pinned workflow ${parsed.workflowId}.`);
   }
@@ -104,6 +108,18 @@ async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax")
   }
   context.push("When the operator says local AlphaFold or local experimental model, prefer these pinned local inputs instead of web search.");
   return context.join(" ");
+}
+
+function buildDefaultDemoAssetInstructionContext(target: "pymol" | "chimerax"): string {
+  const loadVerb = target === "pymol" ? "load" : "open";
+  return [
+    "Default local demo assets are available; do not ask the operator for full file paths for these built-in assets.",
+    `For 4HHB or the local hemoglobin tetramer, ${loadVerb} source local with id 4hhb; the local action adapter resolves the safe repo-local file path.`,
+    `For the local AlphaFold hemoglobin alpha chain, ${loadVerb} source local with id P69905; the local action adapter resolves the safe repo-local file path.`,
+    target === "pymol"
+      ? "In PyMOL, use object 4hhb for a plain tetramer load, or hb_exp plus hb_af_alpha for the AlphaFold overlay demo."
+      : "In ChimeraX, keep the 4HHB model first and the AlphaFold alpha-chain model second for overlay demos.",
+  ].join(" ");
 }
 
 function normalizeOrigin(value: string): string | null {
@@ -344,7 +360,7 @@ const realtimeOpenMicIdleDisconnectSeconds = readNonNegativeInteger(process.env.
 const realtimeMaxSessionMinutes = readPositiveInteger(process.env.REALTIME_MAX_SESSION_MINUTES, 25);
 const realtimeMaxResponsesPerSession = readPositiveInteger(process.env.REALTIME_MAX_RESPONSES_PER_SESSION, 18);
 const realtimeMaxTranscriptionsPerSession = readPositiveInteger(process.env.REALTIME_MAX_TRANSCRIPTIONS_PER_SESSION, 36);
-const realtimeMaxBillableTokensPerSession = readPositiveInteger(process.env.REALTIME_MAX_BILLABLE_TOKENS_PER_SESSION, 24000);
+const realtimeMaxBillableTokensPerSession = readPositiveInteger(process.env.REALTIME_MAX_BILLABLE_TOKENS_PER_SESSION, 120000);
 const realtimeMaxActiveSessions = readPositiveInteger(process.env.REALTIME_MAX_ACTIVE_SESSIONS, 2);
 const realtimeUsageWarningRatio = readUnitInterval(process.env.REALTIME_USAGE_WARNING_RATIO, 0.8, 0.5, 0.95);
 const realtimeTracing = process.env.REALTIME_TRACING === "false" ? null : "auto";

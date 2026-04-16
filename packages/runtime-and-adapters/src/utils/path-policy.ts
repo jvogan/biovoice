@@ -86,6 +86,20 @@ export function ensureAllowedStructureInputPath(candidate: string, label = "Stru
   return resolved;
 }
 
+export function resolveLocalStructureInputPath(
+  explicitPath: string | undefined,
+  identifiers: Array<string | undefined>,
+  fallbackStem = "structure",
+): string {
+  if (explicitPath?.trim()) {
+    return ensureAllowedStructureInputPath(explicitPath);
+  }
+
+  const candidates = buildLocalStructureCandidates(identifiers, fallbackStem);
+  const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  return ensureAllowedStructureInputPath(existing ?? candidates[0] ?? path.join(localDataDir, `${fallbackStem}.cif`));
+}
+
 export function ensureAllowedExportPath(candidate: string): string {
   const resolved = resolvePolicyPath(candidate);
   assertSafeCommandPath(resolved, "Export path");
@@ -110,4 +124,54 @@ function assertSafeCommandPath(value: string, label: string): void {
   if (DISALLOWED_COMMAND_PATH_CHARS.test(value)) {
     throw new Error(`${label} contains unsupported control characters.`);
   }
+}
+
+function buildLocalStructureCandidates(identifiers: Array<string | undefined>, fallbackStem: string): string[] {
+  const stems = new Set<string>();
+  for (const identifier of identifiers) {
+    for (const stem of expandStructureIdentifier(identifier)) {
+      stems.add(stem);
+    }
+  }
+  if (!stems.size) {
+    for (const stem of expandStructureIdentifier(fallbackStem)) {
+      stems.add(stem);
+    }
+  }
+
+  const candidates: string[] = [];
+  const extensions = ["cif", "pdb", "mmcif", "map", "mrc", "ccp4"];
+  for (const stem of stems) {
+    candidates.push(path.join(localDataDir, stem));
+    if (!/\.[A-Za-z0-9]+$/.test(stem)) {
+      for (const extension of extensions) {
+        candidates.push(path.join(localDataDir, `${stem}.${extension}`));
+      }
+    }
+  }
+
+  return Array.from(new Set(candidates));
+}
+
+function expandStructureIdentifier(identifier: string | undefined): string[] {
+  const trimmed = identifier?.trim();
+  if (!trimmed) {
+    return [];
+  }
+
+  const basename = path.basename(trimmed, path.extname(trimmed));
+  const rawTerms = [
+    trimmed,
+    basename,
+    basename.toLowerCase(),
+    basename.replaceAll("_", "-"),
+    basename.replaceAll("-", "_"),
+    basename.toLowerCase().replaceAll("_", "-"),
+    basename.toLowerCase().replaceAll("-", "_"),
+  ];
+  if (!/^af[-_]/i.test(basename) && /^[A-Za-z0-9]+$/.test(basename)) {
+    rawTerms.push(`af-${basename.toLowerCase()}`, `af_${basename.toLowerCase()}`);
+  }
+
+  return Array.from(new Set(rawTerms.map((term) => term.replace(/[^A-Za-z0-9_.-]+/g, "_").replace(/^_+|_+$/g, "")).filter(Boolean)));
 }

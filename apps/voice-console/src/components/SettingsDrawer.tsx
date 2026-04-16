@@ -160,7 +160,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                       <StatCard label="Responses" value={String(guardrails.maxResponsesPerSession)} />
                       <StatCard label="Transcriptions" value={String(guardrails.maxTranscriptionsPerSession)} />
                       <StatCard
-                        label="Billable Tokens"
+                        label="Local Cost Guard"
                         value={guardrails.maxBillableTokensPerSession.toLocaleString()}
                       />
                       <StatCard
@@ -169,7 +169,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                       />
                     </div>
                     <p className="mt-3 text-sm text-zinc-500 dark:text-zinc-400 leading-relaxed">
-                      Guardrails warn at {Math.round(guardrails.warningRatio * 100)}% of the configured session caps, disconnect the session if it crosses a limit, and refuse to open more than {guardrails.maxActiveSessions} Realtime session{guardrails.maxActiveSessions === 1 ? "" : "s"} at once.
+                      Guardrails warn at {Math.round(guardrails.warningRatio * 100)}% of the configured local session caps, disconnect the session if it crosses one of those app-level limits, and refuse to open more than {guardrails.maxActiveSessions} Realtime session{guardrails.maxActiveSessions === 1 ? "" : "s"} at once. These caps are separate from OpenAI account rate limits.
                     </p>
                   </div>
                 </div>

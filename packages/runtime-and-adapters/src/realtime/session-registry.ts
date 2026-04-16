@@ -1793,8 +1793,8 @@ export class RealtimeSessionRegistry {
   private buildTranscriptionPrompt(target: TargetKind, sampleIds: string[] = []): string {
     const targetTerms =
       target === "pymol"
-        ? "PyMOL, cealign, super, isomesh, isosurface, ray trace, cartoon, sticks, surface, polar contacts, angle, dihedral, translate, rotate, pocket hero, comparison hero"
-        : "ChimeraX, matchmaker, orthoplanes, hbonds, clashes, contacts, volume, silhouette, torsion, move, turn, view name, presentation light, map hero";
+        ? "PyMOL, cealign, super, isomesh, isosurface, ray trace, cartoon, cartoon only, cartoon overview, cartoon tube, cartoon pipe, cartoon putty, sticks, surface, polar contacts, angle, dihedral, translate, rotate, pocket hero, comparison hero"
+        : "ChimeraX, matchmaker, orthoplanes, hbonds, clashes, contacts, volume, silhouette, cartoon only, cartoon overview, cartoon style, cartoon tube, cartoon pipe, torsion, move, turn, view name, presentation light, map hero";
     const structureTerms = [
       "protein structure visualization",
       "PDB",

@@ -5,7 +5,9 @@ import { afterEach, describe, expect, it } from "vitest";
 import {
   ensureAllowedExportPath,
   ensureAllowedStructureInputPath,
+  resolveLocalStructureInputPath,
 } from "../../packages/runtime-and-adapters/src/utils/path-policy.js";
+import { resolveFromRoot } from "../../packages/runtime-and-adapters/src/utils/paths.js";
 
 describe("path policy", () => {
   afterEach(() => {
@@ -62,6 +64,24 @@ describe("path policy", () => {
 
     try {
       expect(() => ensureAllowedStructureInputPath(riskyFile)).toThrow(/unsupported control characters/i);
+    } finally {
+      await fs.rm(tempDir, { recursive: true, force: true });
+    }
+  });
+
+  it("resolves built-in local structures from common id variants", () => {
+    expect(resolveLocalStructureInputPath(undefined, ["4HHB"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "4hhb.pdb"));
+    expect(resolveLocalStructureInputPath(undefined, ["P69905"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "af-p69905.pdb"));
+    expect(resolveLocalStructureInputPath(undefined, ["af_p69905"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "af-p69905.pdb"));
+  });
+
+  it("still validates explicit local structure paths through the allowed-root policy", async () => {
+    const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "rt-protein-local-explicit-"));
+    const outsideFile = path.join(tempDir, "outside.pdb");
+    await fs.writeFile(outsideFile, "ATOM\n", "utf8");
+
+    try {
+      expect(() => resolveLocalStructureInputPath(outsideFile, ["4hhb"], "structure")).toThrow(/outside the allowed roots/i);
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
     }

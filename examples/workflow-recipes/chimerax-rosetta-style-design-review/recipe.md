@@ -23,8 +23,8 @@ Direct command equivalents:
 - `open "./examples/data/local/1ake.pdb"`
 - `cartoon sel`
 - `cartoon sel`
-- `color sel slate gray`
-- `color sel hot pink`
+- `color sel slate`
+- `color sel hotpink`
 - `preset publication 1`
 - `graphics bgColor #FBFBF7`
 - `graphics silhouettes true color #3A3A3A width 1.6`
@@ -57,7 +57,7 @@ Direct command equivalents:
 - `matchmaker sel to sel`
 - `style :118-160 stick`
 - `style :118-160 stick`
-- `color :118-160 hot pink`
+- `color :118-160 hotpink`
 - `color :118-160 deepskyblue`
 - `distance :136@CA :136@CA`
 - `view #1:118-160 | #2:118-160 orient`

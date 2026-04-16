@@ -14,6 +14,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -49,6 +50,7 @@ Direct command equivalents:
 - `util.cbc polymer.protein`
 - `util.cnc organic`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`

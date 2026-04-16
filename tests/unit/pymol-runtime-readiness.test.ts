@@ -100,7 +100,7 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     expect(createPymolCommandBatches(
       [
         "show surface, pocket",
-        "set surface_transparency, 0.42, pocket",
+        "set transparency, 0.42, pocket",
         "bg_color gray98",
       ],
       8_000,

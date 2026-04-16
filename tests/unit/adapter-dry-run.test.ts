@@ -53,6 +53,7 @@ describe("adapter dry-run compilation", () => {
       "reinitialize",
       "scene *, clear",
       "bg_color gray99",
+      "set auto_zoom, 0",
     ]));
     expect(chimeraxResult.commandsExecuted).toEqual(expect.arrayContaining([
       "close all",
@@ -158,6 +159,35 @@ describe("adapter dry-run compilation", () => {
     ]));
   });
 
+  it("resolves built-in local demo structures from ids without requiring full paths", async () => {
+    const pymol = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+    const chimerax = new ChimeraXAdapter({
+      port: 60958,
+      timeoutMs: 30_000,
+      autolaunch: false,
+    });
+
+    const pymol4Hhb = await pymol.execute([
+      { type: "load", source: "local", id: "4hhb", object: "4hhb" },
+    ], true);
+    const pymolAlphaFold = await pymol.execute([
+      { type: "load", source: "local", id: "P69905", object: "af_p69905" },
+    ], true);
+    const chimera4Hhb = await chimerax.execute([
+      { type: "open", source: "local", id: "4hhb" },
+    ], true);
+
+    expect(pymol4Hhb.commandsExecuted).toContain(`load "${resolveFromRoot("examples", "data", "local", "4hhb.pdb")}", 4hhb`);
+    expect(pymolAlphaFold.commandsExecuted).toContain(`load "${resolveFromRoot("examples", "data", "local", "af-p69905.pdb")}", af_p69905`);
+    expect(chimera4Hhb.commandsExecuted).toContain(`open "${resolveFromRoot("examples", "data", "local", "4hhb.pdb")}"`);
+  });
+
   it("rejects PyMOL align actions that resolve to the same selection", async () => {
     const adapter = new PymolAdapter({
       baseUrl: "http://127.0.0.1",
@@ -170,6 +200,171 @@ describe("adapter dry-run compilation", () => {
     await expect(adapter.execute([
       { type: "align", method: "super", mobile: "all", target: "all" },
     ], true)).rejects.toThrow(/distinct mobile and target selections/i);
+  });
+
+  it("compiles PyMOL heme close-ups to residue-name selectors", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "camera", action: "zoom", selection: { object: "4hhb", residue: "HEM" }, buffer: 6 },
+    ], true);
+
+    expect(result.commandsExecuted).toContain("zoom 4hhb and resn HEM, 6");
+  });
+
+  it("normalizes natural grayscale color phrases for PyMOL", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "color", color: "light grray", selection: "4hhb and chain A" },
+      { type: "surface", color: "dark grey", selection: "4hhb and chain B", transparency: 0.45 },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      "color gray80, 4hhb and chain A",
+      "set surface_color, gray40, 4hhb and chain B",
+      "set transparency, 0.45, 4hhb and chain B",
+    ]));
+  });
+
+  it("uses the AlphaFold-style palette for PyMOL b-factor confidence coloring", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "color", scheme: "b_factor", selection: "hb_af_alpha" },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual([
+      "spectrum b, red_yellow_green_cyan_blue, hb_af_alpha",
+    ]);
+  });
+
+  it("compiles PyMOL cartoon pipe requests to tube cartoon commands", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "cartoon", style: "pipe", radius: 0.6, selection: "hb_af_alpha and chain A" },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual([
+      "show cartoon, hb_af_alpha and chain A",
+      "cartoon tube, hb_af_alpha and chain A",
+      "set cartoon_tube_radius, 0.6, hb_af_alpha and chain A",
+    ]);
+  });
+
+  it("compiles a PyMOL clean cartoon overview without losing cofactors", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "preset", name: "cartoon_overview" },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual([
+      "hide everything, polymer.protein",
+      "show cartoon, polymer.protein",
+      "show sticks, organic",
+      "show spheres, inorganic",
+    ]);
+  });
+
+  it("compiles PyMOL nearby side-chain requests as proximity selectors around heme", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const selection = {
+      object: "4hhb",
+      entity: "sidechain" as const,
+      around: "4hhb and resn HEM",
+      withinAngstroms: 5,
+      byResidue: true,
+    };
+    const result = await adapter.execute([
+      { type: "show", representations: ["sticks"], selection },
+      { type: "color", color: "green", selection },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      "show sticks, byres (4hhb and sidechain and ((4hhb and resn HEM) around 5))",
+      "color green, byres (4hhb and sidechain and ((4hhb and resn HEM) around 5))",
+    ]));
+  });
+
+  it("normalizes placeholder-style PyMOL label text into plain labels", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "label", action: "show", selection: "4hhb and resn HEM and name FE", text: "%S" },
+      { type: "label", action: "show", selection: { object: "4hhb", ligand: "HEM", atom: "FE" }, text: "%S" },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual([
+      "label 4hhb and resn HEM and name FE, \"Fe\"",
+      "label 4hhb and resn HEM and name FE, \"Fe\"",
+    ]);
+  });
+
+  it("keeps PyMOL label styling settings global even when a selection is provided", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "setting", name: "label_size", value: 26, selection: "4hhb and resn HEM and name FE" },
+      { type: "setting", name: "label_outline_color", value: "white", selection: "4hhb and resn HEM and name FE" },
+      { type: "setting", name: "transparency", value: 0.5, selection: "4hhb and chain A" },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual([
+      "set label_size, 26",
+      "set label_outline_color, white",
+      "set transparency, 0.5, 4hhb and chain A",
+    ]);
   });
 
   it("compiles ChimeraX actions without requiring a live REST endpoint", async () => {
@@ -207,12 +402,34 @@ describe("adapter dry-run compilation", () => {
     const result = await adapter.execute([
       { type: "color", color: "gray70", selection: "#1" },
       { type: "color", color: "grey85", selection: "#2" },
+      { type: "color", color: "light grray", selection: "#3" },
     ], true);
 
     expect(result.commandsExecuted).toEqual(expect.arrayContaining([
       "color #1 #B3B3B3",
       "color #2 #D9D9D9",
+      "color #3 #CCCCCC",
     ]));
+  });
+
+  it("compiles a ChimeraX clean cartoon overview without losing ligands", async () => {
+    const adapter = new ChimeraXAdapter({
+      port: 60958,
+      timeoutMs: 30_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "preset", name: "cartoon_overview" },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual([
+      "hide protein atoms",
+      "hide protein surfaces",
+      "cartoon protein",
+      "style ligand stick",
+      "show ligand atoms",
+    ]);
   });
 
   it("compiles ChimeraX molmap actions into valid molmap plus rename commands", async () => {

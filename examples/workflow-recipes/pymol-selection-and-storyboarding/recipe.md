@@ -13,6 +13,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -42,7 +43,7 @@ Direct command equivalents:
 - `select chain_a, chain A`
 - `select chain_b, chain B`
 - `select catalytic, resi 25+26+27 and (chain A or chain B)`
-- `select ligand_shell, byres (all and (organic) around 5)`
+- `select ligand_shell, byres (all and ((organic) around 5))`
 
 ## Step 2: Step through the selections and store scenes.
 
@@ -87,6 +88,7 @@ Checkpoints:
 Direct command equivalents:
 - `scene F9, recall`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -114,9 +116,9 @@ Direct command equivalents:
 - `set stick_radius, 0.2`
 - `set dash_radius, 0.06`
 - `set dash_gap, 0.16`
-- `set surface_transparency, 0.5`
+- `set transparency, 0.5`
 - `set label_size, 20`
-- `set surface_transparency, 0.42`
+- `set transparency, 0.42`
 - `set mesh_width, 0.35`
 - `set label_outline_color, gray98`
 - `png "./output/doc-exports/pymol-selection-and-storyboarding-export-storyboard.png", width=2000, height=1400, dpi=350, ray=1`

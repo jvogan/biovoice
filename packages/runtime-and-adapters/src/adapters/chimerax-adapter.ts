@@ -4,8 +4,8 @@ import path from "node:path";
 import { spawn } from "node:child_process";
 import { actionResultSchema, type ActionResult, type ChimeraXAction } from "../schemas/index.js";
 import { CommandQueue } from "../utils/command-queue.js";
-import { localDataDir } from "../utils/paths.js";
-import { defaultExportPath, ensureAllowedExportPath, ensureAllowedStructureInputPath, quoteCommandValue } from "../utils/path-policy.js";
+import { normalizeChimeraXColorSpec } from "../utils/colors.js";
+import { defaultExportPath, ensureAllowedExportPath, quoteCommandValue, resolveLocalStructureInputPath } from "../utils/path-policy.js";
 import { withProcessLock } from "../utils/process-lock.js";
 import { compileChimeraXAtomspec, selectorUsesReference, type SelectorReferenceMap } from "../utils/selectors.js";
 import { buildChimeraXReferenceSummary, type ReferenceHint, type SceneAnnotation } from "../utils/semantic-handles.js";
@@ -43,8 +43,6 @@ interface ChimeraXCommandBatch {
 interface ChimeraXCompileContext {
   nextGeneratedModelId: number;
 }
-
-const CHIMERAX_GRAY_PERCENT_RE = /^gr(?:a|e)y(\d{1,3})$/i;
 
 export class ChimeraXAdapter {
   private readonly queue = new CommandQueue();
@@ -134,9 +132,7 @@ export class ChimeraXAdapter {
           this.clearTransientSceneState();
         }
         const baseUrl = dryRun ? null : await this.ensureReady();
-        const referenceHints = dryRun
-          ? this.mergeReferenceHints(this.lastReferenceHints)
-          : await this.resolveReferenceHintsForActions(preparedActions, baseUrl!);
+        const referenceHints = await this.resolveReferenceHintsForActions(preparedActions, baseUrl);
         validateChimeraXMeasurementSelectors(preparedActions, referenceHints, this.lastChainsByModel);
         const compileContext = {
           nextGeneratedModelId: dryRun ? 1 : await this.getNextAvailableModelId(baseUrl!),
@@ -440,19 +436,17 @@ export class ChimeraXAdapter {
     return (modelIds.length ? Math.max(...modelIds) : 0) + 1;
   }
 
-  private async resolveReferenceHintsForActions(actions: ChimeraXAction[], baseUrl: string): Promise<SelectorReferenceMap> {
+  private async resolveReferenceHintsForActions(actions: ChimeraXAction[], baseUrl: string | null): Promise<SelectorReferenceMap> {
     this.registerActionAnnotations(actions);
-
-    if (!actions.some((action) => selectorUsesReference(action))) {
-      return this.lastReferenceHints;
-    }
 
     const openActions = actions.filter((action): action is Extract<ChimeraXAction, { type: "open" }> => action.type === "open");
     const resetsScene = actions.some((action) => action.type === "reset_workspace" || (action.type === "close" && action.target === "all"));
     const nextModelId = openActions.length
       ? resetsScene
         ? 1
-        : await this.getNextAvailableModelId(baseUrl)
+        : baseUrl
+        ? await this.getNextAvailableModelId(baseUrl)
+        : 1
       : 1;
     const predictedHints = openActions.length
       ? buildChimeraXReferenceSummary({
@@ -467,10 +461,25 @@ export class ChimeraXAdapter {
         }).handles
       : {};
     if (Object.keys(predictedHints).length) {
-      return this.mergeReferenceHints(predictedHints);
+      this.lastReferenceHints = {
+        ...this.lastReferenceHints,
+        ...predictedHints,
+      };
+    }
+
+    if (!actions.some((action) => selectorUsesReference(action))) {
+      return this.mergeReferenceHints(this.lastReferenceHints);
+    }
+
+    if (Object.keys(predictedHints).length) {
+      return this.mergeReferenceHints(this.lastReferenceHints);
     }
 
     if (Object.keys(this.lastReferenceHints).length) {
+      return this.mergeReferenceHints(this.lastReferenceHints);
+    }
+
+    if (!baseUrl) {
       return this.mergeReferenceHints(this.lastReferenceHints);
     }
 
@@ -550,7 +559,7 @@ function compileChimeraXAction(
       if (action.source === "pdb") return [`open ${action.id}`];
       if (action.source === "alphafold") return [`alphafold fetch ${action.id}`];
       if (action.source === "local") {
-        const localPath = ensureAllowedStructureInputPath(action.path ?? path.join(localDataDir, `${action.id ?? "structure"}.cif`));
+        const localPath = resolveLocalStructureInputPath(action.path, [action.id], action.id ?? "structure");
         return [`open ${quoteCommandValue(localPath)}`];
       }
       throw new Error(`Unsupported ChimeraX open source: ${action.source}`);
@@ -724,6 +733,15 @@ function compileChimeraXAction(
       return [`cartoon style${selection ? ` ${selection}` : ""}${options ? ` ${options}` : ""}`.trim()];
     }
     case "preset":
+      if (action.name === "cartoon_overview") {
+        return [
+          "hide protein atoms",
+          "hide protein surfaces",
+          "cartoon protein",
+          "style ligand stick",
+          "show ligand atoms",
+        ];
+      }
       if (action.name === "publication") return ["preset publication 1"];
       if (action.name === "interactive") return ["preset interactive 1"];
       if (action.name === "presentation_light") {
@@ -820,23 +838,6 @@ function compileChimeraXAction(
   throw new Error(`Unsupported ChimeraX action: ${JSON.stringify(action)}`);
 }
 
-function normalizeChimeraXColorSpec(color: string): string {
-  const trimmed = color.trim();
-  const match = CHIMERAX_GRAY_PERCENT_RE.exec(trimmed);
-  if (!match) {
-    return trimmed;
-  }
-  const percent = Number(match[1]);
-  if (!Number.isFinite(percent) || percent < 0 || percent > 100) {
-    return trimmed;
-  }
-  const channel = Math.round((percent / 100) * 255)
-    .toString(16)
-    .padStart(2, "0")
-    .toUpperCase();
-  return `#${channel}${channel}${channel}`;
-}
-
 function escapeDoubleQuotes(value: string): string {
   return value.replaceAll("\"", "\\\"");
 }
@@ -876,7 +877,7 @@ function resolveChimeraXTransformTarget(
       : typeof candidate.object === "string"
       ? candidate.object
       : "";
-    const extraKeys = ["chain", "chains", "residue", "residues", "atom", "ligand", "entity", "around", "withinAngstroms", "byResidue"];
+    const extraKeys = ["chain", "chains", "residue", "residues", "residueName", "residueNames", "atom", "ligand", "entity", "around", "withinAngstroms", "byResidue"];
     const hasScopedSelection = extraKeys.some((key) => candidate[key] !== undefined);
     if (modelName && !hasScopedSelection) {
       return {

@@ -13,6 +13,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -54,7 +55,7 @@ Checkpoints:
 - The Lys48 neighborhood is highlighted and the contour is clipped.
 
 Direct command equivalents:
-- `select lys48_shell, byres (resi 48 and (1ubq and resi 48) around 6)`
+- `select lys48_shell, byres (resi 48 and ((1ubq and resi 48) around 6))`
 - `show sticks, lys48_shell`
 - `center lys48_shell`
 - `orient lys48_shell`
@@ -76,6 +77,7 @@ Direct command equivalents:
 - `scene F4, store, Overview with synthetic map`
 - `scene F5, store, Lys48 map close-up`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -101,7 +103,7 @@ Direct command equivalents:
 - `set dash_radius, 0.05`
 - `set dash_gap, 0.18`
 - `set mesh_width, 0.24`
-- `set surface_transparency, 0.55`
+- `set transparency, 0.55`
 - `set dash_color, teal`
 - `set dash_radius, 0.06`
 - `set mesh_width, 0.4`

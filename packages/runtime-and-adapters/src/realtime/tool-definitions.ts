@@ -1,7 +1,9 @@
 import type { TargetKind } from "../schemas/index.js";
 
 const sharedSelectorHints = [
-  "Prefer selections grounded in the current active object, chain, residue range, ligand, or named selection.",
+  "Prefer selections grounded in the current active object, chain, numeric residue range, ligand/cofactor residue name, or named selection.",
+  "Use residue only for residue IDs or ranges such as 58 or 58-87. For named cofactors or residue names such as HEM, ATP, NAD, or HIS, use ligand or residueName instead.",
+  "For nearby residues or side chains, use around plus withinAngstroms, for example { object: \"4hhb\", entity: \"sidechain\", around: \"4hhb and resn HEM\", withinAngstroms: 5, byResidue: true }. Do not use byResidue with only HEM when the user asked for nearby side chains.",
   "When get_target_state returns referenceHints, prefer a selector object with reference, for example { reference: \"predictedModel\" }, or copy the returned concrete selector instead of inventing object names.",
   "If the user refers to 'this' or 'that', assume the most recently focused selection only when there is a single clear candidate.",
   "Batch several related actions into one tool call when the user asks for a sequence of visual changes.",
@@ -21,17 +23,24 @@ const selectorObjectSchema = {
       minItems: 1,
       maxItems: 24,
     },
-    residue: { type: "string" },
+    residue: { type: "string", description: "Numeric residue ID or range only, for example 58, 58-87, or 100A. Do not put ligand/cofactor names here." },
     residues: {
       type: "array",
       items: { type: "string" },
       minItems: 1,
       maxItems: 64,
     },
+    residueName: { type: "string", description: "Residue name or cofactor code, for example HEM, ATP, NAD, or HIS." },
+    residueNames: {
+      type: "array",
+      items: { type: "string" },
+      minItems: 1,
+      maxItems: 24,
+    },
     atom: { type: "string" },
-    ligand: { type: "string" },
+    ligand: { type: "string", description: "Ligand or cofactor residue name, for example HEM. Prefer this for heme/cofactor requests." },
     entity: { type: "string", enum: ["protein", "nucleic", "polymer", "organic", "solvent", "ions", "backbone", "sidechain"] },
-    around: { type: "string" },
+    around: { type: "string", description: "Selection to search around for proximity requests, for example '4hhb and resn HEM'. Pair with withinAngstroms." },
     withinAngstroms: { type: "number", minimum: 0.5, maximum: 50 },
     byResidue: { type: "boolean" },
   },
@@ -181,6 +190,7 @@ const pymolActionSchemas = [
   variantSchema("show", {
     representations: {
       type: "array",
+      description: "Adds representations without hiding existing ones. For switch-to-cartoon or cartoon-only requests, prefer preset cartoon_overview or pair hide everything on polymer.protein with show cartoon.",
       minItems: 1,
       maxItems: 5,
       items: { type: "string", enum: ["cartoon", "sticks", "spheres", "surface", "mesh", "lines", "ribbon", "dots"] },
@@ -190,6 +200,7 @@ const pymolActionSchemas = [
   variantSchema("hide", {
     representations: {
       type: "array",
+      description: "Use everything on polymer.protein before show cartoon when the user asks for a cartoon-only protein view.",
       minItems: 1,
       maxItems: 5,
       items: { type: "string", enum: ["cartoon", "sticks", "spheres", "surface", "mesh", "lines", "ribbon", "everything"] },
@@ -198,8 +209,17 @@ const pymolActionSchemas = [
   }, ["representations"]),
   variantSchema("color", {
     selection: selectorSchema,
-    color: { type: "string" },
-    scheme: { type: "string", enum: ["by_chain", "by_element", "rainbow", "b_factor"] },
+    color: { type: "string", description: "Use compact PyMOL-safe color tokens. Prefer gray80 for light gray, gray60 for medium gray, and gray40 for dark gray." },
+    scheme: { type: "string", enum: ["by_chain", "by_element", "rainbow", "b_factor"], description: "Use b_factor for AlphaFold confidence in PyMOL; it renders with the AlphaFold-style red-yellow-green-cyan-blue palette." },
+  }),
+  variantSchema("cartoon", {
+    selection: selectorSchema,
+    style: {
+      type: "string",
+      enum: ["automatic", "tube", "pipe", "putty", "oval", "rectangle", "loop", "arrow", "dumbbell", "skip"],
+      description: "Use tube or pipe when the user asks for a cartoon pipe, tube, thick cartoon, or cylindrical chain.",
+    },
+    radius: { type: "number", minimum: 0.05, maximum: 5, description: "Optional tube/putty radius. For a visible pipe-style cartoon, use about 0.45 to 0.7." },
   }),
   variantSchema("camera", {
     action: { type: "string", enum: ["orient", "zoom", "center", "turn", "move", "clip", "hero_frame", "pocket_frame", "comparison_frame", "map_cutaway"] },
@@ -244,7 +264,7 @@ const pymolActionSchemas = [
   variantSchema("label", {
     action: { type: "string", enum: ["show", "clear"] },
     selection: selectorSchema,
-    text: { type: "string" },
+    text: { type: "string", description: "Literal label text. Use explicit text such as Fe, Heme, or Chain A. Do not use PyMOL printf placeholders such as %S." },
   }, ["selection"]),
   variantSchema("align", {
     method: { type: "string", enum: ["align", "super", "cealign"] },
@@ -254,7 +274,7 @@ const pymolActionSchemas = [
   variantSchema("surface", {
     selection: selectorSchema,
     transparency: { type: "number", minimum: 0, maximum: 1 },
-    color: { type: "string" },
+    color: { type: "string", description: "Surface-only color. Use compact PyMOL-safe tokens such as gray80, gray60, gray40, cyan, hotpink, or tv_orange. Do not add a separate color action unless the user wants atom/cartoon colors changed too." },
   }),
   variantSchema("map", {
     selection: selectorSchema,
@@ -272,7 +292,7 @@ const pymolActionSchemas = [
     buffer: { type: "number", minimum: 0, maximum: 20 },
     level: { type: "number", minimum: -10, maximum: 10 },
     carve: { type: "number", minimum: 0, maximum: 20 },
-    color: { type: "string" },
+    color: { type: "string", description: "Use compact color tokens such as gray80, gray60, gray40, cyan, hotpink, or tv_orange." },
   }, ["mapName"]),
   variantSchema("symmetry", {
     prefix: { type: "string" },
@@ -304,6 +324,7 @@ const pymolActionSchemas = [
         "comparison_hero",
         "map_hero",
         "confidence_putty",
+        "cartoon_overview",
       ],
     },
   }, ["name"]),
@@ -359,11 +380,11 @@ const chimeraXActionSchemas = [
     zoneNear: selectorSchema,
     zoneDistance: { type: "number", minimum: 0.5, maximum: 25 },
     zoneMaxComponents: { type: "number", minimum: 1, maximum: 20 },
-    transparency: { type: "number", minimum: 0, maximum: 100 },
+    transparency: { type: "number", minimum: 0, maximum: 100, description: "Surface transparency percent when surface is true. Avoid a separate color action if the user wants existing atom/cartoon colors preserved." },
   }),
   variantSchema("color", {
     selection: selectorSchema,
-    color: { type: "string" },
+    color: { type: "string", description: "Use compact color tokens or hex values. Prefer gray80 for light gray, gray60 for medium gray, and gray40 for dark gray." },
     scheme: { type: "string", enum: ["bychain", "byelement", "bfactor", "confidence"] },
   }),
   variantSchema("camera", {
@@ -398,7 +419,7 @@ const chimeraXActionSchemas = [
   variantSchema("label", {
     action: { type: "string", enum: ["show", "clear"] },
     selection: selectorSchema,
-    text: { type: "string" },
+    text: { type: "string", description: "Literal label text. Use explicit text such as Fe, Heme, or Chain A. Do not use command-language placeholders such as %S." },
   }, ["selection"]),
   variantSchema("contacts", {
     mode: { type: "string", enum: ["hbonds", "clashes", "contacts", "alphafold_contacts"] },
@@ -448,6 +469,7 @@ const chimeraXActionSchemas = [
         "comparison_hero",
         "map_hero",
         "confidence_hero",
+        "cartoon_overview",
       ],
     },
   }, ["name"]),

@@ -122,7 +122,7 @@ export function App() {
     maxSessionMinutes: 25,
     maxResponsesPerSession: 18,
     maxTranscriptionsPerSession: 36,
-    maxBillableTokensPerSession: 24000,
+    maxBillableTokensPerSession: 120000,
     maxActiveSessions: 2,
     warningRatio: 0.8,
   });

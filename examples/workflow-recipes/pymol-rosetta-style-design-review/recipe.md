@@ -14,6 +14,7 @@ Direct command equivalents:
 - `reinitialize`
 - `scene *, clear`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -43,11 +44,12 @@ Direct command equivalents:
 - `delete rosetta_design_v2`
 - `load "./examples/data/local/1ake.pdb", rosetta_design_v2`
 - `hide everything, all`
-- `show cartoon, polymer.protein`
-- `show cartoon, polymer.protein`
-- `color gray80, polymer.protein`
-- `color raspberry, polymer.protein`
+- `show cartoon, wt_scaffold and polymer.protein`
+- `show cartoon, rosetta_design_v2 and polymer.protein`
+- `color gray80, wt_scaffold and polymer.protein`
+- `color raspberry, rosetta_design_v2 and polymer.protein`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`
@@ -98,12 +100,12 @@ Checkpoints:
 - Scene F19 stores the remodeled-shell close-up.
 
 Direct command equivalents:
-- `cealign polymer.protein, polymer.protein`
-- `show sticks, resi 118-160`
-- `show sticks, resi 118-160`
-- `color hotpink, resi 118-160`
-- `color deepteal, resi 118-160`
-- `distance shell_anchor, resi 136 and name CA, resi 136 and name CA`
+- `cealign rosetta_design_v2 and polymer.protein, wt_scaffold and polymer.protein`
+- `show sticks, rosetta_design_v2 and resi 118-160`
+- `show sticks, wt_scaffold and resi 118-160`
+- `color hotpink, rosetta_design_v2 and resi 118-160`
+- `color deepteal, wt_scaffold and resi 118-160`
+- `distance shell_anchor, wt_scaffold and resi 136 and name CA, rosetta_design_v2 and resi 136 and name CA`
 - `center wt_scaffold and resi 118-160 or rosetta_design_v2 and resi 118-160`
 - `orient wt_scaffold and resi 118-160 or rosetta_design_v2 and resi 118-160`
 - `turn y, 12`
@@ -123,8 +125,8 @@ Checkpoints:
 - A high-resolution design-review PNG export exists.
 
 Direct command equivalents:
-- `translate [22,0,0], all, -1, 1`
-- `rotate y, 22, all, -1, 1`
+- `translate [22,0,0], object=rosetta_design_v2, camera=1`
+- `rotate y, 22, object=rosetta_design_v2, camera=1`
 - `center wt_scaffold or rosetta_design_v2`
 - `orient wt_scaffold or rosetta_design_v2`
 - `turn y, 12`
@@ -132,6 +134,7 @@ Direct command equivalents:
 - `zoom wt_scaffold or rosetta_design_v2, 12`
 - `scene F20, store, Exploded scaffold versus design comparison`
 - `bg_color gray99`
+- `set auto_zoom, 0`
 - `set ray_opaque_background, off`
 - `set orthoscopic, on`
 - `set depth_cue, 0`

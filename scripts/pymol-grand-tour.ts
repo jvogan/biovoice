@@ -398,7 +398,7 @@ function buildGpcrAct(): Act {
         holdMs: 36_000,
         actions: [
           raw("delete gpcr_hbonds"),
-          { type: "setting", name: "surface_transparency", value: 0.72, selection: "gpcr_pocket" },
+          { type: "setting", name: "transparency", value: 0.72, selection: "gpcr_pocket" },
           { type: "hide", representations: ["sticks"], selection: "gpcr_pocket and sidechain and not resi 113+203+312" },
           { type: "camera", action: "clip", clipMode: "slab", amount: 3, selection: "gpcr_pocket" },
           { type: "camera", action: "pocket_frame", selection: "gpcr_ligand", buffer: 8 },
@@ -606,7 +606,7 @@ function buildProteaseAct(): Act {
         actions: [
           raw("delete mpro_hbonds"),
           { type: "hide", representations: ["sticks"], selection: "mpro_pocket and sidechain and not mpro_dyad" },
-          { type: "setting", name: "surface_transparency", value: 0.74, selection: "mpro_pocket" },
+          { type: "setting", name: "transparency", value: 0.74, selection: "mpro_pocket" },
           { type: "show", representations: ["sticks"], selection: "mpro_anchor and sidechain" },
           { type: "camera", action: "comparison_frame", selection: "mpro_context", buffer: 8.5 },
         ],
