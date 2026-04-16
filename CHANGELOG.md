@@ -4,6 +4,16 @@ All notable changes to BioVoice will be documented in this file.
 
 This project is currently published as a **research prototype**, so release notes emphasize public usability, verified workflows, privacy boundaries, and contributor-facing changes.
 
+## Unreleased
+
+### Added
+
+- Public release checklist covering local verification, privacy/security gates, GitHub settings, known prototype friction, and release-note expectations
+
+### Improved
+
+- Release readiness now checks for tracked local-only artifacts, personal filesystem paths, and broken relative Markdown links
+
 ## [0.1.0] - 2026-04-10
 
 ### Added

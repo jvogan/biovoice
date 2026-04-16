@@ -12,6 +12,10 @@ const blockedTrackedFiles = [
   /^\.runtime\//,
   /^tmp\//,
   /^widget_1\//,
+  /^output\//,
+  /(?:^|\/)local\//,
+  /(?:^|\/)private\//,
+  /^docs\/banners\//,
   /\.DS_Store$/,
 ];
 const secretPatterns = [
@@ -23,6 +27,11 @@ const secretPatterns = [
   { label: "Google API key", regex: /\bAIzaSy[A-Za-z0-9_-]{33}\b/g },
   { label: "AWS access key", regex: /\bAKIA[A-Z0-9]{16}\b/g },
   { label: "Anthropic API key", regex: /\bsk-ant-[A-Za-z0-9_-]{40,}\b/g },
+];
+const privacyPatterns = [
+  { label: "macOS user-home path", regex: /\/Users\/[^/\s)]+/g },
+  { label: "Linux user-home path", regex: /\/home\/[^/\s)]+/g },
+  { label: "Windows user-home path", regex: /[A-Za-z]:\\Users\\[^\\\s)]+/g },
 ];
 const binaryExtensions = new Set([
   ".png",
@@ -56,10 +65,15 @@ async function main(): Promise<void> {
         continue;
       }
 
-      const secretMatches = await scanTrackedFileForSecrets(file);
+      const secretMatches = await scanTrackedFileForLeaks(file);
       for (const match of secretMatches) {
         failures.push(`Potential ${match.label} found in tracked file ${file}`);
       }
+    }
+
+    const brokenLinks = await checkTrackedMarkdownLinks(trackedFiles);
+    for (const brokenLink of brokenLinks) {
+      failures.push(`Broken relative Markdown link in ${brokenLink.file}: ${brokenLink.href}`);
     }
   }
 
@@ -108,7 +122,7 @@ function getTrackedFiles(): string[] | null {
   }
 }
 
-async function scanTrackedFileForSecrets(relativePath: string): Promise<Array<{ label: string }>> {
+async function scanTrackedFileForLeaks(relativePath: string): Promise<Array<{ label: string }>> {
   const absolutePath = resolveFromRoot(relativePath);
   const extension = path.extname(relativePath).toLowerCase();
   if (binaryExtensions.has(extension)) {
@@ -125,10 +139,66 @@ async function scanTrackedFileForSecrets(relativePath: string): Promise<Array<{ 
     return [];
   }
 
-  return secretPatterns.filter(({ regex }) => {
+  return [...secretPatterns, ...privacyPatterns].filter(({ regex }) => {
     regex.lastIndex = 0;
     return regex.test(content);
   }).map(({ label }) => ({ label }));
+}
+
+async function checkTrackedMarkdownLinks(trackedFiles: string[]): Promise<Array<{ file: string; href: string }>> {
+  const trackedSet = new Set(trackedFiles);
+  const failures: Array<{ file: string; href: string }> = [];
+
+  for (const file of trackedFiles.filter((candidate) => candidate.endsWith(".md"))) {
+    const content = await fs.readFile(resolveFromRoot(file), "utf8").catch(() => null);
+    if (!content) {
+      continue;
+    }
+
+    const linkPattern = /!?\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
+    for (const match of content.matchAll(linkPattern)) {
+      const rawHref = match[1];
+      if (!rawHref || shouldSkipMarkdownHref(rawHref)) {
+        continue;
+      }
+
+      const hrefWithoutAnchor = rawHref.split("#", 1)[0];
+      if (!hrefWithoutAnchor || shouldSkipMarkdownHref(hrefWithoutAnchor)) {
+        continue;
+      }
+
+      const normalizedTarget = normalizeMarkdownTarget(file, hrefWithoutAnchor);
+      if (!normalizedTarget) {
+        failures.push({ file, href: rawHref });
+        continue;
+      }
+
+      if (trackedSet.has(normalizedTarget)) {
+        continue;
+      }
+
+      const stat = await fs.stat(resolveFromRoot(normalizedTarget)).catch(() => null);
+      if (!stat) {
+        failures.push({ file, href: rawHref });
+      }
+    }
+  }
+
+  return failures;
+}
+
+function shouldSkipMarkdownHref(href: string): boolean {
+  return /^(?:https?:|mailto:|#|\/\/)/i.test(href);
+}
+
+function normalizeMarkdownTarget(sourceFile: string, href: string): string | null {
+  const decoded = decodeURIComponent(href);
+  const sourceDir = path.dirname(sourceFile);
+  const normalized = path.normalize(path.join(sourceDir, decoded)).replaceAll("\\", "/");
+  if (normalized.startsWith("../") || path.isAbsolute(normalized)) {
+    return null;
+  }
+  return normalized === "." ? "README.md" : normalized.replace(/\/$/, "");
 }
 
 async function inspectLocalEnv(): Promise<string | null> {

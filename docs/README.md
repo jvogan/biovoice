@@ -13,6 +13,7 @@ If you are new to the repo, read these in order:
    - [Cryo-EM Tutorial](./tutorial-cryo-em.md)
 4. [Architecture and Provider Support](./architecture.md)
 5. [FAQ and Glossary](./faq.md)
+6. [Public Release Checklist](./public-release.md)
 
 Use the generated [Examples Library](../examples/README.md) after the docs above if you want the deeper reference set:
 
@@ -29,6 +30,7 @@ Use the generated [Examples Library](../examples/README.md) after the docs above
 - scientist-facing tutorial flow
 - privacy and support guidance
 - public architecture and support boundaries
+- public release readiness and repository settings
 
 ## What These Docs Are Not
 

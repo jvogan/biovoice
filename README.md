@@ -85,6 +85,7 @@ Additional guided docs:
 - [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md)
 - [Architecture and Provider Support](./docs/architecture.md)
 - [FAQ and Glossary](./docs/faq.md)
+- [Public Release Checklist](./docs/public-release.md)
 
 The generated reference library lives under [examples/](./examples/README.md). If you are brand new, start with the docs above first and use `examples/` as the deeper reference set.
 
@@ -233,6 +234,7 @@ docs/                             Hand-authored newcomer guides and public archi
 - [CONTRIBUTING.md](./CONTRIBUTING.md) for contributor setup and generated-doc expectations
 - [CODE_OF_CONDUCT.md](./CODE_OF_CONDUCT.md) for community expectations
 - [CITATION.cff](./CITATION.cff) if you use BioVoice in research
+- [Public Release Checklist](./docs/public-release.md) for maintainers preparing a public GitHub release
 
 If you use BioVoice in your work, cite it as:
 
