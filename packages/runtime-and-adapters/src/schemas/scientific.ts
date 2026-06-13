@@ -4,7 +4,11 @@ import {
   actionResultMetricSchema,
   targetKindSchema,
 } from "./shared.js";
-import { selectorObjectSchema } from "../utils/selectors.js";
+import {
+  buildSafeIdentifierSchema,
+  buildSafeMetadataTextSchema,
+  selectorObjectSchema,
+} from "../utils/selectors.js";
 
 export const alphaFoldWorkflowKinds = [
   "alphafold_confidence_review",
@@ -37,6 +41,14 @@ const workflowPathSchema = z.string().min(1).max(400);
 const chainSchema = z.string().min(1).max(12);
 const residueHintSchema = z.array(z.string().min(1).max(80)).min(1).max(64);
 const pdbIdSchema = z.string().trim().toUpperCase().regex(/^[A-Z0-9]{4}$/, "experimentalPdbId must be a 4-character PDB accession.");
+const emdbIdSchema = z.string().trim().toUpperCase().regex(/^(EMD[-_]?)?\d{3,8}$/, "emdbId must look like EMD-1234.");
+const uniprotIdSchema = buildSafeIdentifierSchema(40, "UniProt accession");
+const assetObjectNameSchema = buildSafeIdentifierSchema(80, "asset object name");
+const assetAliasSchema = buildSafeMetadataTextSchema(80, "asset alias");
+const assetQuerySchema = buildSafeMetadataTextSchema(240, "database search query");
+const assetFormatSchema = z.enum(["pdb", "cif"]);
+const assetSemanticRoleSchema = z.enum(["experimental", "predicted", "design", "scaffold", "binder", "receptor", "partner"]);
+const assemblyIdSchema = z.string().trim().regex(/^[1-9][0-9]{0,3}$/, "assemblyId must be a numeric RCSB biological assembly id.");
 
 export const scientificWorkflowExportSchema = z.object({
   format: z.enum(["png", "pse", "cxs", "session"]).optional(),
@@ -53,7 +65,12 @@ export const alphaFoldInputsSchema = z.object({
   useAfdbPae: z.boolean().optional(),
   experimentalPath: workflowPathSchema.optional(),
   experimentalPdbId: pdbIdSchema.optional(),
+  experimentalPdbFormat: assetFormatSchema.optional(),
+  pdbFormat: assetFormatSchema.optional(),
+  structureFormat: assetFormatSchema.optional(),
   cryoMapPath: workflowPathSchema.optional(),
+  cryoMapEmdbId: emdbIdSchema.optional(),
+  emdbId: emdbIdSchema.optional(),
   interfaceChains: z.tuple([chainSchema, chainSchema]).optional(),
   focusResidues: residueHintSchema.optional(),
   modelLabel: z.string().min(1).max(80).optional(),
@@ -116,11 +133,16 @@ export const alphaFoldWorkflowRequestSchema = requestBaseSchema.extend({
       message: "PAE-guided triage requires a paePath or useAfdbPae=true.",
     });
   }
-  if (value.workflow === "alphafold_to_cryo_handoff" && !value.inputs.cryoMapPath) {
+  if (
+    value.workflow === "alphafold_to_cryo_handoff"
+    && !value.inputs.cryoMapPath
+    && !value.inputs.cryoMapEmdbId
+    && !value.inputs.emdbId
+  ) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       path: ["inputs", "cryoMapPath"],
-      message: "AlphaFold-to-cryo handoff requires a cryoMapPath.",
+      message: "AlphaFold-to-cryo handoff requires a cryoMapPath, cryoMapEmdbId, or emdbId.",
     });
   }
 });
@@ -149,6 +171,56 @@ export const scientificWorkflowRequestSchema = z.union([
   alphaFoldWorkflowRequestSchema,
   rosettaWorkflowRequestSchema,
 ]);
+
+const resolveAssetBaseSchema = z.object({
+  target: targetKindSchema.optional(),
+  loadIntoTarget: z.boolean().optional(),
+  object: assetObjectNameSchema.optional(),
+  semanticRole: assetSemanticRoleSchema.optional(),
+  aliases: z.array(assetAliasSchema).min(1).max(12).optional(),
+});
+
+const resolveScientificAssetRequestBaseSchema = z.discriminatedUnion("source", [
+  resolveAssetBaseSchema.extend({
+    source: z.literal("alphafold"),
+    uniprotId: uniprotIdSchema,
+    format: assetFormatSchema.default("pdb"),
+    includePae: z.boolean().optional(),
+  }),
+  resolveAssetBaseSchema.extend({
+    source: z.literal("rcsb"),
+    pdbId: pdbIdSchema,
+    format: assetFormatSchema.default("cif"),
+    assemblyId: assemblyIdSchema.optional(),
+    includeMetadata: z.boolean().optional(),
+  }),
+  resolveAssetBaseSchema.extend({
+    source: z.literal("rcsb_search"),
+    query: assetQuerySchema,
+    limit: z.number().int().min(1).max(25).optional(),
+  }),
+  resolveAssetBaseSchema.extend({
+    source: z.literal("emdb"),
+    emdbId: emdbIdSchema,
+    includeMetadata: z.boolean().optional(),
+  }),
+  resolveAssetBaseSchema.extend({
+    source: z.literal("uniprot"),
+    accession: uniprotIdSchema.optional(),
+    query: assetQuerySchema.optional(),
+    limit: z.number().int().min(1).max(25).optional(),
+  }),
+]);
+
+export const resolveScientificAssetRequestSchema = resolveScientificAssetRequestBaseSchema.superRefine((value, ctx) => {
+  if (value.source === "uniprot" && !value.accession && !value.query) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ["accession"],
+      message: "UniProt resolver requires an accession or query.",
+    });
+  }
+});
 
 const referenceHintSchema = z.object({
   label: z.string().min(1).max(200),
@@ -201,6 +273,7 @@ export type ScientificWorkflowKind = z.infer<typeof scientificWorkflowKindSchema
 export type AlphaFoldWorkflowKind = z.infer<typeof alphaFoldWorkflowKindSchema>;
 export type RosettaWorkflowKind = z.infer<typeof rosettaWorkflowKindSchema>;
 export type ScientificWorkflowRequest = z.infer<typeof scientificWorkflowRequestSchema>;
+export type ResolveScientificAssetRequest = z.infer<typeof resolveScientificAssetRequestSchema>;
 export type ScientificWorkflowResult = z.infer<typeof scientificWorkflowResultSchema>;
 export type ScientificWorkflowManifest = z.infer<typeof scientificWorkflowManifestSchema>;
 export type AlphaFoldInputs = z.infer<typeof alphaFoldInputsSchema>;

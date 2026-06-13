@@ -73,7 +73,7 @@ Direct command equivalents:
 - `turn y, 18`
 - `turn x, -10`
 - `zoom ligand_shell, 5`
-- `clip slab, 10`
+- `clip slab, 40`
 - `scene F9, store, Ligand shell close-up`
 
 ## Step 3: Export the final storyboard close-up.

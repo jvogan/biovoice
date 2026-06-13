@@ -61,6 +61,18 @@ describe("realtime tool definitions", () => {
     expect(measure.properties).toHaveProperty("selection4");
     expect(measure.properties).toHaveProperty("cutoff");
 
+    const transform = getActionVariant("run_pymol_actions", "pymol", "transform");
+    expect(transform.properties).toHaveProperty("frames");
+    expect(transform.properties).toHaveProperty("center");
+    expect(transform.properties).toHaveProperty("coordinateSystem");
+
+    const contacts = getActionVariant("run_pymol_actions", "pymol", "contacts");
+    expect(contacts.required).toEqual(expect.arrayContaining(["selection1"]));
+    expect(contacts.properties).toHaveProperty("distance");
+    expect(((contacts.properties as Record<string, unknown>).mode as { enum: string[] }).enum).toEqual(
+      expect.arrayContaining(["polar_contacts", "hbonds", "contacts", "clashes"]),
+    );
+
     const cartoon = getActionVariant("run_pymol_actions", "pymol", "cartoon");
     expect(cartoon.properties).toHaveProperty("style");
     expect(cartoon.properties).toHaveProperty("radius");
@@ -124,6 +136,9 @@ describe("realtime tool definitions", () => {
     expect(volume.properties).toHaveProperty("resolution");
     expect(volume.properties).toHaveProperty("level");
     expect(volume.properties).toHaveProperty("transparency");
+    expect(((volume.properties as Record<string, unknown>).action as { enum: string[] }).enum).toEqual(
+      expect.arrayContaining(["show", "hide"]),
+    );
 
     const preset = getActionVariant("run_chimerax_actions", "chimerax", "preset");
     expect(((preset.properties as Record<string, unknown>).name as { enum: string[] }).enum).toEqual(
@@ -148,6 +163,28 @@ describe("realtime tool definitions", () => {
 
     const label = getActionVariant("run_chimerax_actions", "chimerax", "label");
     expect(label.properties).toHaveProperty("action");
+  });
+
+  it("describes ChimeraX staged storyboard affordances to Realtime", () => {
+    const tool = getTool("run_chimerax_actions", "chimerax") as unknown as {
+      description: string;
+    };
+    expect(tool.description).toContain("staged non-atomic/BILD storyboard demos");
+    expect(tool.description).toContain("model-level show/hide");
+
+    const visibility = getActionVariant("run_chimerax_actions", "chimerax", "visibility");
+    const visibilitySelection = (visibility.properties as Record<string, unknown>).selection as { description?: string };
+    expect(visibilitySelection.description).toContain("staged BILD scenes");
+    expect(visibilitySelection.description).toContain("#2-5");
+
+    const transform = getActionVariant("run_chimerax_actions", "chimerax", "transform");
+    const transformSelection = (transform.properties as Record<string, unknown>).selection as { description?: string };
+    expect(transformSelection.description).toContain("staged storyboard scenes");
+    expect(transformSelection.description).toContain("explode");
+
+    const label = getActionVariant("run_chimerax_actions", "chimerax", "label");
+    const labelText = (label.properties as Record<string, unknown>).text as { description?: string };
+    expect(labelText.description).toContain("Avoid this for Generic3DModel/BILD storyboard scenes");
   });
 
   it("keeps target-specific export formats separated", () => {
@@ -201,6 +238,18 @@ describe("realtime tool definitions", () => {
     ]));
     expect(tool.parameters.properties.presentationMode.enum).toEqual(["analysis", "demo", "publication"]);
     expect(tool.parameters.properties.inputs.oneOf).toHaveLength(2);
+    const alphaFoldInputs = tool.parameters.properties.inputs.oneOf.find((candidate) => "uniprotId" in candidate.properties);
+    const rosettaInputs = tool.parameters.properties.inputs.oneOf.find((candidate) => "scorefilePath" in candidate.properties);
+    expect(alphaFoldInputs?.properties).toEqual(expect.objectContaining({
+      uniprotId: expect.any(Object),
+      useAfdbPae: expect.any(Object),
+      experimentalPdbId: expect.any(Object),
+    }));
+    expect(rosettaInputs?.properties).toEqual(expect.objectContaining({
+      bundlePath: expect.any(Object),
+      candidatePaths: expect.any(Object),
+      scorefilePath: expect.any(Object),
+    }));
   });
 
   it("exposes capture_view as a shared visual inspection tool", () => {
@@ -219,6 +268,57 @@ describe("realtime tool definitions", () => {
     expect(tool.parameters.properties.target.enum).toEqual(["pymol", "chimerax"]);
     expect(tool.parameters.properties).toHaveProperty("inspectionPrompt");
     expect(tool.parameters.properties).toHaveProperty("attachToConversation");
+  });
+
+  it("exposes the scientific asset resolver as a shared database-fetch tool", () => {
+    const pymolTool = getTool("resolve_structure_asset", "pymol") as unknown as {
+      description: string;
+      parameters: {
+        required: string[];
+        properties: Record<string, unknown> & {
+          source: { enum: string[] };
+          target: { enum: string[] };
+          format: { enum: string[] };
+          semanticRole: { enum: string[] };
+        };
+        additionalProperties: boolean;
+      };
+    };
+    const chimeraTool = getTool("resolve_structure_asset", "chimerax");
+
+    expect(chimeraTool).toBeDefined();
+    expect(pymolTool.description).toContain("approved databases");
+    expect(pymolTool.parameters.required).toEqual(["source"]);
+    expect(pymolTool.parameters.additionalProperties).toBe(false);
+    expect(pymolTool.parameters.properties.source.enum).toEqual(["alphafold", "rcsb", "rcsb_search", "emdb", "uniprot"]);
+    expect(pymolTool.parameters.properties.target.enum).toEqual(["pymol", "chimerax"]);
+    expect(pymolTool.parameters.properties.format.enum).toEqual(["pdb", "cif"]);
+    expect(pymolTool.parameters.properties).toHaveProperty("loadIntoTarget");
+    expect(pymolTool.parameters.properties).toHaveProperty("pdbId");
+    expect(pymolTool.parameters.properties).toHaveProperty("uniprotId");
+    expect(pymolTool.parameters.properties).toHaveProperty("emdbId");
+    expect(pymolTool.parameters.properties).toHaveProperty("query");
+    expect(pymolTool.parameters.properties.semanticRole.enum).toEqual(expect.arrayContaining(["experimental", "predicted"]));
+  });
+
+  it("exposes wait_for_user as a shared quiet-turn tool", () => {
+    const pymolTool = getTool("wait_for_user", "pymol") as unknown as {
+      description: string;
+      parameters: {
+        type: string;
+        properties: Record<string, unknown>;
+        required: string[];
+        additionalProperties: boolean;
+      };
+    };
+    const chimeraTool = getTool("wait_for_user", "chimerax");
+
+    expect(chimeraTool).toBeDefined();
+    expect(pymolTool.description).toContain("not receive a spoken response");
+    expect(pymolTool.parameters.type).toBe("object");
+    expect(pymolTool.parameters.properties).toEqual({});
+    expect(pymolTool.parameters.required).toEqual([]);
+    expect(pymolTool.parameters.additionalProperties).toBe(false);
   });
 
   it("hides raw_command unless advanced mode is enabled", () => {

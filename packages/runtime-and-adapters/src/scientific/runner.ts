@@ -17,10 +17,18 @@ import {
   type TargetKind,
 } from "../schemas/index.js";
 import { ensureAllowedStructureInputPath } from "../utils/path-policy.js";
-import { resolveFromRoot, runtimeDir } from "../utils/paths.js";
+import { resolveFromRoot } from "../utils/paths.js";
 import type { ReferenceHint } from "../utils/semantic-handles.js";
 import type { SelectorReferenceMap } from "../utils/selectors.js";
 import { getScientificWorkflow } from "./catalog.js";
+import {
+  ensureScientificCacheDirs,
+  resolveAlphaFoldAsset,
+  resolveEmdbMap,
+  resolveRcsbStructure,
+  scientificCacheDir,
+  type StructureAssetFormat,
+} from "./fetcher.js";
 
 type TargetAction = PymolAction | ChimeraXAction;
 type StructureHandle = { object: string } | { model: string };
@@ -139,12 +147,6 @@ type RosettaHandlePlan = {
   designPanelSelector: string | StructureHandle;
 };
 
-const scientificCacheDir = path.join(runtimeDir, "cache", "scientific");
-const scientificDownloadHosts = new Set([
-  "alphafold.ebi.ac.uk",
-  "files.rcsb.org",
-]);
-const maxScientificDownloadBytes = 64 * 1024 * 1024;
 const maxScientificStructureParseBytes = 64 * 1024 * 1024;
 const maxScientificJsonParseBytes = 32 * 1024 * 1024;
 const maxScientificScorefileParseBytes = 32 * 1024 * 1024;
@@ -308,12 +310,16 @@ function buildWorkflowMetrics(
 
 async function resolveAlphaFoldInputs(inputs: AlphaFoldInputs): Promise<AlphaFoldResolvedInputs> {
   await ensureScientificCacheDirs();
-  const afdbRecord = inputs.uniprotId ? await resolveAlphaFoldRecord(inputs.uniprotId) : undefined;
+  const afdbAsset = inputs.uniprotId
+    ? await resolveAlphaFoldAsset(inputs.uniprotId, {
+      format: inputs.structureFormat,
+      includePae: inputs.useAfdbPae !== false,
+    })
+    : undefined;
+  const afdbRecord = afdbAsset?.record;
   const modelPath = inputs.modelPath
     ? ensureAllowedModelInputPath(inputs.modelPath, "AlphaFold model")
-    : typeof afdbRecord?.pdbUrl === "string"
-    ? await downloadScientificAsset(afdbRecord.pdbUrl, "alphafold", scientificDownloadFilenameFromUrl(afdbRecord.pdbUrl))
-    : null;
+    : afdbAsset?.modelPath ?? null;
 
   if (!modelPath) {
     throw new Error("AlphaFold workflows require either a local modelPath or a UniProt id with an AFDB model.");
@@ -321,18 +327,20 @@ async function resolveAlphaFoldInputs(inputs: AlphaFoldInputs): Promise<AlphaFol
 
   const paePath = inputs.paePath
     ? ensureAllowedJsonInputPath(inputs.paePath, "PAE JSON")
-    : inputs.useAfdbPae !== false && typeof afdbRecord?.paeDocUrl === "string"
-    ? await downloadScientificAsset(afdbRecord.paeDocUrl, "alphafold", scientificDownloadFilenameFromUrl(afdbRecord.paeDocUrl))
+    : inputs.useAfdbPae !== false
+    ? afdbAsset?.paePath
     : undefined;
 
   const experimentalPath = inputs.experimentalPath
     ? ensureAllowedModelInputPath(inputs.experimentalPath, "Experimental structure")
     : inputs.experimentalPdbId
-    ? await resolvePdbDownload(inputs.experimentalPdbId)
+    ? await resolvePdbDownload(inputs.experimentalPdbId, inputs.experimentalPdbFormat ?? inputs.pdbFormat ?? inputs.structureFormat ?? "pdb")
     : undefined;
 
   const cryoMapPath = inputs.cryoMapPath
     ? ensureAllowedMapInputPath(inputs.cryoMapPath, "Cryo map")
+    : inputs.cryoMapEmdbId ?? inputs.emdbId
+    ? (await resolveEmdbMap(inputs.cryoMapEmdbId ?? inputs.emdbId!, { includeMetadata: false })).path
     : undefined;
 
   const modelAnalysis = await analyzeStructureFileCached(modelPath);
@@ -1229,126 +1237,8 @@ function summarizeResolvedInputs(input: AlphaFoldResolvedInputs | RosettaResolve
   };
 }
 
-async function ensureScientificCacheDirs(): Promise<void> {
-  await Promise.all([
-    fs.mkdir(path.join(scientificCacheDir, "alphafold"), { recursive: true }),
-    fs.mkdir(path.join(scientificCacheDir, "pdb"), { recursive: true }),
-    fs.mkdir(path.join(scientificCacheDir, "pae"), { recursive: true }),
-    fs.mkdir(path.join(scientificCacheDir, "rosetta"), { recursive: true }),
-    fs.mkdir(path.join(scientificCacheDir, "manifests"), { recursive: true }),
-  ]);
-}
-
-async function resolveAlphaFoldRecord(uniprotId: string): Promise<Record<string, string | number | boolean | unknown>> {
-  const normalized = uniprotId.trim().toUpperCase();
-  const cachePath = path.join(scientificCacheDir, "alphafold", `${normalized}.json`);
-  const cached = await readJsonFile(cachePath).catch(() => null);
-  if (cached) {
-    return cached as Record<string, string | number | boolean | unknown>;
-  }
-
-  const response = await fetch(`https://alphafold.ebi.ac.uk/api/prediction/${encodeURIComponent(normalized)}`, {
-    signal: AbortSignal.timeout(20_000),
-  });
-  if (!response.ok) {
-    throw new Error(`AlphaFold DB lookup failed for ${normalized}: ${response.status}`);
-  }
-  const payload = await response.json() as Array<Record<string, string | number | boolean | unknown>>;
-  const record = payload[0];
-  if (!record?.pdbUrl) {
-    throw new Error(`AlphaFold DB did not return a pdbUrl for ${normalized}.`);
-  }
-  await writeJsonFile(cachePath, record);
-  return record;
-}
-
-async function resolvePdbDownload(pdbId: string): Promise<string> {
-  await ensureScientificCacheDirs();
-  const normalized = pdbId.trim().toUpperCase();
-  const filename = `${normalized}.pdb`;
-  return downloadScientificAsset(`https://files.rcsb.org/download/${filename}`, "pdb", filename);
-}
-
-async function downloadScientificAsset(url: string, bucket: string, filename: string): Promise<string> {
-  const parsedUrl = validateScientificDownloadUrl(url);
-  const safeFilename = validateScientificDownloadFilename(filename);
-  const bucketDir = path.join(scientificCacheDir, bucket);
-  const destination = path.join(bucketDir, safeFilename);
-  const normalizedBucketDir = path.resolve(bucketDir);
-  const normalizedDestination = path.resolve(destination);
-  if (normalizedDestination !== normalizedBucketDir && !normalizedDestination.startsWith(`${normalizedBucketDir}${path.sep}`)) {
-    throw new Error(`Scientific download target escaped the ${bucket} cache.`);
-  }
-  const exists = await fs.access(destination).then(() => true).catch(() => false);
-  if (exists) {
-    return destination;
-  }
-
-  const response = await fetch(parsedUrl, {
-    signal: AbortSignal.timeout(60_000),
-  });
-  if (!response.ok) {
-    throw new Error(`Failed to download ${parsedUrl.toString()}: ${response.status}`);
-  }
-  const declaredLength = Number(response.headers.get("content-length") ?? "");
-  if (Number.isFinite(declaredLength) && declaredLength > maxScientificDownloadBytes) {
-    throw new Error(`Scientific download exceeds the ${maxScientificDownloadBytes} byte safety limit.`);
-  }
-  const bytes = await readBoundedResponseBuffer(response, parsedUrl.toString(), maxScientificDownloadBytes);
-  await fs.writeFile(destination, bytes);
-  return destination;
-}
-
-function validateScientificDownloadUrl(value: string): URL {
-  const parsed = new URL(value);
-  if (parsed.protocol !== "https:") {
-    throw new Error(`Scientific downloads must use HTTPS: ${parsed.toString()}`);
-  }
-  if (!scientificDownloadHosts.has(parsed.hostname.toLowerCase())) {
-    throw new Error(`Scientific download host is not allowed: ${parsed.hostname}`);
-  }
-  return parsed;
-}
-
-function validateScientificDownloadFilename(value: string): string {
-  const trimmed = value.trim();
-  if (!trimmed || path.basename(trimmed) !== trimmed || !/^[A-Za-z0-9._-]+$/.test(trimmed)) {
-    throw new Error(`Scientific download filename is not allowed: ${value}`);
-  }
-  return trimmed;
-}
-
-function scientificDownloadFilenameFromUrl(value: string): string {
-  const parsed = new URL(value);
-  return validateScientificDownloadFilename(path.basename(parsed.pathname));
-}
-
-async function readBoundedResponseBuffer(response: Response, label: string, maxBytes: number): Promise<Buffer> {
-  const body = response.body;
-  if (!body) {
-    return Buffer.from(await response.arrayBuffer());
-  }
-
-  const reader = body.getReader();
-  const chunks: Buffer[] = [];
-  let totalBytes = 0;
-
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) {
-      break;
-    }
-
-    const chunk = Buffer.from(value);
-    totalBytes += chunk.length;
-    if (totalBytes > maxBytes) {
-      await reader.cancel(`Scientific download exceeded ${maxBytes} bytes for ${label}.`).catch(() => {});
-      throw new Error(`Scientific download exceeded the ${maxBytes} byte safety limit.`);
-    }
-    chunks.push(chunk);
-  }
-
-  return Buffer.concat(chunks, totalBytes);
+async function resolvePdbDownload(pdbId: string, format: StructureAssetFormat = "pdb"): Promise<string> {
+  return (await resolveRcsbStructure(pdbId, { format, includeMetadata: false })).path;
 }
 
 async function analyzeStructureFileCached(filePath: string): Promise<StructureAnalysis | undefined> {

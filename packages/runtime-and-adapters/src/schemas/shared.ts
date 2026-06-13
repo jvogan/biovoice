@@ -109,6 +109,7 @@ export const pymolActionSchema = z.discriminatedUnion("type", [
     degrees: z.number().min(-360).max(360).optional(),
     amount: z.number().min(-200).max(200).optional(),
     buffer: z.number().min(0).max(50).optional(),
+    frames: z.number().int().min(1).max(600).optional(),
   }),
   z.object({
     type: z.literal("transform"),
@@ -124,6 +125,9 @@ export const pymolActionSchema = z.discriminatedUnion("type", [
     ]).optional(),
     camera: z.boolean().optional(),
     origin: selectionValueSchema.optional(),
+    frames: z.number().int().min(1).max(600).optional(),
+    center: selectionValueSchema.optional(),
+    coordinateSystem: selectionValueSchema.optional(),
   }),
   z.object({
     type: z.literal("measure"),
@@ -142,6 +146,15 @@ export const pymolActionSchema = z.discriminatedUnion("type", [
     selection2: selectionValueSchema,
     cutoff: z.number().min(0).max(50).optional(),
     mode: z.number().int().min(0).max(8).optional(),
+  }),
+  z.object({
+    type: z.literal("contacts"),
+    mode: z.enum(["polar_contacts", "hbonds", "contacts", "clashes"]).default("polar_contacts"),
+    name: actionNameSchema.optional(),
+    selection1: selectionValueSchema,
+    selection2: selectionValueSchema.optional(),
+    cutoff: z.number().min(0).max(20).optional(),
+    distance: z.number().min(0).max(20).optional(),
   }),
   z.object({
     type: z.literal("label"),
@@ -256,7 +269,8 @@ export const chimeraXActionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("select"),
-    selection: selectionValueSchema,
+    selection: selectionValueSchema.optional(),
+    action: z.enum(["replace", "clear"]).default("replace"),
   }),
   z.object({
     type: z.literal("style"),
@@ -282,6 +296,7 @@ export const chimeraXActionSchema = z.discriminatedUnion("type", [
     axis: z.enum(["x", "y", "z"]).optional(),
     clipMode: z.enum(["near", "far", "front", "back", "off", "list"]).optional(),
     amount: z.number().min(-360).max(360).optional(),
+    frames: z.number().int().min(1).max(600).optional(),
   }),
   z.object({
     type: z.literal("transform"),
@@ -345,12 +360,17 @@ export const chimeraXActionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("volume"),
-    action: z.enum(["molmap", "surface", "mesh", "orthoplanes"]),
+    action: z.enum(["molmap", "surface", "mesh", "orthoplanes", "zone", "show", "hide"]),
     selection: selectionValueSchema.optional(),
     mapName: actionNameSchema.optional(),
+    nearAtoms: selectionValueSchema.optional(),
     resolution: z.number().min(1).max(20).optional(),
     level: z.number().min(-10).max(10).optional(),
+    range: z.number().min(0.5).max(50).optional(),
+    minimalBounds: z.boolean().optional(),
+    newMap: z.boolean().optional(),
     transparency: z.number().min(0).max(100).optional(),
+    showOutlineBox: z.boolean().optional(),
   }),
   z.object({
     type: z.literal("preset"),
@@ -380,6 +400,13 @@ export const chimeraXActionSchema = z.discriminatedUnion("type", [
   }),
   z.object({
     type: z.literal("cartoon"),
+    selection: selectionValueSchema.optional(),
+    width: z.number().min(0.5).max(5).optional(),
+    thickness: z.number().min(0.1).max(2).optional(),
+    xsection: z.enum(["oval", "rect", "barbell"]).optional(),
+  }),
+  z.object({
+    type: z.literal("cartoon_style"),
     selection: selectionValueSchema.optional(),
     width: z.number().min(0.5).max(5).optional(),
     thickness: z.number().min(0.1).max(2).optional(),

@@ -28,7 +28,7 @@ describe("adapter dry-run compilation", () => {
     expect(result.commandsExecuted).toEqual(expect.arrayContaining([
       "bg_color gray99",
       "angle angle_measurement, chain A and resi 25 and name CA, chain A and resi 26 and name CA, chain A and resi 27 and name CA",
-      "clip slab, 10",
+      "clip slab, 40",
     ]));
   });
 
@@ -325,6 +325,33 @@ describe("adapter dry-run compilation", () => {
     ]));
   });
 
+  it("compiles PyMOL structured contacts and clashes", async () => {
+    const adapter = new PymolAdapter({
+      baseUrl: "http://127.0.0.1",
+      startPort: 9123,
+      timeoutMs: 8_000,
+      renderTimeoutMs: 45_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "contacts", mode: "hbonds", selection1: { object: "1hsg", ligand: "MK1" }, selection2: { object: "1hsg", entity: "protein" }, distance: 3.4 },
+      { type: "contacts", mode: "contacts", name: "ligand_contacts", selection1: "organic", cutoff: 4 },
+      { type: "contacts", mode: "clashes", name: "pocket_clashes", selection1: "organic", selection2: "polymer.protein", distance: 2.2 },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      "distance polar_contacts, 1hsg and resn MK1, 1hsg and polymer.protein, 3.4, 2",
+      "hide labels, polar_contacts",
+      "distance ligand_contacts, organic, not (organic), 4, 0",
+      "hide labels, ligand_contacts",
+      "distance pocket_clashes, organic, polymer.protein, 2.2, 0",
+      "hide labels, pocket_clashes",
+      "color red, pocket_clashes",
+      "set dash_color, red, pocket_clashes",
+    ]));
+  });
+
   it("normalizes placeholder-style PyMOL label text into plain labels", async () => {
     const adapter = new PymolAdapter({
       baseUrl: "http://127.0.0.1",
@@ -443,6 +470,8 @@ describe("adapter dry-run compilation", () => {
       { type: "open", source: "local", id: "1grl", path: localStructurePath },
       { type: "volume", action: "molmap", selection: "#1", mapName: "#100", resolution: 6 },
       { type: "volume", action: "mesh", mapName: "#100", level: 0.02 },
+      { type: "volume", action: "hide", mapName: "#100" },
+      { type: "volume", action: "show", mapName: "#100" },
     ], true);
 
     expect(result.commandsExecuted).toEqual(expect.arrayContaining([
@@ -450,6 +479,29 @@ describe("adapter dry-run compilation", () => {
       "molmap #1 6",
       "rename #2 id #100",
       "volume #100 style mesh level 0.02",
+      "volume #100 hide",
+      "hide #100 models",
+      "volume #100 show",
+      "show #100 models",
+    ]));
+  });
+
+  it("compiles ChimeraX volume styling against the most recently opened map", async () => {
+    const adapter = new ChimeraXAdapter({
+      port: 60958,
+      timeoutMs: 30_000,
+      autolaunch: false,
+    });
+
+    const result = await adapter.execute([
+      { type: "open", source: "local", id: "density_map", path: localStructurePath },
+      { type: "volume", action: "mesh", level: 0.02, showOutlineBox: false },
+    ], true);
+
+    expect(result.commandsExecuted).toEqual(expect.arrayContaining([
+      `open "${localStructurePath}"`,
+      "volume #1 style mesh level 0.02",
+      "volume #1 showOutlineBox false",
     ]));
   });
 

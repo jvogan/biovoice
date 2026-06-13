@@ -26,8 +26,9 @@ BioVoice is useful to two different audiences in the same repository:
 
 **For developers and AI engineers**, BioVoice is a working reference for **OpenAI Realtime API tool calling applied to real scientific software** — not a toy. You get, in one readable TypeScript repo:
 
-- **7 Realtime function tools** wired to a WebRTC voice session: `run_pymol_actions`, `run_chimerax_actions`, `run_scientific_workflow`, `get_target_state`, `run_recipe_step`, `export_artifact`, `capture_view`.
+- **9 Realtime function tools** across the catalog: `run_pymol_actions`, `run_chimerax_actions`, `resolve_structure_asset`, `run_scientific_workflow`, `get_target_state`, `run_recipe_step`, `export_artifact`, `capture_view`, `wait_for_user`. Each active WebRTC session exposes the matching target action tool plus the shared tools.
 - **9 task-level AlphaFold and Rosetta workflows** exposed behind a single `run_scientific_workflow` tool that compiles domain concepts ("prediction-vs-experiment overlay", "PAE-guided triage", "scaffold-versus-design review") into target-specific adapter calls — a realistic pattern for turning science vocabulary into structured function arguments.
+- **Database-backed structure resolution** for AlphaFold DB, RCSB PDB, EMDB, and UniProt through `resolve_structure_asset`, with host allowlists, byte caps, local cache manifests, and optional direct loading into PyMOL or ChimeraX.
 - **Production-grade JSON Schema selectors** — chain-aware residue ranges, ligand / cofactor handles, proximity selections (`around` + `withinAngstroms`), and semantic references like `predictedModel`, `scaffoldModel`, `binderChainA`, and `partnerB`. This is the kind of tool argument design you usually only see inside closed-source agents.
 - A **two-adapter pattern**: PyMOL over XML-RPC and ChimeraX over REST, both driven by the same typed action schema. Study either adapter to learn how to wrap a domain tool without reimplementing the schema layer.
 - **`get_target_state` grounding**: before picking an action, the model can ask the backend what is currently loaded and get back concrete selectors. This is a clean, copyable pattern for any tool-calling agent that needs to act on mutable external state.
@@ -79,6 +80,9 @@ npm run generate:examples
 # 4. Optional: configure live voice
 cp .env.example .env
 # Add OPENAI_API_KEY only if you want live voice
+# The default live voice model is gpt-realtime-2 with low reasoning effort.
+# Optional: set OPENAI_SAFETY_IDENTIFIER to a hashed local user/project id.
+# Optional: set REALTIME_PROMPT_ID/REALTIME_PROMPT_VERSION to test an OpenAI-hosted prompt.
 
 # 5. Launch a local session
 npm run quickstart:pymol
@@ -120,6 +124,7 @@ The generated reference library lives under [examples/](./examples/README.md). I
 | PyMOL ligand pocket story | Fast, visual, and easy to explain live | `npm run showcase:pymol:pocket` |
 | ChimeraX ligand interaction explainer | Great first ChimeraX success case | `npm run showcase:chimerax:pocket` |
 | ChimeraX AlphaFold overlay | Strong prediction-versus-experiment story | `npm run showcase:chimerax:overlay` |
+| ChimeraX human telomerase cycle | Public repeat-addition-cycle structures with map-backed active-site handoff | `npm run showcase:chimerax:telomerase` |
 | PyMOL Rosetta compare | Best scaffold-versus-design hero shot | `npm run showcase:pymol:rosetta` |
 | ChimeraX cryo-EM map review | Best real map and fit-quality walkthrough | `npm run showcase:chimerax:map` |
 | PyMOL cryo handoff | Strong atomic-plus-density narrative | `npm run showcase:pymol:cryo` |
@@ -133,12 +138,13 @@ BioVoice is designed so the molecular files stay local while live voice uses Ope
 | Voice audio | Yes, via WebRTC during live voice sessions | No, unless you explicitly enable local session-event persistence |
 | Transcripts of what you said | Yes, as part of live voice operation | Optionally, under `.runtime/` if persistence is enabled |
 | Tool-call text such as residue names, chain IDs, and file-path references | Yes, as part of the model conversation | Optionally, in local session logs |
+| Database IDs and search text such as PDB IDs, UniProt accessions, EMDB IDs, or protein-name queries | Yes, as part of the model conversation when spoken or tool-called | Optionally, in local session logs |
 | PDB / CIF / map file contents | No | Yes, on your machine only |
 | Captures and exports | No | Yes, under `.runtime/` or `output/` |
 
 Normal local usage is expected to keep real credentials in `.env`. That file is ignored and stays local. The tracked file [`.env.example`](./.env.example) is a **safe template**, not a secret store.
 
-Structure loading is allowlisted. By default, BioVoice reads demo inputs from `examples/data/local`, `.runtime`, and `output`; wider private folders require an explicit `STRUCTURE_ALLOWED_PATHS` entry in your local `.env`.
+Structure loading is allowlisted. By default, BioVoice reads demo inputs from `examples/data/local`, `.runtime`, and `output`; wider private folders require an explicit `STRUCTURE_ALLOWED_PATHS` entry in your local `.env`. Online structure fetches are also allowlisted: `resolve_structure_asset` can cache AlphaFold DB, RCSB, EMDB, and UniProt assets under `.runtime/cache/scientific`, but it does not accept arbitrary URLs.
 
 ## Supported Today vs Not Yet
 
@@ -156,6 +162,7 @@ Structure loading is allowlisted. By default, BioVoice reads demo inputs from `e
 - The browser opens a WebRTC session to **OpenAI Realtime**
 - The local backend manages tool registration, tool execution, state, logging, and target control
 - PyMOL is controlled through XML-RPC and ChimeraX through REST
+- `REALTIME_MODEL` defaults to `gpt-realtime-2`; `REALTIME_REASONING_EFFORT` controls the Realtime 2 latency/reasoning tradeoff
 - `REALTIME_TRANSCRIPTION_MODEL` is configurable in `.env`
 - There is **no alternate live voice provider path today**
 
@@ -262,6 +269,11 @@ curl -s http://localhost:3000/api/health | jq '.appId, .serverMode, .pid'
 # Run a recipe without voice
 curl -s http://localhost:3000/api/recipes/pymol-binding-pocket-story/run \
   -H 'content-type: application/json' -d '{"target":"pymol"}' | jq
+
+# Resolve and optionally load a known database asset without voice
+curl -s http://localhost:3000/api/assets/resolve \
+  -H 'content-type: application/json' \
+  -d '{"source":"rcsb","pdbId":"4HHB","format":"pdb","target":"pymol","loadIntoTarget":true}' | jq
 ```
 
 ## Frequently Asked Questions

@@ -4,6 +4,7 @@ import {
   captureViewRequestSchema,
   chimeraXEnvelopeSchema,
   pymolEnvelopeSchema,
+  resolveScientificAssetRequestSchema,
   scientificWorkflowRequestSchema,
 } from "../../packages/runtime-and-adapters/src/schemas/index.js";
 import { resolveFromRoot } from "../../packages/runtime-and-adapters/src/utils/paths.js";
@@ -17,11 +18,12 @@ describe("action envelopes", () => {
         { type: "show", representations: ["cartoon"], selection: "polymer.protein" },
         { type: "camera", action: "pocket_frame", selection: "organic", buffer: 6 },
         { type: "measure", mode: "angle", selection1: "chain A and resi 25 and name CA", selection2: "chain A and resi 26 and name CA", selection3: "chain A and resi 27 and name CA" },
+        { type: "contacts", mode: "clashes", selection1: "organic", selection2: "polymer.protein", distance: 2.2 },
         { type: "symmetry", prefix: "ligand_mates", object: "1hsg", selection: "organic", cutoff: 6 },
       ],
     });
 
-    expect(parsed.actions).toHaveLength(5);
+    expect(parsed.actions).toHaveLength(6);
   });
 
   it("accepts a ChimeraX action batch", () => {
@@ -109,6 +111,76 @@ describe("action envelopes", () => {
 
     expect(alphafold.workflow).toBe("alphafold_vs_experiment_overlay");
     expect(rosetta.workflow).toBe("rosetta_top_design_compare");
+  });
+
+  it("accepts fetch-backed scientific workflow inputs without local paths", () => {
+    const parsed = scientificWorkflowRequestSchema.parse({
+      target: "pymol",
+      workflow: "alphafold_pae_guided_triage",
+      presentationMode: "analysis",
+      inputs: {
+        uniprotId: "Q9H255",
+        useAfdbPae: true,
+      },
+    });
+
+    expect(parsed.inputs).toMatchObject({
+      uniprotId: "Q9H255",
+      useAfdbPae: true,
+    });
+  });
+
+  it("accepts database-backed scientific asset resolver requests", () => {
+    const alphafold = resolveScientificAssetRequestSchema.parse({
+      source: "alphafold",
+      target: "pymol",
+      loadIntoTarget: true,
+      uniprotId: "P69905",
+      format: "cif",
+      includePae: true,
+      object: "af_p69905",
+      semanticRole: "predicted",
+      aliases: ["predicted model", "hemoglobin alpha"],
+    });
+    const rcsb = resolveScientificAssetRequestSchema.parse({
+      source: "rcsb",
+      pdbId: "4hhb",
+      format: "pdb",
+      includeMetadata: false,
+    });
+    const emdb = resolveScientificAssetRequestSchema.parse({
+      source: "emdb",
+      emdbId: "EMD-1234",
+      target: "chimerax",
+      loadIntoTarget: true,
+    });
+    const uniprotSearch = resolveScientificAssetRequestSchema.parse({
+      source: "uniprot",
+      query: "human hemoglobin alpha",
+      limit: 3,
+    });
+
+    expect(alphafold).toMatchObject({ source: "alphafold", format: "cif" });
+    expect(rcsb).toMatchObject({ source: "rcsb", pdbId: "4HHB" });
+    expect(emdb).toMatchObject({ source: "emdb", emdbId: "EMD-1234" });
+    expect(uniprotSearch).toMatchObject({ source: "uniprot", limit: 3 });
+  });
+
+  it("rejects ambiguous or unsafe scientific asset resolver requests", () => {
+    expect(() => resolveScientificAssetRequestSchema.parse({
+      source: "uniprot",
+    })).toThrow(/accession or query/i);
+
+    expect(() => resolveScientificAssetRequestSchema.parse({
+      source: "rcsb",
+      pdbId: "../../../../tmp/x",
+    })).toThrow(/4-character PDB accession/i);
+
+    expect(() => resolveScientificAssetRequestSchema.parse({
+      source: "alphafold",
+      uniprotId: "P69905",
+      object: "bad;delete_all",
+    })).toThrow(/structured command dispatch/i);
   });
 
   it("rejects arbitrary remote structure URLs in action envelopes", () => {

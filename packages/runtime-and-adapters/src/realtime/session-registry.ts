@@ -10,18 +10,22 @@ import {
   chimeraXExportSchema,
   pymolExportSchema,
   pymolEnvelopeSchema,
+  resolveScientificAssetRequestSchema,
   scientificWorkflowRequestSchema,
   targetKindSchema,
   type ActionEnvelope,
   type ActionResult,
   type CaptureViewRequest,
+  type ChimeraXAction,
+  type PymolAction,
+  type ResolveScientificAssetRequest,
   type ScientificWorkflowRequest,
   type ScientificWorkflowResult,
   type TargetKind,
   type VoiceMode,
 } from "../schemas/index.js";
 import { getRecipe, getRecipeStep } from "../examples/index.js";
-import { buildSessionInstructions } from "../prompts/index.js";
+import { buildPinnedRecipeSummary, buildSessionInstructions } from "../prompts/index.js";
 import { TranscriptStore } from "../store/index.js";
 import { buildRealtimeTools } from "./tool-definitions.js";
 import { sessionStatusSchema, sessionUiEventSchema, type SessionStatus, type SessionUiEvent } from "./session-events.js";
@@ -36,12 +40,21 @@ import {
 import { prettyJson } from "../utils/json.js";
 import { ChimeraXAdapter, type ChimeraXAdapterOptions } from "../adapters/chimerax-adapter.js";
 import { PymolAdapter, type PymolAdapterOptions } from "../adapters/pymol-adapter.js";
-import { runScientificWorkflow } from "../scientific/index.js";
+import {
+  resolveScientificAsset,
+  runScientificWorkflow,
+  type ScientificAssetFile,
+  type ScientificAssetResolution,
+} from "../scientific/index.js";
 
 export interface RealtimeRegistryOptions {
   openAiApiKey: string;
+  openAiSafetyIdentifier?: string | null;
   realtimeModel: string;
   realtimeVoice: string;
+  realtimePrompt?: RealtimePromptConfig | null;
+  realtimeReasoningEffort?: RealtimeReasoningEffort | null;
+  realtimeContextPruning?: RealtimeContextPruningOptions | null;
   audioTranscriptionModel: string;
   realtimeOutputSpeed: number;
   realtimeMaxOutputTokens: number | "inf";
@@ -58,6 +71,20 @@ export interface RealtimeRegistryOptions {
   persistSessionEvents?: boolean;
   pymol: PymolAdapterOptions;
   chimerax: ChimeraXAdapterOptions;
+}
+
+export type RealtimeReasoningEffort = "minimal" | "low" | "medium" | "high" | "xhigh";
+
+export interface RealtimePromptConfig {
+  id: string;
+  version?: string;
+  variables?: Record<string, string | number | boolean>;
+}
+
+export interface RealtimeContextPruningOptions {
+  enabled: boolean;
+  maxItems: number;
+  retainItems: number;
 }
 
 interface ConnectRequest {
@@ -131,9 +158,22 @@ interface SessionRecord {
   sessionDeadlineTimer: NodeJS.Timeout | null;
   sidebandPingTimer: NodeJS.Timeout | null;
   lastGuardrailNoticeKey: string | null;
+  conversationItems: TrackedConversationItem[];
+  prunedConversationItemCount: number;
+  lastContextPrunedAt: string | undefined;
   reconnectAttempts: number;
   reconnectTimer: NodeJS.Timeout | null;
   sidebandGeneration: number;
+}
+
+interface TrackedConversationItem {
+  id: string;
+  type: string;
+  role?: string;
+  createdAtMs: number;
+  prunable: boolean;
+  deleteRequested: boolean;
+  deleted: boolean;
 }
 
 interface BufferedSessionEvent {
@@ -154,11 +194,20 @@ const MAX_CONNECTED_SIDEBAND_RECONNECT_ATTEMPTS = 20;
 const MAX_SIDEBAND_RECONNECT_DELAY_MS = 15_000;
 const REALTIME_CLIENT_SECRET_TTL_SECONDS = 600;
 const MAX_TOOL_ARGUMENTS_JSON_BYTES = 48_000;
+const DEFAULT_CONTEXT_PRUNING: RealtimeContextPruningOptions = {
+  enabled: true,
+  maxItems: 96,
+  retainItems: 64,
+};
 
 export class RealtimeSessionRegistry {
   private readonly openAiApiKey: string;
+  private readonly openAiSafetyIdentifier: string | null;
   private readonly realtimeModel: string;
   private readonly realtimeVoice: string;
+  private readonly realtimePrompt: RealtimePromptConfig | null;
+  private readonly realtimeReasoningEffort: RealtimeReasoningEffort | null;
+  private readonly realtimeContextPruning: RealtimeContextPruningOptions;
   private readonly audioTranscriptionModel: string;
   private readonly realtimeOutputSpeed: number;
   private readonly realtimeMaxOutputTokens: number | "inf";
@@ -182,8 +231,12 @@ export class RealtimeSessionRegistry {
 
   constructor(options: RealtimeRegistryOptions) {
     this.openAiApiKey = options.openAiApiKey;
+    this.openAiSafetyIdentifier = options.openAiSafetyIdentifier?.trim() || null;
     this.realtimeModel = options.realtimeModel;
     this.realtimeVoice = options.realtimeVoice;
+    this.realtimePrompt = options.realtimePrompt ?? null;
+    this.realtimeReasoningEffort = options.realtimeReasoningEffort ?? null;
+    this.realtimeContextPruning = normalizeRealtimeContextPruning(options.realtimeContextPruning);
     this.audioTranscriptionModel = options.audioTranscriptionModel;
     this.realtimeOutputSpeed = options.realtimeOutputSpeed;
     this.realtimeMaxOutputTokens = options.realtimeMaxOutputTokens;
@@ -234,9 +287,7 @@ export class RealtimeSessionRegistry {
 
       const response = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
-        headers: {
-          Authorization: `Bearer ${this.openAiApiKey}`,
-        },
+        headers: this.buildOpenAiHeaders(),
         body: formData,
       });
 
@@ -393,6 +444,15 @@ export class RealtimeSessionRegistry {
       lastSidebandEventAt: undefined,
       eventSubscribers: 0,
       toolBusy: false,
+      contextWindow: {
+        pruningEnabled: this.realtimeContextPruning.enabled,
+        trackedItems: 0,
+        prunableItems: 0,
+        deletePendingItems: 0,
+        prunedItems: 0,
+        maxItems: this.realtimeContextPruning.maxItems,
+        retainItems: this.realtimeContextPruning.retainItems,
+      },
       usage: createEmptySessionUsage(),
       usageGuardrails: buildSessionUsageGuardState(
         createEmptySessionUsage(),
@@ -418,6 +478,9 @@ export class RealtimeSessionRegistry {
       sessionDeadlineTimer: null,
       sidebandPingTimer: null,
       lastGuardrailNoticeKey: null,
+      conversationItems: [],
+      prunedConversationItemCount: 0,
+      lastContextPrunedAt: undefined,
       reconnectAttempts: 0,
       reconnectTimer: null,
       sidebandGeneration: 0,
@@ -736,9 +799,140 @@ export class RealtimeSessionRegistry {
     });
   }
 
+  async resolveStructureAssetDirect(request: ResolveScientificAssetRequest): Promise<{
+    resolution: ScientificAssetResolution;
+    loaded: boolean;
+    loadResult?: ActionResult;
+    warnings: string[];
+  }> {
+    const parsed = resolveScientificAssetRequestSchema.parse(request);
+    const resolution = await resolveScientificAsset(parsed);
+    const warnings = [...resolution.warnings];
+    let loadResult: ActionResult | undefined;
+
+    if (parsed.loadIntoTarget) {
+      if (!parsed.target) {
+        warnings.push("target is required when loadIntoTarget is true.");
+      } else {
+        const file = this.pickLoadableResolvedAssetFile(resolution);
+        if (!file) {
+          warnings.push("No loadable model or map file was produced by this resolver request.");
+        } else {
+          loadResult = await this.executeTargetActions(
+            parsed.target,
+            this.buildResolvedAssetLoadActions(parsed, resolution, file) as never,
+            false,
+            this.expertCommandsEnabled,
+          );
+        }
+      }
+    }
+
+    return this.removeUndefined({
+      resolution: {
+        ...resolution,
+        warnings,
+      },
+      loaded: Boolean(loadResult),
+      loadResult,
+      warnings,
+    }) as {
+      resolution: ScientificAssetResolution;
+      loaded: boolean;
+      loadResult?: ActionResult;
+      warnings: string[];
+    };
+  }
+
   async captureViewDirect(request: CaptureViewRequest): Promise<ActionResult> {
     const parsed = captureViewRequestSchema.parse(request);
     return this.captureTargetView(parsed);
+  }
+
+  private pickLoadableResolvedAssetFile(resolution: ScientificAssetResolution): ScientificAssetFile | undefined {
+    return resolution.files.find((file) => file.kind === "model" || file.kind === "map");
+  }
+
+  private buildResolvedAssetLoadActions(
+    request: ResolveScientificAssetRequest,
+    resolution: ScientificAssetResolution,
+    file: ScientificAssetFile,
+  ): Array<PymolAction | ChimeraXAction> {
+    if (!request.target) {
+      throw new Error("target is required to build a resolved asset load action.");
+    }
+
+    const objectName = request.object ?? this.buildResolvedAssetObjectName(request, resolution, file);
+    const semanticRole = "semanticRole" in request ? request.semanticRole : undefined;
+    const aliases = "aliases" in request ? request.aliases : undefined;
+
+    if (request.target === "pymol") {
+      const loadAction = this.removeUndefined({
+        type: "load",
+        source: "local",
+        path: file.path,
+        object: objectName,
+        id: objectName,
+        semanticRole,
+        aliases,
+      }) as PymolAction;
+      if (file.kind !== "map") {
+        return [loadAction];
+      }
+      return [
+        loadAction,
+        {
+          type: "map_display",
+          mapName: objectName,
+          displayAs: "mesh",
+          level: 1,
+          color: "cyan",
+        } as PymolAction,
+      ];
+    }
+
+    const openAction = this.removeUndefined({
+      type: "open",
+      source: "local",
+      path: file.path,
+      id: objectName,
+      semanticRole,
+      aliases,
+    }) as ChimeraXAction;
+    if (file.kind !== "map") {
+      return [openAction];
+    }
+    return [
+      openAction,
+      {
+        type: "volume",
+        action: "mesh",
+        level: 0.02,
+        showOutlineBox: false,
+      } as ChimeraXAction,
+    ];
+  }
+
+  private buildResolvedAssetObjectName(
+    request: ResolveScientificAssetRequest,
+    resolution: ScientificAssetResolution,
+    file: ScientificAssetFile,
+  ): string {
+    const sourceId = request.source === "alphafold"
+      ? `af_${request.uniprotId}`
+      : request.source === "rcsb"
+      ? `rcsb_${request.pdbId}`
+      : request.source === "emdb"
+      ? `emdb_${request.emdbId}`
+      : request.source === "uniprot" && request.accession
+      ? `uniprot_${request.accession}`
+      : `${resolution.source}_${resolution.id || path.basename(file.path, path.extname(file.path))}`;
+    const safe = sourceId
+      .toLowerCase()
+      .replace(/[^a-z0-9_]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 80);
+    return safe || "resolved_asset";
   }
 
   private async captureTargetView(request: {
@@ -759,7 +953,7 @@ export class RealtimeSessionRegistry {
             path: request.path,
             width: dimensions.width,
             height: dimensions.height,
-            rayTrace: false,
+            rayTrace: true,
           }),
         } as never,
       ], false);
@@ -819,9 +1013,7 @@ export class RealtimeSessionRegistry {
     const generation = record.sidebandGeneration;
     const previousWs = record.ws;
     const ws = new WebSocket(`wss://api.openai.com/v1/realtime?call_id=${callId}`, {
-      headers: {
-        Authorization: `Bearer ${this.openAiApiKey}`,
-      },
+      headers: this.buildOpenAiHeaders(),
     });
 
     record.ws = ws;
@@ -1001,6 +1193,21 @@ export class RealtimeSessionRegistry {
       });
     }
 
+    this.observeConversationEvent(sessionId, eventType, payload);
+
+    if (eventType === "rate_limits.updated") {
+      const summary = summarizeRealtimeRateLimits(payload.rate_limits);
+      if (summary) {
+        this.broadcast(sessionId, {
+          kind: "log",
+          level: summary.low ? "warn" : "info",
+          text: summary.text,
+          payload,
+        });
+      }
+      return;
+    }
+
     if (eventType === "session.created") {
       const current = this.requireSession(sessionId).status;
       const expected = this.buildSessionConfig(current.target, current.voiceMode, current.recipeId, current.advancedMode);
@@ -1168,6 +1375,141 @@ export class RealtimeSessionRegistry {
     }
   }
 
+  private observeConversationEvent(sessionId: string, eventType: string, payload: Record<string, unknown>): void {
+    if (!this.hasSession(sessionId)) {
+      return;
+    }
+
+    if (eventType === "conversation.item.created") {
+      const item = payload.item && typeof payload.item === "object"
+        ? payload.item as Record<string, unknown>
+        : {};
+      const itemId = typeof item.id === "string" && item.id.trim()
+        ? item.id.trim()
+        : typeof payload.item_id === "string" && payload.item_id.trim()
+          ? payload.item_id.trim()
+          : "";
+      if (!itemId) {
+        return;
+      }
+      const record = this.requireSession(sessionId);
+      if (record.conversationItems.some((tracked) => tracked.id === itemId)) {
+        return;
+      }
+      const type = typeof item.type === "string" ? item.type : "unknown";
+      const role = typeof item.role === "string" ? item.role : undefined;
+      record.conversationItems.push({
+        id: itemId,
+        type,
+        role,
+        createdAtMs: Date.now(),
+        prunable: isPrunableConversationItem(type, role),
+        deleteRequested: false,
+        deleted: false,
+      });
+      this.refreshContextWindowStatus(sessionId);
+      this.maybePruneConversationContext(sessionId);
+      return;
+    }
+
+    if (eventType === "conversation.item.deleted") {
+      const itemId = typeof payload.item_id === "string" && payload.item_id.trim()
+        ? payload.item_id.trim()
+        : typeof payload.item === "string" && payload.item.trim()
+          ? payload.item.trim()
+          : "";
+      if (!itemId) {
+        return;
+      }
+      const record = this.requireSession(sessionId);
+      const tracked = record.conversationItems.find((item) => item.id === itemId);
+      if (tracked && !tracked.deleted) {
+        tracked.deleted = true;
+        tracked.deleteRequested = false;
+        record.prunedConversationItemCount += 1;
+        record.lastContextPrunedAt = new Date().toISOString();
+      }
+      this.refreshContextWindowStatus(sessionId);
+    }
+  }
+
+  private maybePruneConversationContext(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    if (!this.realtimeContextPruning.enabled) {
+      return;
+    }
+
+    const ws = record.ws;
+    if (!ws || ws.readyState !== WebSocket.OPEN) {
+      return;
+    }
+
+    const activePrunable = record.conversationItems
+      .filter((item) => item.prunable && !item.deleted && !item.deleteRequested)
+      .sort((left, right) => left.createdAtMs - right.createdAtMs);
+    if (activePrunable.length <= this.realtimeContextPruning.maxItems) {
+      return;
+    }
+
+    const deleteCount = Math.max(0, activePrunable.length - this.realtimeContextPruning.retainItems);
+    const itemsToDelete = activePrunable.slice(0, deleteCount);
+    if (!itemsToDelete.length) {
+      return;
+    }
+
+    let requestedDeleteCount = 0;
+    for (const item of itemsToDelete) {
+      try {
+        ws.send(JSON.stringify({
+          type: "conversation.item.delete",
+          item_id: item.id,
+        }));
+        item.deleteRequested = true;
+        requestedDeleteCount += 1;
+      } catch (error) {
+        this.broadcast(sessionId, {
+          kind: "log",
+          level: "warn",
+          text: `Failed to prune old Realtime conversation item ${item.id}: ${error instanceof Error ? error.message : String(error)}`,
+        });
+      }
+    }
+
+    if (requestedDeleteCount === 0) {
+      return;
+    }
+
+    this.refreshContextWindowStatus(sessionId);
+    this.broadcast(sessionId, {
+      kind: "log",
+      level: "info",
+      text: `Pruned ${requestedDeleteCount} old Realtime conversation item${requestedDeleteCount === 1 ? "" : "s"} to keep the live context responsive.`,
+      payload: {
+        requestedDeleteCount,
+        contextWindow: this.requireSession(sessionId).status.contextWindow,
+      },
+    });
+  }
+
+  private refreshContextWindowStatus(sessionId: string): void {
+    const record = this.requireSession(sessionId);
+    const trackedItems = record.conversationItems.filter((item) => !item.deleted).length;
+    const prunableItems = record.conversationItems.filter((item) => item.prunable && !item.deleted && !item.deleteRequested).length;
+    const deletePendingItems = record.conversationItems.filter((item) => item.deleteRequested && !item.deleted).length;
+    this.setStatus(sessionId, {
+      contextWindow: {
+        pruningEnabled: this.realtimeContextPruning.enabled,
+        trackedItems,
+        prunableItems,
+        deletePendingItems,
+        prunedItems: record.prunedConversationItemCount,
+        maxItems: this.realtimeContextPruning.maxItems,
+        retainItems: this.realtimeContextPruning.retainItems,
+        lastPrunedAt: record.lastContextPrunedAt,
+      },
+    });
+  }
+
   private async executeToolCall(sessionId: string, callId: string, toolName: string, argumentsJson: string): Promise<void> {
     if (!this.hasSession(sessionId)) {
       return;
@@ -1188,10 +1530,20 @@ export class RealtimeSessionRegistry {
     let nextTargetState: Record<string, unknown> | undefined;
     let captureInspectionPrompt: string | undefined;
     let attachCaptureToConversation = false;
+    let createFollowUpResponse = true;
     const allowSessionRawCommands = record.status.advancedMode && this.expertCommandsEnabled;
 
     try {
       switch (toolName) {
+        case "wait_for_user": {
+          result = {
+            ok: true,
+            action: "wait_for_user",
+            message: "Quiet turn acknowledged. Continue listening without a spoken response.",
+          };
+          createFollowUpResponse = false;
+          break;
+        }
         case "run_pymol_actions": {
           const parsed = pymolEnvelopeSchema.parse(JSON.parse(argumentsJson));
           result = await this.executeTargetActions(parsed.target, parsed.actions as never, parsed.dryRun, allowSessionRawCommands);
@@ -1222,6 +1574,15 @@ export class RealtimeSessionRegistry {
           result = await this.runScientificWorkflowDirect(payload);
           nextTargetState = result.state && typeof result.state === "object"
             ? result.state as Record<string, unknown>
+            : undefined;
+          break;
+        }
+        case "resolve_structure_asset": {
+          const payload = resolveScientificAssetRequestSchema.parse(JSON.parse(argumentsJson));
+          result = await this.resolveStructureAssetDirect(payload);
+          const loadResult = (result as { loadResult?: unknown }).loadResult;
+          nextTargetState = loadResult && typeof loadResult === "object" && "state" in loadResult
+            ? (loadResult as { state?: Record<string, unknown> }).state
             : undefined;
           break;
         }
@@ -1336,7 +1697,9 @@ export class RealtimeSessionRegistry {
         }
       }
     }
-    ws.send(JSON.stringify({ type: "response.create" }));
+    if (createFollowUpResponse) {
+      ws.send(JSON.stringify({ type: "response.create" }));
+    }
 
     this.broadcast(sessionId, {
       kind: "tool_result",
@@ -1475,6 +1838,27 @@ export class RealtimeSessionRegistry {
       };
     }
 
+    if (toolName === "resolve_structure_asset") {
+      const payload = result as {
+        resolution?: ScientificAssetResolution;
+        loaded?: boolean;
+        warnings?: string[];
+        loadResult?: ActionResult;
+      };
+      return {
+        ok: true,
+        tool: toolName,
+        resolution: payload.resolution ? this.compactScientificAssetResolutionForConversation(payload.resolution) : undefined,
+        loaded: payload.loaded,
+        warnings: (payload.warnings ?? []).slice(0, 4),
+        load: payload.loadResult ? {
+          target: payload.loadResult.target,
+          warnings: payload.loadResult.warnings.slice(0, 4),
+          metrics: payload.loadResult.metrics.slice(0, 4).map((metric) => this.compactMetricForConversation(metric)),
+        } : undefined,
+      };
+    }
+
     if (this.isScientificWorkflowResult(result)) {
       return {
         ok: true,
@@ -1523,6 +1907,27 @@ export class RealtimeSessionRegistry {
       valueText: metric.valueText,
       unit: metric.unit,
     };
+  }
+
+  private compactScientificAssetResolutionForConversation(resolution: ScientificAssetResolution): Record<string, unknown> {
+    return this.removeUndefined({
+      source: resolution.source,
+      id: resolution.id,
+      label: resolution.label,
+      files: resolution.files.slice(0, 4).map((file) => this.removeUndefined({
+        kind: file.kind,
+        label: file.label,
+        file: path.basename(file.path),
+        path: file.path,
+        format: file.format,
+        bytes: file.bytes,
+        sha256: file.sha256.slice(0, 12),
+        cacheHit: file.cacheHit,
+      })),
+      metadata: this.compactUnknownForConversation(resolution.metadata),
+      searchResults: resolution.searchResults?.slice(0, 5).map((entry) => this.compactUnknownForConversation(entry)),
+      warnings: resolution.warnings.slice(0, 4),
+    });
   }
 
   private compactArtifactForConversation(artifact: ActionResult["artifacts"][number]): Record<string, unknown> {
@@ -1676,12 +2081,20 @@ export class RealtimeSessionRegistry {
 
   private buildSessionConfig(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, advancedMode = false, instructionContext?: string) {
     const recipe = this.safeGetRecipe(recipeId);
-    const recipeSummary = recipe ? `${recipe.title}: ${recipe.goal}` : undefined;
+    const recipeSummary = recipe ? buildPinnedRecipeSummary(recipe, target) : undefined;
     const expertModeEnabled = advancedMode || this.expertCommandsEnabled;
+    const reasoningModel = isRealtimeReasoningModel(this.realtimeModel);
     const session = {
       type: "realtime",
       model: this.realtimeModel,
+      prompt: this.buildRealtimePromptField(),
       output_modalities: ["audio"],
+      reasoning: reasoningModel && this.realtimeReasoningEffort
+        ? {
+            effort: this.realtimeReasoningEffort,
+          }
+        : undefined,
+      parallel_tool_calls: reasoningModel ? false : undefined,
       instructions: buildSessionInstructions(target, voiceMode, recipeSummary, expertModeEnabled, instructionContext),
       tool_choice: "auto",
       tools: buildRealtimeTools(target, { advancedMode: expertModeEnabled }),
@@ -1737,10 +2150,7 @@ export class RealtimeSessionRegistry {
     this.requireOpenAiApiKey();
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.openAiApiKey}`,
-        "Content-Type": "application/json",
-      },
+      headers: this.buildOpenAiHeaders({ "Content-Type": "application/json" }),
       body: JSON.stringify({
         expires_after: {
           anchor: "created_at",
@@ -1761,6 +2171,31 @@ export class RealtimeSessionRegistry {
     }
 
     return { value };
+  }
+
+  private buildOpenAiHeaders(headers: Record<string, string> = {}): Record<string, string> {
+    const openAiHeaders: Record<string, string> = {
+      Authorization: `Bearer ${this.openAiApiKey}`,
+      ...headers,
+    };
+
+    if (this.openAiSafetyIdentifier) {
+      openAiHeaders["OpenAI-Safety-Identifier"] = this.openAiSafetyIdentifier;
+    }
+
+    return openAiHeaders;
+  }
+
+  private buildRealtimePromptField(): RealtimePromptConfig | undefined {
+    if (!this.realtimePrompt) {
+      return undefined;
+    }
+
+    return {
+      id: this.realtimePrompt.id,
+      ...(this.realtimePrompt.version ? { version: this.realtimePrompt.version } : {}),
+      ...(this.realtimePrompt.variables ? { variables: this.realtimePrompt.variables } : {}),
+    };
   }
 
   private getHandledCalls(sessionId: string): Set<string> {
@@ -2033,6 +2468,8 @@ function doesRealtimeSessionRequireSync(actual: Record<string, unknown>, expecte
   const expectedOutputModalities = normalizeStringList(expected.output_modalities);
   const actualVoice = readNestedString(actual, ["audio", "output", "voice"]);
   const expectedVoice = readNestedString(expected, ["audio", "output", "voice"]);
+  const actualReasoningEffort = readNestedString(actual, ["reasoning", "effort"]);
+  const expectedReasoningEffort = readNestedString(expected, ["reasoning", "effort"]);
   const actualTurnDetection = readNestedValue(actual, ["audio", "input", "turn_detection"]);
   const expectedTurnDetection = readNestedValue(expected, ["audio", "input", "turn_detection"]);
 
@@ -2041,9 +2478,88 @@ function doesRealtimeSessionRequireSync(actual: Record<string, unknown>, expecte
     || String(actual.tool_choice ?? "") !== String(expected.tool_choice ?? "")
     || String(actual.max_output_tokens ?? "") !== String(expected.max_output_tokens ?? "")
     || actualVoice !== expectedVoice
+    || actualReasoningEffort !== expectedReasoningEffort
+    || Boolean(actual.parallel_tool_calls) !== Boolean(expected.parallel_tool_calls)
     || JSON.stringify(actualOutputModalities) !== JSON.stringify(expectedOutputModalities)
     || JSON.stringify(actualTurnDetection ?? null) !== JSON.stringify(expectedTurnDetection ?? null)
     || JSON.stringify(actualToolNames) !== JSON.stringify(expectedToolNames);
+}
+
+function isRealtimeReasoningModel(model: string): boolean {
+  return model === "gpt-realtime-2" || model.startsWith("gpt-realtime-2-");
+}
+
+function normalizeRealtimeContextPruning(options?: RealtimeContextPruningOptions | null): RealtimeContextPruningOptions {
+  const raw = options ?? DEFAULT_CONTEXT_PRUNING;
+  const maxItems = Math.max(2, Math.floor(raw.maxItems));
+  const retainItems = Math.max(1, Math.floor(raw.retainItems));
+  return {
+    enabled: raw.enabled,
+    maxItems,
+    retainItems: Math.min(retainItems, maxItems - 1),
+  };
+}
+
+function isPrunableConversationItem(type: string, role?: string): boolean {
+  const normalizedType = type.trim().toLowerCase();
+  const normalizedRole = role?.trim().toLowerCase();
+  if (normalizedType === "message") {
+    return normalizedRole === "user" || normalizedRole === "assistant";
+  }
+  return normalizedType === "function_call" || normalizedType === "function_call_output";
+}
+
+function summarizeRealtimeRateLimits(rateLimits: unknown): { text: string; low: boolean } | null {
+  if (!Array.isArray(rateLimits)) {
+    return null;
+  }
+
+  const summaries: string[] = [];
+  let low = false;
+  for (const rateLimit of rateLimits) {
+    if (!rateLimit || typeof rateLimit !== "object") {
+      continue;
+    }
+    const entry = rateLimit as Record<string, unknown>;
+    const name = typeof entry.name === "string" && entry.name.trim()
+      ? entry.name.trim()
+      : "limit";
+    const remaining = readFiniteNumber(entry.remaining);
+    const limit = readFiniteNumber(entry.limit);
+    const resetSeconds = readFiniteNumber(entry.reset_seconds);
+    if (remaining === null && limit === null) {
+      continue;
+    }
+
+    const remainingText =
+      remaining !== null && limit !== null
+        ? `${remaining}/${limit} remaining`
+        : remaining !== null
+          ? `${remaining} remaining`
+          : `${limit} limit`;
+    const resetText = resetSeconds !== null ? `, resets in ${Math.ceil(resetSeconds)}s` : "";
+    summaries.push(`${name}: ${remainingText}${resetText}`);
+    if (remaining !== null && (remaining <= 0 || (limit !== null && limit > 0 && remaining / limit <= 0.1))) {
+      low = true;
+    }
+  }
+
+  if (!summaries.length) {
+    return null;
+  }
+
+  return {
+    text: `Realtime rate limits: ${summaries.join("; ")}.`,
+    low,
+  };
+}
+
+function readFiniteNumber(value: unknown): number | null {
+  const parsed = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(parsed)) {
+    return null;
+  }
+  return parsed;
 }
 
 function isTerminalSidebandReconnectError(error: Error): boolean {

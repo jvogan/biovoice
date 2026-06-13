@@ -95,7 +95,7 @@ export const scientificWorkflowCatalog: ScientificWorkflowManifest[] = scientifi
       "Keep the map and model balanced for a polished export.",
     ],
     inputHints: [
-      "cryoMapPath is required.",
+      "Provide cryoMapPath for local maps, or cryoMapEmdbId/emdbId to fetch a known EMDB map.",
       "ChimeraX emphasizes fit and orthoplanes; PyMOL emphasizes contour and presentation polish.",
       "Optional experimentalPath can act as the cryo-fit surrogate instead of the prediction.",
     ],

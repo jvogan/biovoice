@@ -364,7 +364,7 @@ describe("PymolAdapter readiness and cold-start policy", () => {
     expect(requestedPasses).toBe(1);
   });
 
-  it("collects a lightweight state summary without issuing atom-count probes", async () => {
+  it("collects a lightweight state summary with the ligand atom-count probe", async () => {
     const adapter = new PymolAdapter({
       baseUrl: "http://127.0.0.1",
       startPort: 9123,
@@ -414,15 +414,19 @@ describe("PymolAdapter readiness and cold-start policy", () => {
       if (methodName === "get_type") {
         return "object:molecule";
       }
+      if (methodName === "count_atoms" && params[0] === "organic") {
+        return 42;
+      }
       return undefined;
     };
 
     const summary = await adapter.collectStateSummary("http://127.0.0.1:9123/RPC2");
 
-    expect(methods).not.toContain("count_atoms");
+    expect(methods.filter((method) => method === "count_atoms")).toHaveLength(1);
     expect(summary.objectNames).toEqual(["4hhb"]);
     expect(summary.sceneNames).toEqual(["F6"]);
     expect(summary.visibleChains).toEqual(["A", "B", "C", "D"]);
+    expect(summary.ligandAtomCount).toBe(42);
   });
 
   it("replaces an existing object before loading it again", async () => {

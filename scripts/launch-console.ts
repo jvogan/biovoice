@@ -26,7 +26,7 @@ async function main() {
   const [targetArg, ...rest] = process.argv.slice(2);
   const target = normalizeTarget(targetArg);
   if (!target) {
-    throw new Error("Usage: tsx scripts/launch-console.ts <pymol|chimera|chimerax> [recipeId|workflowId] [--workflow workflowId] [--uniprot id] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n N] [--audience] [--open-mic] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
+    throw new Error("Usage: tsx scripts/launch-console.ts <pymol|chimera|chimerax> [recipeId|workflowId] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n N] [--audience] [--open-mic] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
   }
   const launchId = rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined;
   const flags = launchId ? rest.slice(1) : rest;
@@ -166,6 +166,10 @@ function parseLaunchFlags(flags: string[]): {
   const topNRaw = readFlagValue(flags, "--top-n");
   const scientificInputs: ScientificLaunchInputs = {
     uniprot: readFlagValue(flags, "--uniprot"),
+    experimentalPdbId: readFlagValue(flags, "--experimental-pdb-id"),
+    emdbId: readFlagValue(flags, "--emdb-id"),
+    structureFormat: readFlagValue(flags, "--structure-format"),
+    pdbFormat: readFlagValue(flags, "--pdb-format"),
     model: readFlagValue(flags, "--model"),
     experimental: readFlagValue(flags, "--experimental"),
     pae: readFlagValue(flags, "--pae"),
@@ -194,6 +198,10 @@ function parseLaunchFlags(flags: string[]): {
 
 function appendScientificFlags(args: string[], inputs: ScientificLaunchInputs): void {
   if (inputs.uniprot) args.push("--uniprot", inputs.uniprot);
+  if (inputs.experimentalPdbId) args.push("--experimental-pdb-id", inputs.experimentalPdbId);
+  if (inputs.emdbId) args.push("--emdb-id", inputs.emdbId);
+  if (inputs.structureFormat) args.push("--structure-format", inputs.structureFormat);
+  if (inputs.pdbFormat) args.push("--pdb-format", inputs.pdbFormat);
   if (inputs.model) args.push("--model", inputs.model);
   if (inputs.experimental) args.push("--experimental", inputs.experimental);
   if (inputs.pae) args.push("--pae", inputs.pae);

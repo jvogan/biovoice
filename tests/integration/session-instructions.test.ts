@@ -13,6 +13,8 @@ describe("realtime session config helpers", () => {
     expect(instructions).toContain("get_target_state");
     expect(instructions).toContain("run_scientific_workflow");
     expect(instructions).toContain("capture_view");
+    expect(instructions).toContain("wait_for_user");
+    expect(instructions).toContain("# Voice Turn Policy");
     expect(instructions).toContain("Advanced expert commands are disabled");
   });
 
@@ -24,6 +26,15 @@ describe("realtime session config helpers", () => {
     expect(advancedInstructions).toContain("Advanced expert commands are enabled");
   });
 
+  it("guides Realtime toward model-level actions for non-atomic storyboard scenes", () => {
+    const instructions = buildSessionInstructions("chimerax", "push_to_talk", "VIPR storyboard");
+
+    expect(instructions).toContain("staged diagram scenes");
+    expect(instructions).toContain("Generic3DModel");
+    expect(instructions).toContain("model-level selectors like #1, #2-5");
+    expect(instructions).toContain("do not use residue-specific labels, contacts, hbonds");
+  });
+
   it("returns only the active target tool plus shared tools", () => {
     const tools = buildRealtimeTools("chimerax");
     const names = tools.map((tool) => tool.name);
@@ -32,5 +43,6 @@ describe("realtime session config helpers", () => {
     expect(names).toContain("get_target_state");
     expect(names).toContain("run_scientific_workflow");
     expect(names).toContain("capture_view");
+    expect(names).toContain("wait_for_user");
   });
 });

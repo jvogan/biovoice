@@ -98,6 +98,7 @@
     "showcase:chimerax:map": "tsx scripts/launch-console.ts chimerax chimerax-em-map-fit-demo --audience",
     "showcase:chimerax:overlay": "tsx scripts/launch-console.ts chimerax chimerax-alphafold-experimental-overlay --audience",
     "showcase:chimerax:rosetta": "tsx scripts/launch-console.ts chimerax --workflow rosetta_interface_packing_review --model examples/data/local/rosetta_demo/reference_scaffold.pdb --bundle examples/data/local/rosetta_demo --scorefile examples/data/local/rosetta_demo/score.sc --top-n 2 --audience",
+    "showcase:chimerax:telomerase": "tsx scripts/launch-console.ts chimerax chimerax-human-telomerase-cycle --audience",
     "agent:start": "tsx scripts/agent-runtime.ts start",
     "agent:start:pymol": "tsx scripts/agent-runtime.ts start pymol",
     "agent:start:chimera": "tsx scripts/agent-runtime.ts start chimerax",
@@ -120,6 +121,7 @@
     "rehearse:workflow": "tsx scripts/rehearse-workflow.ts",
     "rehearse:pymol": "tsx scripts/rehearse-workflow.ts pymol-binding-pocket-story --target pymol --capture",
     "rehearse:chimerax": "tsx scripts/rehearse-workflow.ts chimerax-ligand-interaction-explainer --target chimerax --capture",
+    "rehearse:chimerax:telomerase": "tsx scripts/rehearse-workflow.ts chimerax-human-telomerase-cycle --target chimerax --dry-run",
     "usage:report": "tsx scripts/openai-usage-report.ts"
   },
   "dependencies": {

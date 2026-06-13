@@ -723,6 +723,7 @@ export class PymolAdapter {
     const viewport = await this.callOptionalXmlRpcProbe(rpcUrl, "get_viewport", [], summaryTimeoutMs);
     const chains = await this.callOptionalXmlRpcProbe(rpcUrl, "get_chains", ["visible"], summaryTimeoutMs);
     const currentState = await this.callOptionalXmlRpcProbe(rpcUrl, "get_state", [], summaryTimeoutMs);
+    const ligandAtomCount = await this.callOptionalXmlRpcProbe(rpcUrl, "count_atoms", ["organic"], summaryTimeoutMs);
 
     const objectNames = normalizeStringArray(objects);
     const objectTypeEntries: Array<readonly [string, string]> = [];
@@ -751,6 +752,7 @@ export class PymolAdapter {
       selectionNames: normalizeStringArray(selections),
       visibleChains: normalizeStringArray(chains),
       chainsByObject,
+      ligandAtomCount: typeof ligandAtomCount === "number" ? ligandAtomCount : undefined,
       annotations: this.sceneAnnotations,
     });
     const mergedReferenceHints = this.mergeReferenceHints(referenceSummary.handles);
@@ -768,6 +770,7 @@ export class PymolAdapter {
       selectionNames: normalizeStringArray(selections),
       sceneNames: normalizeStringArray(scenes),
       visibleChains: normalizeStringArray(chains),
+      ligandAtomCount: typeof ligandAtomCount === "number" ? ligandAtomCount : undefined,
       currentState: typeof currentState === "number" ? currentState : undefined,
       referenceHints: mergedReferenceHints,
       semanticDescriptors: referenceSummary.descriptors,
@@ -889,6 +892,23 @@ export class PymolAdapter {
           unit: "A",
           source: "rpc",
         });
+      }
+
+      if (action.type === "contacts") {
+        const mode = action.mode ?? "polar_contacts";
+        const cutoff = getPymolContactsCutoff(action);
+        metrics.push({
+          kind: "contacts",
+          name: action.name ?? undefined,
+          label: action.name ? `PyMOL contacts ${action.name}` : `PyMOL ${formatPymolContactsMode(mode)} cutoff`,
+          value: cutoff,
+          unit: "A",
+          source: "rpc",
+          details: {
+            mode,
+          },
+        });
+        continue;
       }
 
       if (action.type === "align") {
@@ -1460,6 +1480,8 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
       return [
         `distance ${action.name ?? "measurement"}, ${compilePymolSelection(action.selection1, referenceHints)}, ${compilePymolSelection(action.selection2, referenceHints)}${action.cutoff ? `, ${action.cutoff}` : ""}${typeof action.mode === "number" ? `, ${action.mode}` : ""}`,
       ];
+    case "contacts":
+      return buildPymolContactsCommands(action, referenceHints);
     case "label":
       if (action.action === "clear") {
         return [`hide labels, ${compilePymolSelection(action.selection, referenceHints)}`];
@@ -1786,8 +1808,9 @@ function buildPymolTransformCommands(
   const inferredObject = action.object ?? inferPymolObjectTransformTarget(action.selection, referenceHints);
   const camera = action.camera === false ? 0 : 1;
 
-  if (action.origin) {
-    commands.push(`origin ${compilePymolSelection(action.origin, referenceHints)}`);
+  const origin = action.origin ?? action.center;
+  if (origin) {
+    commands.push(`origin ${compilePymolSelection(origin, referenceHints)}`);
   }
 
   if (action.mode === "rotate") {
@@ -1811,6 +1834,64 @@ function buildPymolTransformCommands(
   return commands;
 }
 
+function buildPymolContactsCommands(
+  action: Extract<PymolAction, { type: "contacts" }>,
+  referenceHints?: SelectorReferenceMap,
+): string[] {
+  const mode = action.mode ?? "polar_contacts";
+  const name = action.name ?? getDefaultPymolContactsName(mode);
+  const selection1 = compilePymolSelection(action.selection1, referenceHints);
+  const selection2 = action.selection2
+    ? compilePymolSelection(action.selection2, referenceHints)
+    : `not (${selection1})`;
+  const cutoff = getPymolContactsCutoff(action);
+  const distanceMode = mode === "polar_contacts" || mode === "hbonds" ? 2 : 0;
+  const commands = [
+    `distance ${name}, ${selection1}, ${selection2}, ${cutoff}, ${distanceMode}`,
+    `hide labels, ${name}`,
+  ];
+
+  if (mode === "clashes") {
+    commands.push(`color red, ${name}`);
+    commands.push(`set dash_color, red, ${name}`);
+  }
+
+  return commands;
+}
+
+function getDefaultPymolContactsName(mode: "polar_contacts" | "hbonds" | "contacts" | "clashes"): string {
+  if (mode === "clashes") {
+    return "clashes";
+  }
+  if (mode === "contacts") {
+    return "contacts";
+  }
+  return "polar_contacts";
+}
+
+function getPymolContactsCutoff(action: Extract<PymolAction, { type: "contacts" }>): number {
+  if (typeof action.cutoff === "number") {
+    return action.cutoff;
+  }
+  if (typeof action.distance === "number") {
+    return action.distance;
+  }
+  if (action.mode === "clashes") {
+    return 2.2;
+  }
+  if (action.mode === "contacts") {
+    return 4;
+  }
+  return 3.5;
+}
+
+function formatPymolContactsMode(mode: "polar_contacts" | "hbonds" | "contacts" | "clashes"): string {
+  if (mode === "hbonds") {
+    return "hydrogen-bond";
+  }
+  return mode.replaceAll("_", " ");
+}
+
 function buildPymolCameraFrame(selection: string, frame: "hero" | "pocket" | "comparison" | "map", buffer?: number): string[] {
   const target = selection === "all" ? "visible" : selection;
 
@@ -1821,7 +1902,7 @@ function buildPymolCameraFrame(selection: string, frame: "hero" | "pocket" | "co
       "turn y, 18",
       "turn x, -10",
       `zoom ${target}, ${buffer ?? 7}`,
-      "clip slab, 10",
+      "clip slab, 40",
     ];
   }
 

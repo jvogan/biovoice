@@ -2,12 +2,12 @@ import type { TargetKind } from "../schemas/index.js";
 
 const sharedSelectorHints = [
   "Prefer selections grounded in the current active object, chain, numeric residue range, ligand/cofactor residue name, or named selection.",
+  "For staged or BILD storyboard scenes, prefer model-level selections such as #1, #2-5, or the exact model names returned by get_target_state; do not invent residues, chains, atoms, or contacts when the scene has no atomic structure.",
   "Use residue only for residue IDs or ranges such as 58 or 58-87. For named cofactors or residue names such as HEM, ATP, NAD, or HIS, use ligand or residueName instead.",
   "For nearby residues or side chains, use around plus withinAngstroms, for example { object: \"4hhb\", entity: \"sidechain\", around: \"4hhb and resn HEM\", withinAngstroms: 5, byResidue: true }. Do not use byResidue with only HEM when the user asked for nearby side chains.",
   "When get_target_state returns referenceHints, prefer a selector object with reference, for example { reference: \"predictedModel\" }, or copy the returned concrete selector instead of inventing object names.",
   "If the user refers to 'this' or 'that', assume the most recently focused selection only when there is a single clear candidate.",
   "Batch several related actions into one tool call when the user asks for a sequence of visual changes.",
-  "Use raw_command only for expert or unsupported requests.",
 ].join(" ");
 
 const selectorObjectSchema = {
@@ -101,7 +101,12 @@ const alphaFoldInputsSchema = {
     useAfdbPae: { type: "boolean" },
     experimentalPath: { type: "string" },
     experimentalPdbId: { type: "string" },
+    experimentalPdbFormat: { type: "string", enum: ["pdb", "cif"] },
+    pdbFormat: { type: "string", enum: ["pdb", "cif"] },
+    structureFormat: { type: "string", enum: ["pdb", "cif"] },
     cryoMapPath: { type: "string" },
+    cryoMapEmdbId: { type: "string" },
+    emdbId: { type: "string" },
     interfaceChains: {
       type: "array",
       minItems: 2,
@@ -232,7 +237,10 @@ const pymolActionSchemas = [
   }, ["action"]),
   variantSchema("transform", {
     mode: { type: "string", enum: ["translate", "rotate"] },
-    selection: selectorSchema,
+    selection: {
+      ...selectorSchema,
+      description: "Whole object or atom selection to move/rotate. Prefer object-level selectors such as { object: \"af_prediction\" } or semantic references when moving a whole partner.",
+    },
     object: { type: "string" },
     axis: { type: "string", enum: ["x", "y", "z"] },
     amount: { type: "number", minimum: -500, maximum: 500 },
@@ -244,6 +252,9 @@ const pymolActionSchemas = [
     },
     camera: { type: "boolean" },
     origin: selectorSchema,
+    frames: { type: "number", minimum: 1, maximum: 600 },
+    center: { ...selectorSchema, description: "Accepted alias for PyMOL transform origin; use this when rotating around a ligand, pocket, or partner center." },
+    coordinateSystem: { ...selectorSchema, description: "Selection accepted by the shared schema for parity with ChimeraX transform planning." },
   }, ["mode"]),
   variantSchema("measure", {
     mode: { type: "string", enum: ["distance", "angle", "dihedral", "polar_contacts"] },
@@ -261,6 +272,18 @@ const pymolActionSchemas = [
     cutoff: { type: "number", minimum: 0, maximum: 50 },
     mode: { type: "number", minimum: 0, maximum: 8 },
   }, ["selection1", "selection2"]),
+  variantSchema("contacts", {
+    mode: {
+      type: "string",
+      enum: ["polar_contacts", "hbonds", "contacts", "clashes"],
+      description: "Use polar_contacts or hbonds for hydrogen-bond style pseudobonds, contacts for generic close contacts, and clashes for short-distance clash markers.",
+    },
+    name: { type: "string" },
+    selection1: selectorSchema,
+    selection2: selectorSchema,
+    cutoff: { type: "number", minimum: 0, maximum: 20 },
+    distance: { type: "number", minimum: 0, maximum: 20, description: "Alias for cutoff, matching the ChimeraX contacts action vocabulary." },
+  }, ["selection1"]),
   variantSchema("label", {
     action: { type: "string", enum: ["show", "clear"] },
     selection: selectorSchema,
@@ -367,11 +390,15 @@ const chimeraXActionSchemas = [
   }),
   variantSchema("visibility", {
     mode: { type: "string", enum: ["show", "hide"] },
-    selection: selectorSchema,
+    selection: {
+      ...selectorSchema,
+      description: "Selection or model spec to show/hide. For staged BILD scenes, use whole-model specs such as #1, #2-5, #1,3,4,6, or exact names from get_target_state.",
+    },
   }, ["mode"]),
   variantSchema("select", {
+    action: { type: "string", enum: ["replace", "clear"] },
     selection: selectorSchema,
-  }, ["selection"]),
+  }),
   variantSchema("style", {
     selection: selectorSchema,
     atoms: { type: "string", enum: ["stick", "ball", "sphere"] },
@@ -383,20 +410,30 @@ const chimeraXActionSchemas = [
     transparency: { type: "number", minimum: 0, maximum: 100, description: "Surface transparency percent when surface is true. Avoid a separate color action if the user wants existing atom/cartoon colors preserved." },
   }),
   variantSchema("color", {
-    selection: selectorSchema,
+    selection: {
+      ...selectorSchema,
+      description: "Selection or whole model to recolor. For staged BILD scenes, recolor complete component models such as #2 or #5 rather than trying atom/residue selectors.",
+    },
     color: { type: "string", description: "Use compact color tokens or hex values. Prefer gray80 for light gray, gray60 for medium gray, and gray40 for dark gray." },
     scheme: { type: "string", enum: ["bychain", "byelement", "bfactor", "confidence"] },
   }),
   variantSchema("camera", {
-    action: { type: "string", enum: ["view", "turn", "move", "zoom", "clip", "hero_frame", "pocket_frame", "comparison_frame", "map_cutaway"] },
-    selection: selectorSchema,
+    action: { type: "string", enum: ["view", "turn", "move", "zoom", "clip", "hero_frame", "pocket_frame", "comparison_frame", "map_cutaway"], description: "Use hero_frame/comparison_frame for polished storyboard beats; use turn or move with frames for visible live motion." },
+    selection: {
+      ...selectorSchema,
+      description: "Optional focus selection. For staged scenes, frame model ranges such as #1-6 or #2-5.",
+    },
     axis: { type: "string", enum: ["x", "y", "z"] },
     clipMode: { type: "string", enum: ["near", "far", "front", "back", "off", "list"] },
     amount: { type: "number", minimum: -360, maximum: 360 },
+    frames: { type: "number", minimum: 1, maximum: 600 },
   }, ["action"]),
   variantSchema("transform", {
     mode: { type: "string", enum: ["translate", "rotate"] },
-    selection: selectorSchema,
+    selection: {
+      ...selectorSchema,
+      description: "Whole model or atomic selection to move/rotate. For staged storyboard scenes, use model specs like #3 or #2-5 to explode, reassemble, or animate components.",
+    },
     axis: { type: "string", enum: ["x", "y", "z"] },
     amount: { type: "number", minimum: -500, maximum: 500 },
     frames: { type: "number", minimum: 1, maximum: 600 },
@@ -419,7 +456,7 @@ const chimeraXActionSchemas = [
   variantSchema("label", {
     action: { type: "string", enum: ["show", "clear"] },
     selection: selectorSchema,
-    text: { type: "string", description: "Literal label text. Use explicit text such as Fe, Heme, or Chain A. Do not use command-language placeholders such as %S." },
+    text: { type: "string", description: "Literal atom label text. Use explicit text such as Fe, Heme, or Chain A. Do not use command-language placeholders such as %S. Avoid this for Generic3DModel/BILD storyboard scenes; use prebuilt 2D overlays or model-level coloring instead." },
   }, ["selection"]),
   variantSchema("contacts", {
     mode: { type: "string", enum: ["hbonds", "clashes", "contacts", "alphafold_contacts"] },
@@ -446,12 +483,17 @@ const chimeraXActionSchemas = [
     mode: { type: "string", enum: ["tile", "off"] },
   }, ["mode"]),
   variantSchema("volume", {
-    action: { type: "string", enum: ["molmap", "surface", "mesh", "orthoplanes"] },
+    action: { type: "string", enum: ["molmap", "surface", "mesh", "orthoplanes", "zone", "show", "hide"] },
     selection: selectorSchema,
     mapName: { type: "string" },
+    nearAtoms: selectorSchema,
     resolution: { type: "number", minimum: 1, maximum: 20 },
     level: { type: "number", minimum: -10, maximum: 10 },
+    range: { type: "number", minimum: 0.5, maximum: 50 },
+    minimalBounds: { type: "boolean" },
+    newMap: { type: "boolean" },
     transparency: { type: "number", minimum: 0, maximum: 100 },
+    showOutlineBox: { type: "boolean", description: "Set false for clean paper-style density surfaces without the volume outline box." },
   }, ["action"]),
   variantSchema("preset", {
     name: {
@@ -486,6 +528,12 @@ const chimeraXActionSchemas = [
     thickness: { type: "number", minimum: 0.1, maximum: 2 },
     xsection: { type: "string", enum: ["oval", "rect", "barbell"] },
   }),
+  variantSchema("cartoon_style", {
+    selection: selectorSchema,
+    width: { type: "number", minimum: 0.5, maximum: 5 },
+    thickness: { type: "number", minimum: 0.1, maximum: 2 },
+    xsection: { type: "string", enum: ["oval", "rect", "barbell"] },
+  }),
   variantSchema("view", {
     action: { type: "string", enum: ["save", "recall", "delete", "initial"] },
     name: { type: "string" },
@@ -510,8 +558,19 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
   return [
     {
       type: "function",
+      name: "wait_for_user",
+      description: "Call this when the latest audio should not receive a spoken response, such as silence, background noise, hold music, TV audio, side conversation, or speech not addressed to the assistant. This ends the turn quietly while continuing to listen.",
+      parameters: {
+        type: "object",
+        properties: {},
+        required: [],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: "function",
       name: "run_pymol_actions",
-      description: `Run one or more structured PyMOL visualization actions. Only use this when the active target is PyMOL. Supports complex scientist workflows such as ligand-pocket styling, residue-neighborhood selections, distances/angles/dihedrals, subset or CA-only alignment, crystal mates, whole-object or partner transforms for side-by-side comparison, scaffold-versus-design review, density mesh/surface creation, scene storage, label cleanup, clip slabs, and polished exports. ${sharedSelectorHints}`,
+      description: `Run one or more structured PyMOL visualization actions. Only use this when the active target is PyMOL. Supports complex scientist workflows such as ligand-pocket styling, residue-neighborhood selections, distances/angles/dihedrals, structured polar contacts, close contacts and clashes, subset or CA-only alignment, crystal mates, whole-object or partner transforms for side-by-side comparison, scaffold-versus-design review, density mesh/surface creation, scene storage, label cleanup, clip slabs, and polished exports. ${sharedSelectorHints}`,
       parameters: {
         type: "object",
         properties: {
@@ -535,7 +594,7 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
     {
       type: "function",
       name: "run_chimerax_actions",
-      description: `Run one or more structured ChimeraX visualization actions. Only use this when the active target is ChimeraX. Supports complex scientist workflows such as ligand interactions, hbonds/clashes/contacts, AlphaFold confidence coloring, named views, alignment and tiling, map fitting, orthoplane inspection, front/back clipping, partner or whole-model transforms for assemblies and design reviews, scaffold-versus-design review, label cleanup, assembly views, and polished exports. ${sharedSelectorHints}`,
+      description: `Run one or more structured ChimeraX visualization actions. Only use this when the active target is ChimeraX. Supports complex scientist workflows such as ligand interactions, hbonds/clashes/contacts, AlphaFold confidence coloring, named views, alignment and tiling, map fitting, orthoplane inspection, front/back clipping, partner or whole-model transforms for assemblies and design reviews, scaffold-versus-design review, label cleanup, assembly views, and polished exports. Also supports staged non-atomic/BILD storyboard demos via model-level show/hide, recolor, named view recall/save, camera motion, whole-model transforms, capture, and export. ${sharedSelectorHints}`,
       parameters: {
         type: "object",
         properties: {
@@ -558,8 +617,41 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
     },
     {
       type: "function",
+      name: "resolve_structure_asset",
+      description: "Resolve, search, and cache known structural biology assets from approved databases. Use this before loading online or database-backed content that is not already local: AlphaFold DB models/PAE by UniProt accession, RCSB PDB/mmCIF by PDB ID, RCSB full-text search, EMDB maps by EMD ID, and UniProt metadata/search. This tool does not accept arbitrary URLs. Set loadIntoTarget with a target to load the resolved model or map into PyMOL or ChimeraX using a stable object/id and optional semanticRole/aliases.",
+      parameters: {
+        type: "object",
+        properties: {
+          source: { type: "string", enum: ["alphafold", "rcsb", "rcsb_search", "emdb", "uniprot"] },
+          target: { type: "string", enum: ["pymol", "chimerax"] },
+          loadIntoTarget: { type: "boolean" },
+          uniprotId: { type: "string" },
+          pdbId: { type: "string" },
+          emdbId: { type: "string" },
+          accession: { type: "string" },
+          query: { type: "string" },
+          format: { type: "string", enum: ["pdb", "cif"] },
+          assemblyId: { type: "string" },
+          includePae: { type: "boolean" },
+          includeMetadata: { type: "boolean" },
+          limit: { type: "number", minimum: 1, maximum: 25 },
+          object: { type: "string" },
+          semanticRole: { type: "string", enum: ["experimental", "predicted", "design", "scaffold", "binder", "receptor", "partner"] },
+          aliases: {
+            type: "array",
+            items: { type: "string" },
+            minItems: 1,
+            maxItems: 12,
+          },
+        },
+        required: ["source"],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: "function",
       name: "get_target_state",
-      description: "Fetch the current target's state summary before deciding on the next action, especially when the user says 'this', 'that', 'whole complex', 'predicted model', 'experimental model', 'binder', 'scaffold', 'partner A', 'partner B', or asks what is loaded. The result includes referenceHints with concrete selectors for those semantic handles.",
+      description: "Fetch the current target's state summary before deciding on the next action, especially when the user says 'this', 'that', 'whole complex', 'predicted model', 'experimental model', 'binder', 'scaffold', 'partner A', 'partner B', or asks what is loaded. The result includes referenceHints with concrete selectors for semantic handles and model metadata; if models are Generic3DModel/BILD/Labels, treat the scene as a staged storyboard and prefer model-level actions over atom/residue/contact tools.",
       parameters: {
         type: "object",
         properties: {

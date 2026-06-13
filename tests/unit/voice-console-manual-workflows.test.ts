@@ -175,6 +175,7 @@ describe("voice console manual workflow helpers", () => {
   it("detects assistant response lifecycle events", () => {
     expect(isAssistantResponseStartEvent("response.created")).toBe(true);
     expect(isAssistantResponseStartEvent("response.output_audio.delta")).toBe(true);
+    expect(isAssistantResponseStartEvent("response.output_audio_transcript.delta")).toBe(true);
     expect(isAssistantResponseStartEvent("response.function_call_arguments.done")).toBe(true);
     expect(isAssistantResponseEndEvent("response.done")).toBe(true);
     expect(isAssistantResponseEndEvent("response.output_text.delta")).toBe(false);

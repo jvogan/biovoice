@@ -11,7 +11,7 @@ If you are new to the project, start with the hand-authored guides first:
 
 If you are a **developer or AI engineer** studying the Realtime API tool-calling pattern, start with:
 
-- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 7 function tools, selector schema, state grounding, and workflow compilation
+- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 9 function tools in the catalog, selector schema, database asset resolution, state grounding, and workflow compilation
 - [`tool-playbooks/`](./tool-playbooks/) - the atomic PyMOL and ChimeraX action surface available to the model
 - [`scientific-workflows/`](./scientific-workflows/) - the task-level AlphaFold / Rosetta catalog exposed behind `run_scientific_workflow`
 - The source of truth: [`packages/runtime-and-adapters/src/realtime/tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts)
@@ -44,6 +44,7 @@ If you are a **developer or AI engineer** studying the Realtime API tool-calling
 - `chimerax-assembly-interface-handoff` | **Assembly-To-Interface Handoff** | Start from a biological assembly overview, transition into a chain-level interface analysis, and finish on a polished interface hero view with saved named cameras.
 - `chimerax-hemoglobin-structural-handoff` | **Hemoglobin Structural Handoff** | Tell a paper-like hemoglobin story in ChimeraX: start from the experimental 8WJ1 tetramer, align an AlphaFold alpha chain to chain A, move into the heme neighborhood, then hand off into the EMD-37575 cryo map and end on a fitted local hero.
 - `chimerax-em-map-fit-demo` | **Cryo-EM Map Fit Review** | Open a real local cryo-EM hemoglobin map with its fitted model, review the global fit, inspect orthoplanes briefly, move into a heme-centered local cutaway, and export a polished mesh-based hero still.
+- `chimerax-human-telomerase-cycle` | **Human Telomerase Cycle Demo** | Open public human telomerase initiation, elongation, and pre-termination structures in ChimeraX, keep them in their deposited coordinate frames, then run an animated, paper-style workflow that compares catalytic states, inspects nucleotide contacts, validates density, and exports a polished active-site figure.
 - `chimerax-groel-cavity-tour` | **GroEL Cavity Tour** | Open the GroEL chaperonin in ChimeraX, color its domain architecture, move into a cavity cutaway, and export a polished large-assembly still.
 - `chimerax-interface-contacts-analysis` | **Interface or Contacts Analysis** | Open a multichain complex, isolate an interface, compute contacts and hydrogen bonds, and export the interface view.
 ## Guided Tutorials

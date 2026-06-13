@@ -42,6 +42,7 @@ interface ChimeraXCommandBatch {
 
 interface ChimeraXCompileContext {
   nextGeneratedModelId: number;
+  lastOpenedModelId?: string;
 }
 
 export class ChimeraXAdapter {
@@ -76,6 +77,17 @@ export class ChimeraXAdapter {
       throw new Error(
         endpointProbe.detail
           ?? "ChimeraX REST endpoint is reachable but not in JSON mode. Start ChimeraX with `remotecontrol rest start port 60958 json true log false`.",
+      );
+    }
+
+    if (await this.portAcceptsConnections()) {
+      const busyUrl = await this.waitForReadyEndpoint(baseUrl, Math.max(this.timeoutMs, 45_000));
+      if (busyUrl) {
+        this.ready = true;
+        return busyUrl;
+      }
+      throw new Error(
+        `ChimeraX REST is accepting connections on port ${this.port}, but it did not answer JSON commands. ChimeraX is likely busy rendering or showing an error dialog; wait for it to finish or restart the ChimeraX target.`,
       );
     }
 
@@ -197,7 +209,16 @@ export class ChimeraXAdapter {
         }
 
         logs.push(`Elapsed: ${Date.now() - startedAt} ms.`);
-        const state = dryRun ? undefined : await this.collectStateSummary(baseUrl!);
+        const warnings: string[] = [];
+        let state: Record<string, unknown> | undefined;
+        if (!dryRun) {
+          try {
+            state = await this.collectStateSummary(baseUrl!);
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            warnings.push(`ChimeraX state summary was unavailable after actions: ${message}`);
+          }
+        }
         const metrics = dryRun ? [] : extractChimeraXMetrics(commandResponses);
         return actionResultSchema.parse({
           target: "chimerax",
@@ -205,7 +226,7 @@ export class ChimeraXAdapter {
           logs,
           artifacts,
           metrics,
-          warnings: [],
+          warnings,
           state,
         });
       };
@@ -257,15 +278,17 @@ export class ChimeraXAdapter {
       };
     }
 
-    if (this.ready && await this.portAcceptsConnections()) {
+    if (await this.portAcceptsConnections()) {
       return {
-        ready: true,
+        ready: this.ready,
         endpoint: baseUrl,
-        detail: "ChimeraX REST is busy but the last confirmed JSON endpoint is still accepting connections.",
+        detail: this.ready
+          ? "ChimeraX REST is busy but the last confirmed JSON endpoint is still accepting connections."
+          : "ChimeraX REST is accepting connections but did not answer the JSON readiness probe.",
         reachable: true,
-        commandReady: true,
+        commandReady: this.ready,
         busy: true,
-        warmupState: "ready",
+        warmupState: this.ready ? "ready" : "warming",
       };
     }
 
@@ -546,6 +569,7 @@ function compileChimeraXAction(
     case "reset_workspace":
       if (context) {
         context.nextGeneratedModelId = 1;
+        context.lastOpenedModelId = undefined;
       }
       return [
         "close all",
@@ -554,6 +578,7 @@ function compileChimeraXAction(
       ];
     case "open": {
       if (context) {
+        context.lastOpenedModelId = `#${context.nextGeneratedModelId}`;
         context.nextGeneratedModelId += 1;
       }
       if (action.source === "pdb") return [`open ${action.id}`];
@@ -567,6 +592,7 @@ function compileChimeraXAction(
     case "close":
       if (context && action.target === "all") {
         context.nextGeneratedModelId = 1;
+        context.lastOpenedModelId = undefined;
       }
       return [`close ${action.target}`];
     case "visibility": {
@@ -574,6 +600,12 @@ function compileChimeraXAction(
       return [`${action.mode} ${selection}`.trim()];
     }
     case "select":
+      if (action.action === "clear") {
+        return ["~select"];
+      }
+      if (!action.selection) {
+        throw new Error("ChimeraX select action requires a selection unless action is clear.");
+      }
       return [`select ${compileChimeraXAtomspec(action.selection, referenceHints)}`];
     case "style": {
       const selection = action.selection ? compileChimeraXAtomspec(action.selection, referenceHints) : "";
@@ -601,13 +633,14 @@ function compileChimeraXAction(
       return [`color ${compileChimeraXAtomspec(action.selection, referenceHints)} ${normalizeChimeraXColorSpec(action.color ?? "goldenrod")}`];
     case "camera": {
       const selection = action.selection ? compileChimeraXAtomspec(action.selection, referenceHints) : "";
+      const frames = action.frames ? ` ${action.frames}` : "";
       switch (action.action) {
         case "view":
           return [selection ? `view ${selection} orient` : "view orient"];
         case "turn":
-          return [`turn ${action.axis ?? "y"} ${action.amount ?? 30}`];
+          return [`turn ${action.axis ?? "y"} ${action.amount ?? 30}${frames}`];
         case "move":
-          return [`move ${action.axis ?? "y"} ${action.amount ?? 2}`];
+          return [`move ${action.axis ?? "y"} ${action.amount ?? 2}${frames}`];
         case "zoom":
           return selection
             ? [`view ${selection} orient`, `zoom ${action.amount ?? 1.5}`]
@@ -684,12 +717,20 @@ function compileChimeraXAction(
       return [action.mode === "tile" ? "tile" : "tile off"];
     case "volume": {
       const selection = action.selection ? compileChimeraXAtomspec(action.selection, referenceHints) : "";
+      const mapName = action.mapName ?? context?.lastOpenedModelId ?? "#100";
+      const outlineCommands = typeof action.showOutlineBox === "boolean"
+        ? [`volume ${mapName} showOutlineBox ${action.showOutlineBox ? "true" : "false"}`]
+        : [];
       if (action.action === "molmap") {
-        const commands = [`molmap ${selection} ${action.resolution ?? 4}`.trim()];
-        if (context) {
+        const molmapSelection = selection ? quoteChimeraXSpecifier(selection) : "";
+        const commands = [`molmap ${molmapSelection} ${action.resolution ?? 4}`.trim()];
+        if (context && !action.mapName) {
+          context.nextGeneratedModelId += 1;
+        }
+        if (context && action.mapName) {
           const generatedModelId = `#${context.nextGeneratedModelId}`;
           context.nextGeneratedModelId += 1;
-          if (action.mapName && action.mapName !== generatedModelId) {
+          if (action.mapName !== generatedModelId) {
             commands.push(`rename ${generatedModelId} id ${action.mapName}`);
           }
         }
@@ -697,14 +738,40 @@ function compileChimeraXAction(
       }
       if (action.action === "surface") {
         return [
-          `volume ${action.mapName ?? "#100"} style surface level ${action.level ?? 0.02}`,
-          ...(typeof action.transparency === "number" ? [`transparency ${action.mapName ?? "#100"} ${action.transparency}`] : []),
+          `volume ${mapName} style surface level ${action.level ?? 0.02}`,
+          ...outlineCommands,
+          ...(typeof action.transparency === "number" ? [`transparency ${mapName} ${action.transparency}`] : []),
         ];
       }
       if (action.action === "mesh") {
-        return [`volume ${action.mapName ?? "#100"} style mesh level ${action.level ?? 0.02}`];
+        return [
+          `volume ${mapName} style mesh level ${action.level ?? 0.02}`,
+          ...outlineCommands,
+        ];
       }
-      return [`volume ${action.mapName ?? "#100"} style image orthoplanes xyz`];
+      if (action.action === "show" || action.action === "hide") {
+        return [`volume ${mapName} ${action.action}`, `${action.action} ${mapName} models`];
+      }
+      if (action.action === "zone") {
+        const nearAtoms = action.nearAtoms
+          ? quoteChimeraXSpecifier(compileChimeraXAtomspec(action.nearAtoms, referenceHints))
+          : selection
+          ? quoteChimeraXSpecifier(selection)
+          : "#1";
+        const options = [
+          `range ${action.range ?? 6}`,
+          typeof action.minimalBounds === "boolean" ? `minimalBounds ${action.minimalBounds ? "true" : "false"}` : "",
+          typeof action.newMap === "boolean" ? `newMap ${action.newMap ? "true" : "false"}` : "",
+        ].filter(Boolean).join(" ");
+        return [
+          `volume zone ${mapName} nearAtoms ${nearAtoms} ${options}`,
+          ...outlineCommands,
+        ];
+      }
+      return [
+        `volume ${mapName} style image orthoplanes xyz`,
+        ...outlineCommands,
+      ];
     }
     case "graphics": {
       const commands: string[] = [];
@@ -723,7 +790,8 @@ function compileChimeraXAction(
       }
       return commands;
     }
-    case "cartoon": {
+    case "cartoon":
+    case "cartoon_style": {
       const selection = action.selection ? compileChimeraXAtomspec(action.selection, referenceHints) : "";
       const options = [
         action.width ? `width ${action.width}` : "",

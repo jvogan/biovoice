@@ -2,6 +2,10 @@ import { scientificWorkflowKinds, type ScientificWorkflowKind, type TargetKind }
 
 export interface ScientificLaunchInputs {
   uniprot?: string;
+  experimentalPdbId?: string;
+  emdbId?: string;
+  structureFormat?: string;
+  pdbFormat?: string;
   model?: string;
   experimental?: string;
   pae?: string;
@@ -332,6 +336,10 @@ function appendScientificLaunchInputs(params: URLSearchParams, inputs?: Scientif
   }
 
   if (inputs.uniprot) params.set("uniprot", inputs.uniprot);
+  if (inputs.experimentalPdbId) params.set("experimental_pdb_id", inputs.experimentalPdbId);
+  if (inputs.emdbId) params.set("emdb_id", inputs.emdbId);
+  if (inputs.structureFormat) params.set("structure_format", inputs.structureFormat);
+  if (inputs.pdbFormat) params.set("pdb_format", inputs.pdbFormat);
   // Keep browser launch URLs free of local filesystem paths. File-based inputs
   // should travel through explicit CLI arguments or direct workflow staging.
   if (typeof inputs.topN === "number" && Number.isFinite(inputs.topN)) params.set("top_n", String(Math.max(1, Math.round(inputs.topN))));
@@ -343,6 +351,10 @@ function appendScientificLaunchArgs(parts: string[], inputs?: ScientificLaunchIn
   }
 
   if (inputs.uniprot) parts.push("--uniprot", inputs.uniprot);
+  if (inputs.experimentalPdbId) parts.push("--experimental-pdb-id", inputs.experimentalPdbId);
+  if (inputs.emdbId) parts.push("--emdb-id", inputs.emdbId);
+  if (inputs.structureFormat) parts.push("--structure-format", inputs.structureFormat);
+  if (inputs.pdbFormat) parts.push("--pdb-format", inputs.pdbFormat);
   if (inputs.model) parts.push("--model", inputs.model);
   if (inputs.experimental) parts.push("--experimental", inputs.experimental);
   if (inputs.pae) parts.push("--pae", inputs.pae);

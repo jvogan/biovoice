@@ -5,7 +5,7 @@ dotenv.config();
 
 const days = Number(process.argv[2] ?? process.env.OPENAI_USAGE_DAYS ?? 7);
 const apiKey = process.env.OPENAI_USAGE_API_KEY ?? process.env.OPENAI_API_KEY ?? "";
-const realtimeModel = process.env.REALTIME_MODEL ?? "gpt-realtime-1.5";
+const realtimeModel = process.env.REALTIME_MODEL ?? "gpt-realtime-2";
 const transcriptionModel = process.env.REALTIME_TRANSCRIPTION_MODEL ?? "gpt-4o-mini-transcribe";
 
 async function main() {

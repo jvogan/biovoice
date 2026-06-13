@@ -74,6 +74,51 @@ describe("scientific workflow helpers", () => {
     expect(command).not.toContain("--widget");
   });
 
+  it("keeps database ids and format hints in launch urls and commands", () => {
+    const url = buildScientificWorkflowUrl("http://localhost:3000", {
+      target: "chimerax",
+      workflowId: "alphafold_vs_experiment_overlay",
+      scientificInputs: {
+        uniprot: "P69905",
+        experimentalPdbId: "4HHB",
+        emdbId: "EMD-37575",
+        structureFormat: "cif",
+        pdbFormat: "pdb",
+        experimental: "/private/4hhb.pdb",
+        map: "/private/emd_37575.map",
+      },
+      widget: true,
+    });
+    const command = buildScientificLaunchCommand({
+      target: "chimerax",
+      workflowId: "alphafold_vs_experiment_overlay",
+      scientificInputs: {
+        uniprot: "P69905",
+        experimentalPdbId: "4HHB",
+        emdbId: "EMD-37575",
+        structureFormat: "cif",
+        pdbFormat: "pdb",
+        experimental: "/private/4hhb.pdb",
+        map: "/private/emd_37575.map",
+      },
+      widget: true,
+    });
+
+    expect(url).toContain("uniprot=P69905");
+    expect(url).toContain("experimental_pdb_id=4HHB");
+    expect(url).toContain("emdb_id=EMD-37575");
+    expect(url).toContain("structure_format=cif");
+    expect(url).toContain("pdb_format=pdb");
+    expect(url).not.toContain("experimental=");
+    expect(url).not.toContain("map=");
+    expect(command).toContain("--experimental-pdb-id 4HHB");
+    expect(command).toContain("--emdb-id EMD-37575");
+    expect(command).toContain("--structure-format cif");
+    expect(command).toContain("--pdb-format pdb");
+    expect(command).toContain("--experimental /private/4hhb.pdb");
+    expect(command).toContain("--map /private/emd_37575.map");
+  });
+
   it("ranks only available candidate recipes for the active target", () => {
     const workflow = getScientificWorkflowForRecipe("pymol-alphafold-experimental-overlay");
     expect(workflow?.id).toBe("alphafold_vs_experiment_overlay");

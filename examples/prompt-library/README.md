@@ -651,6 +651,53 @@ Use these spoken prompts as ready-made demo lines or as examples for downstream 
 - Tell me which named views already exist before you recall one.
 - Clean up the contact network so only the interface story remains before the final export.
 
+## Human Telomerase Cycle Demo
+- Start from blank and load the public telomerase initiation, elongation, and pre-termination structures.
+- Start from blank and open the human telomerase repeat-addition cycle structures.
+- Open the telomerase initiation, elongation, and pre-termination structures.
+- Load the telomerase cycle demo structures in ChimeraX.
+- Make the overview look like the paper figure: white background, domain colors, and bold RNA and DNA.
+- Save this view as the overview, give me a quick turntable, then come back to the saved view.
+- Hide most of the protein and keep the RNA-DNA core readable.
+- Take me into the active site and show the template, nucleotide, and nearby residues as sticks.
+- Show hydrogen bonds around the incoming nucleotide.
+- Pull back so we can see the three-state cycle together: initiation, elongation, and pre-termination.
+- Bring in the elongation cryo-EM map and hide the other two states.
+- Show the active-site atoms again and keep the map ready but uncluttered.
+- Zone the map around this active site as a soft pale density surface and give me a small reveal.
+- Switch the density to orthoplanes for a quick look, then go back to the active-site view.
+- Clean this up into a paper-style active-site figure, then export it.
+- Pull the predicted model or binder to the side when you need a readable exploded comparison, then re-center on the interface.
+- If the scientist says whole complex, assembly, scaffold, binder, receptor, or predicted model, inspect state first and reuse the returned reference handle.
+- Rotate just the binder or just the scaffold around its own center instead of spinning the whole scene when the comparison needs to stay anchored.
+- Keep the whole assembly still and move only the predicted chain cluster for the side-by-side shot.
+- Translate partner A away from partner B, save that exploded view, then restore the packed interface.
+- Compare a predicted model against the experimental structure, then save a global overlay and a flexible-region close-up.
+- Use the assembly preset when the complex is large enough that default ribbon widths feel thin or noisy.
+- Save one named view for the experimental assembly and another for the AlphaFold overlay so the handoff feels deliberate.
+- For a predicted-versus-experimental comparison, keep the tetramer or assembly readable first, then isolate the one chain you want to compare.
+- If a map is loaded, identify the map model first and then report the fit metric after the move.
+- Move from a cryo overview into an atomic cutaway while keeping the named views readable and reusable.
+- Apply the light presentation preset before exporting this view.
+- Use a pocket hero frame and keep the interface clean.
+- Measure the torsion for the active-site side chain and report it briefly.
+- Save this camera as a named view so we can recall it later.
+- Recall the last saved view with a smooth transition.
+- Color the AlphaFold model by confidence with the standard palette.
+- Use softer lighting and thinner silhouettes for a cleaner still.
+- Export a higher-resolution hero frame once the scene is polished.
+- Clip the front plane a little more so the pocket reads clearly.
+- Clear the labels before the final export if they feel busy.
+- Capture the current viewport and check whether the hbonds are readable.
+- Turn on the biological assembly briefly, then return to the focused view.
+- Use a distance-only contact cutoff when you want a stricter interface view.
+- Open the local cryo-EM map and compare mesh against orthoplanes before exporting.
+- Save one named view for the global assembly and another for the focused interface.
+- After the fit or interface analysis runs, report the strongest numeric metric in one sentence.
+- Start from the biological assembly, then hand off to the interface without losing the saved overview.
+- Tell me which named views already exist before you recall one.
+- Clean up the contact network so only the interface story remains before the final export.
+
 ## GroEL Cavity Tour
 - Open the local GroEL assembly.
 - Color the chains by chain first, then move into a cleaner assembly preset.

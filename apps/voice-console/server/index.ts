@@ -16,10 +16,14 @@ import {
   getRecipe,
   RealtimeSessionCapacityError,
   RealtimeSessionRegistry,
+  resolveScientificAssetRequestSchema,
   resolvePublicBaseUrlOrigin,
   resolveFromRoot,
   scientificWorkflowRequestSchema,
   targetKindSchema,
+  type RealtimeContextPruningOptions,
+  type RealtimePromptConfig,
+  type RealtimeReasoningEffort,
   voiceModeSchema,
 } from "../../../packages/runtime-and-adapters/src/index.js";
 
@@ -33,6 +37,10 @@ type ManagedAgentState = {
   workflowId?: string;
   scientificInputs?: {
     uniprot?: string;
+    experimentalPdbId?: string;
+    emdbId?: string;
+    structureFormat?: string;
+    pdbFormat?: string;
     model?: string;
     experimental?: string;
     pae?: string;
@@ -86,6 +94,18 @@ async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax")
   }
   if (parsed.scientificInputs.uniprot) {
     context.push(`Pinned UniProt id: ${parsed.scientificInputs.uniprot}.`);
+  }
+  if (parsed.scientificInputs.experimentalPdbId) {
+    context.push(`Pinned experimental PDB id: ${parsed.scientificInputs.experimentalPdbId}.`);
+  }
+  if (parsed.scientificInputs.emdbId) {
+    context.push(`Pinned EMDB id: ${parsed.scientificInputs.emdbId}.`);
+  }
+  if (parsed.scientificInputs.structureFormat) {
+    context.push(`Preferred database structure format: ${parsed.scientificInputs.structureFormat}.`);
+  }
+  if (parsed.scientificInputs.pdbFormat) {
+    context.push(`Preferred RCSB PDB format: ${parsed.scientificInputs.pdbFormat}.`);
   }
   if (typeof parsed.scientificInputs.topN === "number" && Number.isFinite(parsed.scientificInputs.topN)) {
     context.push(`Pinned top-N value: ${Math.max(1, Math.round(parsed.scientificInputs.topN))}.`);
@@ -349,8 +369,19 @@ const allowRemoteClients = process.env.ALLOW_REMOTE_CLIENTS === "true";
 const remoteAccessToken = allowRemoteClients
   ? (process.env.REMOTE_ACCESS_TOKEN?.trim() || crypto.randomUUID())
   : "";
-const realtimeModel = process.env.REALTIME_MODEL ?? "gpt-realtime-1.5";
+const realtimeModel = process.env.REALTIME_MODEL ?? "gpt-realtime-2";
 const realtimeVoice = process.env.REALTIME_VOICE ?? "marin";
+const realtimePrompt = parseRealtimePromptConfig({
+  id: process.env.REALTIME_PROMPT_ID,
+  version: process.env.REALTIME_PROMPT_VERSION,
+  variablesJson: process.env.REALTIME_PROMPT_VARIABLES_JSON,
+});
+const realtimeReasoningEffort = parseRealtimeReasoningEffort(process.env.REALTIME_REASONING_EFFORT ?? "low");
+const realtimeContextPruning = parseRealtimeContextPruning({
+  enabled: process.env.REALTIME_CONTEXT_PRUNING,
+  maxItems: process.env.REALTIME_CONTEXT_MAX_ITEMS,
+  retainItems: process.env.REALTIME_CONTEXT_RETAIN_ITEMS,
+});
 const realtimeTranscriptionModel = process.env.REALTIME_TRANSCRIPTION_MODEL ?? "gpt-4o-mini-transcribe";
 const realtimeOutputSpeed = Number(process.env.REALTIME_OUTPUT_SPEED ?? 1);
 const realtimeMaxOutputTokens = parseRealtimeMaxOutputTokens(process.env.REALTIME_MAX_OUTPUT_TOKENS ?? "1536");
@@ -378,6 +409,7 @@ const enableAutolaunch = process.env.ENABLE_AUTOLAUNCH !== "false";
 const usageApiKey = process.env.OPENAI_USAGE_API_KEY ?? process.env.OPENAI_API_KEY ?? "";
 const usageProjectId = process.env.OPENAI_USAGE_PROJECT_ID;
 const openAiKeyPresent = Boolean(process.env.OPENAI_API_KEY);
+const openAiSafetyIdentifier = sanitizeOpenAiSafetyIdentifier(process.env.OPENAI_SAFETY_IDENTIFIER);
 const usageKeyPresent = Boolean(usageApiKey);
 const expertCommandsGloballyEnabled = process.env.ENABLE_EXPERT_RAW_COMMANDS === "true";
 const persistSessionEvents = process.env.PERSIST_SESSION_EVENT_LOGS === "true";
@@ -406,8 +438,12 @@ if (!allowRemoteClients && !isLoopbackHost(listenHost)) {
 const app = express();
 const registry = new RealtimeSessionRegistry({
   openAiApiKey: process.env.OPENAI_API_KEY ?? "",
+  openAiSafetyIdentifier,
   realtimeModel,
   realtimeVoice,
+  realtimePrompt,
+  realtimeReasoningEffort,
+  realtimeContextPruning,
   audioTranscriptionModel: realtimeTranscriptionModel,
   realtimeOutputSpeed,
   realtimeMaxOutputTokens,
@@ -581,6 +617,10 @@ app.get("/api/health", async (req, res) => {
     publicBaseUrl,
     realtimeModel,
     realtimeVoice,
+    realtimePromptPresent: Boolean(realtimePrompt),
+    realtimePromptVersion: realtimePrompt?.version,
+    realtimeReasoningEffort,
+    realtimeContextPruning,
     realtimeIdleWarningSeconds,
     realtimePttIdleDisconnectSeconds,
     realtimeOpenMicIdleDisconnectSeconds,
@@ -596,6 +636,7 @@ app.get("/api/health", async (req, res) => {
     exampleCount: getExampleCatalog().length,
     scientificWorkflowCount: getScientificWorkflowCatalog().length,
     openAiKeyPresent,
+    openAiSafetyIdentifierPresent: Boolean(openAiSafetyIdentifier),
     usageKeyPresent,
     expertCommandsGloballyEnabled,
     persistSessionEvents,
@@ -623,6 +664,10 @@ app.get("/api/config", async (req, res) => {
     publicBaseUrl,
     realtimeModel,
     realtimeVoice,
+    realtimePromptPresent: Boolean(realtimePrompt),
+    realtimePromptVersion: realtimePrompt?.version,
+    realtimeReasoningEffort,
+    realtimeContextPruning,
     realtimeIdleWarningSeconds,
     realtimePttIdleDisconnectSeconds,
     realtimeOpenMicIdleDisconnectSeconds,
@@ -636,6 +681,7 @@ app.get("/api/config", async (req, res) => {
     },
     defaultTarget,
     openAiKeyPresent,
+    openAiSafetyIdentifierPresent: Boolean(openAiSafetyIdentifier),
     usageKeyPresent,
     expertCommandsGloballyEnabled,
     persistSessionEvents,
@@ -687,6 +733,15 @@ app.post("/api/actions", createRateLimit("actions", 120, 60_000), async (req, re
 app.post("/api/workflows/run", createRateLimit("workflows", 60, 60_000), async (req, res) => {
   try {
     const result = await registry.runScientificWorkflowDirect(scientificWorkflowRequestSchema.parse(req.body));
+    res.json(result);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.post("/api/assets/resolve", createRateLimit("assets", 60, 60_000), async (req, res) => {
+  try {
+    const result = await registry.resolveStructureAssetDirect(resolveScientificAssetRequestSchema.parse(req.body));
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -941,6 +996,103 @@ app.listen(port, listenHost, () => {
   }
 });
 
+function parseRealtimePromptConfig(options: {
+  id?: string;
+  version?: string;
+  variablesJson?: string;
+}): RealtimePromptConfig | null {
+  const id = options.id?.trim();
+  if (!id) {
+    return null;
+  }
+
+  const version = options.version?.trim();
+  const variables = parseRealtimePromptVariables(options.variablesJson);
+  return {
+    id,
+    ...(version ? { version } : {}),
+    ...(variables ? { variables } : {}),
+  };
+}
+
+function parseRealtimePromptVariables(value: string | undefined): Record<string, string | number | boolean> | undefined {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return undefined;
+  }
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch (error) {
+    throw new Error(`Invalid REALTIME_PROMPT_VARIABLES_JSON: ${error instanceof Error ? error.message : String(error)}`);
+  }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new Error("Invalid REALTIME_PROMPT_VARIABLES_JSON: expected a JSON object.");
+  }
+
+  const variables: Record<string, string | number | boolean> = {};
+  for (const [key, rawValue] of Object.entries(parsed)) {
+    if (!key.trim()) {
+      throw new Error("Invalid REALTIME_PROMPT_VARIABLES_JSON: variable names must be non-empty strings.");
+    }
+    if (typeof rawValue === "string" || typeof rawValue === "boolean") {
+      variables[key] = rawValue;
+      continue;
+    }
+    if (typeof rawValue === "number" && Number.isFinite(rawValue)) {
+      variables[key] = rawValue;
+      continue;
+    }
+    throw new Error(`Invalid REALTIME_PROMPT_VARIABLES_JSON: ${key} must be a string, finite number, or boolean.`);
+  }
+
+  return variables;
+}
+
+function parseRealtimeContextPruning(options: {
+  enabled?: string;
+  maxItems?: string;
+  retainItems?: string;
+}): RealtimeContextPruningOptions {
+  const enabled = options.enabled?.trim().toLowerCase() === "false"
+    ? false
+    : options.enabled?.trim().toLowerCase() === "off"
+      ? false
+      : options.enabled?.trim().toLowerCase() === "0"
+        ? false
+        : true;
+  const maxItems = readPositiveInteger(options.maxItems, 96);
+  const retainItems = readPositiveInteger(options.retainItems, 64);
+  if (maxItems < 2) {
+    throw new Error("Invalid REALTIME_CONTEXT_MAX_ITEMS: value must be at least 2.");
+  }
+  if (retainItems >= maxItems) {
+    throw new Error("Invalid REALTIME_CONTEXT_RETAIN_ITEMS: value must be lower than REALTIME_CONTEXT_MAX_ITEMS.");
+  }
+
+  return {
+    enabled,
+    maxItems,
+    retainItems,
+  };
+}
+
+function sanitizeOpenAiSafetyIdentifier(value: string | undefined): string | null {
+  const trimmed = value?.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (/[\r\n]/.test(trimmed)) {
+    throw new Error("Invalid OPENAI_SAFETY_IDENTIFIER: header values cannot contain newlines.");
+  }
+  if (trimmed.length > 512) {
+    throw new Error("Invalid OPENAI_SAFETY_IDENTIFIER: keep the value under 512 characters.");
+  }
+  return trimmed;
+}
+
 function parseRealtimeMaxOutputTokens(value: string): number | "inf" {
   if (value === "inf") {
     return "inf";
@@ -952,6 +1104,25 @@ function parseRealtimeMaxOutputTokens(value: string): number | "inf" {
   }
 
   return Math.floor(parsed);
+}
+
+function parseRealtimeReasoningEffort(value: string): RealtimeReasoningEffort | null {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "none" || normalized === "off" || normalized === "false") {
+    return null;
+  }
+
+  if (
+    normalized === "minimal"
+    || normalized === "low"
+    || normalized === "medium"
+    || normalized === "high"
+    || normalized === "xhigh"
+  ) {
+    return normalized;
+  }
+
+  throw new Error(`Invalid REALTIME_REASONING_EFFORT: ${value}`);
 }
 
 function readPositiveInteger(rawValue: string | undefined, fallback: number): number {

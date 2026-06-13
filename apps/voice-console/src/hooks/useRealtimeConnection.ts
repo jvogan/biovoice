@@ -61,7 +61,7 @@ export function isAssistantResponseStartEvent(eventType: string | null | undefin
   return /^response\.created$/i.test(eventType)
     || /^response\.output_item\.created$/i.test(eventType)
     || /^response\.content_part\.added$/i.test(eventType)
-    || /^response\.output_(?:audio|text)\.delta$/i.test(eventType)
+    || /^response\.output_(?:audio|audio_transcript|text)\.delta$/i.test(eventType)
     || /^response\.function_call_arguments\.(?:delta|done)$/i.test(eventType);
 }
 

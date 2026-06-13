@@ -8,7 +8,7 @@ Everything here is real and lives in the repo. File paths are linkable. The tool
 
 BioVoice is a working reference for the full loop of Realtime API tool calling against non-trivial external software:
 
-- **7 Realtime function tools** registered in a live WebRTC session
+- **9 total Realtime function tools** across the catalog; each live session exposes the active target action tool plus shared tools
 - **9 task-level AlphaFold and Rosetta workflows** exposed behind a single domain tool
 - **Rich JSON Schema selectors** — chain IDs, residue ranges, ligand handles, proximity queries, semantic references
 - **Two adapter layers** for PyMOL (XML-RPC) and ChimeraX (REST) driven by the same typed action schema
@@ -31,19 +31,21 @@ flowchart LR
 
 The browser owns the WebRTC session to OpenAI Realtime. The model emits tool calls in the session; the browser relays them to the local backend over HTTP / SSE; the backend validates, executes, and returns a structured result; the browser plays the result back into the live session as a tool response. The model then picks the next action. Nothing in PyMOL or ChimeraX is driven by free text from the model — every action goes through a validated schema.
 
-## The Seven Registered Tools
+## The Nine Registered Tools
 
-The registrar is [`buildRealtimeTools()`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts). It returns a filtered list based on the active target so the model never sees a PyMOL tool when ChimeraX is active, and never sees the raw-command action when expert mode is off.
+The registrar is [`buildRealtimeTools()`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts). It returns a filtered list based on the active target, so the model never sees a PyMOL tool when ChimeraX is active, never sees a ChimeraX tool when PyMOL is active, and never sees the raw-command action when expert mode is off.
 
 | Tool | Purpose |
 |---|---|
 | `run_pymol_actions` | Execute one or more structured PyMOL visualization actions (load, select, color, measure, align, map, transform, surface, export, scene, ...) |
 | `run_chimerax_actions` | Same shape for ChimeraX (open, visibility, style, contacts, matchmaker, volume, view, graphics, ...) |
 | `get_target_state` | Fetch the current target's objects, active selections, and semantic reference hints before deciding on an action |
+| `resolve_structure_asset` | Resolve/search/cache AlphaFold DB, RCSB, EMDB, and UniProt assets through allowlisted database APIs; optionally load the resolved local file into the active target |
 | `run_scientific_workflow` | Run a domain-level AlphaFold or Rosetta workflow that compiles down to target-specific actions |
 | `run_recipe_step` | Execute a named step from the built-in demo library (storyboard-style workflows) |
 | `export_artifact` | Save a presentation-ready PNG or session file |
 | `capture_view` | Capture the current viewport as a PNG for the model to self-inspect framing, labels, clipping, and exportability |
+| `wait_for_user` | End a silence, background-noise, or side-conversation turn quietly without a spoken reply |
 
 Each tool's full JSON Schema is defined in [`tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts). Here is the scientific-workflow tool — the one that turns AlphaFold and Rosetta vocabulary into structured arguments the model can reliably fill in:
 
@@ -156,6 +158,28 @@ Most tool-calling failures against mutable external state come from the model in
 
 The response contains `referenceHints` like `{ wholeComplex: "4hhb", predictedModel: "af_prediction", scaffoldChainA: "rosetta_scaffold_v1 and chain A" }`, so the next tool call can use a concrete selector instead of guessing. This is a clean, copyable pattern for **any** tool-calling agent that operates on mutable external state — chat over a database, an IDE agent, a browser agent, a scene editor.
 
+## Resolving Known Database Assets
+
+BioVoice now separates "find or fetch the biology asset" from "style the scene". The shared `resolve_structure_asset` tool accepts only known database sources:
+
+| Source | Inputs | Output |
+|---|---|---|
+| `alphafold` | `uniprotId`, optional `format`, optional `includePae` | Cached PDB/mmCIF model and optional PAE JSON |
+| `rcsb` | `pdbId`, optional `format`, optional numeric `assemblyId` | Cached RCSB PDB/mmCIF structure or biological assembly and optional metadata |
+| `rcsb_search` | text `query`, optional `limit` | RCSB search results enriched with compact entry metadata, no file load |
+| `emdb` | `emdbId`, optional `includeMetadata` | Cached decompressed `.map` file and optional metadata |
+| `uniprot` | `accession` or text `query`, optional `limit` | UniProt metadata or search results |
+
+When `loadIntoTarget=true`, the registry translates the resolved file into the same structured `load` / `open` action used by the adapters. Resolved maps also get an immediate visible density mesh: PyMOL receives `map_display`, and ChimeraX receives a `volume mesh` action targeting the just-opened map. This keeps all target safety checks in one place while giving the model a reliable path from "load 4HHB", "fetch the AlphaFold model for P69905", or "open EMDB 1234" to a local cached file.
+
+The resolver does not accept arbitrary URLs. Downloads are limited to allowlisted hosts, capped by asset type, written to `.runtime/cache/scientific`, and described by local manifest files. Scripted callers can hit the same path without live voice:
+
+```bash
+curl -s http://localhost:3000/api/assets/resolve \
+  -H 'content-type: application/json' \
+  -d '{"source":"rcsb","pdbId":"4HHB","format":"pdb","target":"pymol","loadIntoTarget":true,"object":"exp_complex","semanticRole":"experimental"}' | jq
+```
+
 ## Compiling Domain Concepts Into Tool Calls
 
 Exposing a flat list of every low-level action (select, color, zoom, align, ...) to the model works for simple requests but rots fast on multi-step workflows. BioVoice uses a second pattern: **a domain-level tool (`run_scientific_workflow`) whose enum values are task-sized concepts**. The backend compiles each concept into the low-level action stream.
@@ -176,7 +200,13 @@ For agent developers this is also how you build safe preview modes. The model ca
 
 Because the Realtime API keeps an open mic, cost and blast-radius control matter. BioVoice ships conservative defaults:
 
+- **Realtime 2 default**: live sessions default to `gpt-realtime-2` with `REALTIME_REASONING_EFFORT=low`, which keeps the stronger tool-use model responsive for live demos.
+- **Hosted prompt hook**: `REALTIME_PROMPT_ID`, `REALTIME_PROMPT_VERSION`, and `REALTIME_PROMPT_VARIABLES_JSON` can attach an OpenAI-hosted Realtime prompt while BioVoice still sends local target tools, instructions, and guardrails as direct session fields.
+- **Safety identifier propagation**: `OPENAI_SAFETY_IDENTIFIER` is forwarded as an OpenAI safety identifier during Realtime setup. Use a hashed or synthetic stable identifier, never a raw name, email, API key, or private subject identifier.
 - **Raw-command gate**: `raw_command` actions are filtered out of the tool schema unless `ENABLE_EXPERT_RAW_COMMANDS=true` and the client connected in advanced mode. The model literally cannot call raw commands in a default session.
+- **Ordered visual actions**: parallel tool calls are disabled for Realtime 2 sessions so molecular scene edits stay serialized through the local backend.
+- **Rate-limit visibility**: sideband `rate_limits.updated` events are summarized into the operator event stream so live demos can see remaining request/token budget without enabling raw Realtime event spam.
+- **Long-session context pruning**: `REALTIME_CONTEXT_PRUNING=true` tracks Realtime conversation item IDs and sends `conversation.item.delete` for old user, assistant, and tool-result items after `REALTIME_CONTEXT_MAX_ITEMS`, retaining the most recent `REALTIME_CONTEXT_RETAIN_ITEMS`.
 - **Idle disconnect** and a **session duration cap** prevent forgotten open mics.
 - **Response, transcription, and billable-token caps** emit warnings and then end the session before it runs away.
 - **Concurrent-session cap** prevents reconnect churn from stacking.

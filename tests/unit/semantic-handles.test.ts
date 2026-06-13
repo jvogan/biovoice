@@ -42,6 +42,39 @@ describe("semantic structure handles", () => {
     ]));
   });
 
+  it("only creates PyMOL ligand handles when ligand atoms are present", () => {
+    const withoutLigand = buildPymolReferenceSummary({
+      molecularObjectNames: ["apo_receptor"],
+      mapObjectNames: [],
+      selectionNames: [],
+      visibleChains: ["A"],
+      chainsByObject: {
+        apo_receptor: ["A"],
+      },
+      ligandAtomCount: 0,
+    });
+    const withLigand = buildPymolReferenceSummary({
+      molecularObjectNames: ["ligand_bound_receptor"],
+      mapObjectNames: [],
+      selectionNames: [],
+      visibleChains: ["A"],
+      chainsByObject: {
+        ligand_bound_receptor: ["A"],
+      },
+      ligandAtomCount: 12,
+    });
+
+    expect(withoutLigand.handles.ligandContext).toBeUndefined();
+    expect(withoutLigand.handles.ligandNeighborhood).toBeUndefined();
+    expect(withLigand.handles.ligandContext?.selector).toBe("ligand_bound_receptor and organic");
+    expect(withLigand.handles.ligandNeighborhood?.selector).toEqual({
+      object: "ligand_bound_receptor",
+      around: "ligand_bound_receptor and organic",
+      withinAngstroms: 5,
+      byResidue: true,
+    });
+  });
+
   it("classifies ChimeraX models into semantic handles for natural-language workflows", () => {
     const summary = buildChimeraXReferenceSummary({
       models: [

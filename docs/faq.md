@@ -26,6 +26,8 @@ No. Those are not implemented or supported today. BioVoice does not currently ex
 
 No. Molecular file contents stay local. During live voice sessions, microphone audio, transcripts, and structured tool-call text go to OpenAI.
 
+If you ask BioVoice to resolve a public database asset, the local backend may contact AlphaFold DB, RCSB, EMDB, or UniProt and cache downloaded files under `.runtime/cache/scientific`. The model sees the IDs/search text and returned local paths, not the full molecular file contents.
+
 ## Is local `.env` still the normal setup?
 
 Yes. Real credentials belong in your local `.env`. That file stays ignored and local. The tracked [`.env.example`](../.env.example) file is a safe template and should remain tracked.

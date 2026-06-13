@@ -1126,10 +1126,14 @@ function summarizeLatestWidgetAction(events: SessionUiEvent[]): string | null {
 
 function describeToolName(toolName: string): string {
   switch (toolName) {
+    case "wait_for_user":
+      return "waiting quietly";
     case "run_pymol_actions":
       return "running PyMOL actions";
     case "run_chimerax_actions":
       return "running ChimeraX actions";
+    case "resolve_structure_asset":
+      return "resolving structure asset";
     case "run_scientific_workflow":
       return "staging scientific workflow";
     case "capture_view":

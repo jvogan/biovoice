@@ -67,7 +67,7 @@ Direct command equivalents:
 - `turn y, 18`
 - `turn x, -10`
 - `zoom pocket or organic, 6`
-- `clip slab, 10`
+- `clip slab, 40`
 
 ## Step 3: Measure the pocket and add a transparent surface.
 

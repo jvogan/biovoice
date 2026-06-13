@@ -7,6 +7,23 @@ export interface RealtimeSessionGuardrails {
   warningRatio: number;
 }
 
+export interface RealtimeContextPruningConfig {
+  enabled: boolean;
+  maxItems: number;
+  retainItems: number;
+}
+
+export interface RealtimeContextWindowStatus {
+  pruningEnabled: boolean;
+  trackedItems: number;
+  prunableItems: number;
+  deletePendingItems: number;
+  prunedItems: number;
+  maxItems: number;
+  retainItems: number;
+  lastPrunedAt?: string;
+}
+
 export interface RuntimeHealthResponse {
   appId: string;
   instanceId: string;
@@ -17,6 +34,10 @@ export interface RuntimeHealthResponse {
   publicBaseUrl: string;
   realtimeModel: string;
   realtimeVoice: string;
+  realtimePromptPresent: boolean;
+  realtimePromptVersion?: string;
+  realtimeReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | null;
+  realtimeContextPruning: RealtimeContextPruningConfig;
   realtimeIdleWarningSeconds: number;
   realtimePttIdleDisconnectSeconds: number;
   realtimeOpenMicIdleDisconnectSeconds: number;
@@ -24,6 +45,7 @@ export interface RuntimeHealthResponse {
   defaultTarget: "pymol" | "chimerax";
   exampleCount: number;
   openAiKeyPresent: boolean;
+  openAiSafetyIdentifierPresent: boolean;
   usageKeyPresent: boolean;
   expertCommandsGloballyEnabled: boolean;
   persistSessionEvents: boolean;
@@ -79,6 +101,10 @@ export interface AppConfigResponse {
   publicBaseUrl: string;
   realtimeModel: string;
   realtimeVoice: string;
+  realtimePromptPresent: boolean;
+  realtimePromptVersion?: string;
+  realtimeReasoningEffort?: "minimal" | "low" | "medium" | "high" | "xhigh" | null;
+  realtimeContextPruning: RealtimeContextPruningConfig;
   realtimeIdleWarningSeconds: number;
   realtimePttIdleDisconnectSeconds: number;
   realtimeOpenMicIdleDisconnectSeconds: number;
@@ -86,6 +112,7 @@ export interface AppConfigResponse {
   realtimeTranscriptionModel: string;
   defaultTarget: "pymol" | "chimerax";
   openAiKeyPresent: boolean;
+  openAiSafetyIdentifierPresent: boolean;
   usageKeyPresent: boolean;
   expertCommandsGloballyEnabled: boolean;
   persistSessionEvents: boolean;
@@ -219,6 +246,33 @@ export async function runTargetActions(body: {
   return requestJson<ManualActionResult>("/api/actions", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+}
+
+export async function resolveStructureAsset(body: {
+  source: "alphafold" | "rcsb" | "rcsb_search" | "emdb" | "uniprot";
+  target?: "pymol" | "chimerax";
+  loadIntoTarget?: boolean;
+  uniprotId?: string;
+  pdbId?: string;
+  emdbId?: string;
+  accession?: string;
+  query?: string;
+  format?: "pdb" | "cif";
+  assemblyId?: string;
+  includePae?: boolean;
+  includeMetadata?: boolean;
+  limit?: number;
+  object?: string;
+  semanticRole?: "experimental" | "predicted" | "design" | "scaffold" | "binder" | "receptor" | "partner";
+  aliases?: string[];
+}) {
+  return requestJson<unknown>("/api/assets/resolve", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
     body: JSON.stringify(body),
   });
 }

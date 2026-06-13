@@ -20,7 +20,7 @@ Read in order:
 
 Read these first:
 
-1. [How Tool Calling Works](./realtime-tool-calling.md) — the 7 Realtime function tools, the selector schema pattern, `get_target_state` grounding, scientific-workflow compilation, dry-run mode, and session guardrails
+1. [How Tool Calling Works](./realtime-tool-calling.md) — the 9 Realtime function tools in the catalog, the selector schema pattern, `get_target_state` grounding, database asset resolution, scientific-workflow compilation, dry-run mode, and session guardrails
 2. [Architecture and Provider Support](./architecture.md) — local-versus-remote boundary, WebRTC path, privacy matrix
 3. [Tool Playbooks](../examples/tool-playbooks/README.md) — the atomic PyMOL and ChimeraX action surface available to the model
 4. [Scientific Workflows Catalog](../examples/scientific-workflows/README.md) — task-level AlphaFold and Rosetta workflows exposed behind a single function tool

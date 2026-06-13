@@ -187,7 +187,7 @@ async function main(): Promise<void> {
       await stop();
       return;
     default:
-        throw new Error("Usage: tsx scripts/agent-runtime.ts <start|restart|status|stop> [pymol|chimera|chimerax] [--recipe <id>] [--workflow <id>] [--uniprot <id>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>] [--audience] [--open-mic] [--advanced] [--overlay] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
+        throw new Error("Usage: tsx scripts/agent-runtime.ts <start|restart|status|stop> [pymol|chimera|chimerax] [--recipe <id>] [--workflow <id>] [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>] [--audience] [--open-mic] [--advanced] [--overlay] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
   }
 }
 
@@ -454,6 +454,26 @@ function parseCliArgs(argv: string[]): {
     }
     if (token === "--uniprot") {
       scientificInputs = { ...scientificInputs, uniprot: argv[index + 1] };
+      index += 1;
+      continue;
+    }
+    if (token === "--experimental-pdb-id") {
+      scientificInputs = { ...scientificInputs, experimentalPdbId: argv[index + 1] };
+      index += 1;
+      continue;
+    }
+    if (token === "--emdb-id") {
+      scientificInputs = { ...scientificInputs, emdbId: argv[index + 1] };
+      index += 1;
+      continue;
+    }
+    if (token === "--structure-format") {
+      scientificInputs = { ...scientificInputs, structureFormat: argv[index + 1] };
+      index += 1;
+      continue;
+    }
+    if (token === "--pdb-format") {
+      scientificInputs = { ...scientificInputs, pdbFormat: argv[index + 1] };
       index += 1;
       continue;
     }
@@ -1190,9 +1210,15 @@ function buildScientificWorkflowRequest(
         modelPath: inputs.model,
         uniprotId: inputs.uniprot,
         experimentalPath: inputs.experimental,
+        experimentalPdbId: inputs.experimentalPdbId,
+        experimentalPdbFormat: inputs.pdbFormat ?? inputs.structureFormat,
+        pdbFormat: inputs.pdbFormat,
         paePath: inputs.pae,
         useAfdbPae: Boolean(inputs.uniprot && !inputs.pae),
         cryoMapPath: inputs.map,
+        emdbId: inputs.emdbId,
+        cryoMapEmdbId: inputs.emdbId,
+        structureFormat: inputs.structureFormat,
       },
     };
   }
@@ -1203,6 +1229,7 @@ function buildScientificWorkflowRequest(
       bundlePath: inputs.bundle,
       scorefilePath: inputs.scorefile,
       referencePath: inputs.model,
+      structureFormat: inputs.structureFormat,
       topN: inputs.topN,
     },
   };

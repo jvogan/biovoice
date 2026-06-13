@@ -12,6 +12,8 @@ Agent-first:
 - `npm run agent:start -- pymol`
 - `npm run agent:start -- chimerax`
 - `npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345`
+- `npm run agent:start -- chimerax --workflow alphafold_vs_experiment_overlay --uniprot P69905 --experimental-pdb-id 4HHB --structure-format pdb`
+- `npm run agent:start -- pymol --workflow alphafold_to_cryo_handoff --uniprot P69905 --experimental-pdb-id 4HHB --emdb-id EMD-1234`
 - `npm run agent:start -- chimerax --workflow rosetta_top_design_compare --bundle ./design-bundle --scorefile ./score.sc --top-n 5`
 
 ## Minimum Setup

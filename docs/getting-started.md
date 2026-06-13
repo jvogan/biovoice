@@ -35,6 +35,8 @@ Add `OPENAI_API_KEY` only when you are ready for live voice. Keeping your real c
 
 By default, BioVoice only loads structure inputs from the prepared demo-data folder plus local runtime/output folders. If you want it to load private structures from another folder, add that folder to `STRUCTURE_ALLOWED_PATHS` in your local `.env`.
 
+For public database-backed assets, BioVoice can resolve AlphaFold DB, RCSB, EMDB, and UniProt entries through an allowlisted local resolver. Downloaded models, maps, metadata, and manifests live under `.runtime/cache/scientific`.
+
 ## Newcomer Journey
 
 ```mermaid

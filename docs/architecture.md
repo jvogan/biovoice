@@ -13,6 +13,7 @@ flowchart LR
   Server --> PyMOL["PyMOL over XML-RPC"]
   Server --> ChimeraX["ChimeraX over REST"]
   Server --> Files["Local structures, maps, captures, logs"]
+  Server --> Databases["AlphaFold DB / RCSB / EMDB / UniProt"]
 ```
 
 ## What Each Piece Does
@@ -21,7 +22,7 @@ flowchart LR
 - **OpenAI Realtime**: live speech interaction, transcription, and model responses
 - **Local BioVoice backend**: tool registration, tool execution, session coordination, logging, policy checks
 - **PyMOL / ChimeraX adapters**: structured actions turned into target-specific control calls
-- **Local files**: structures, cryo-EM maps, exports, and optional retained session artifacts
+- **Local files**: structures, cryo-EM maps, downloaded database assets, exports, and optional retained session artifacts
 
 ## Support Matrix
 
@@ -56,12 +57,14 @@ flowchart LR
   Server --> Realtime
   Server --> Targets
   Server --> Files
+  Server --> Databases["Allowlisted structure databases"]
   Targets --> Files
 ```
 
 ## What Stays Local
 
 - PDB, CIF, and map file contents
+- Cached AlphaFold DB, RCSB, EMDB, and UniProt assets under `.runtime/cache/scientific`
 - Generated exports and captures
 - Runtime state and local logs under `.runtime/` when enabled
 - `local/`, `private/`, `tmp/`, and `output/` content
@@ -72,9 +75,12 @@ flowchart LR
 - microphone audio
 - transcripts
 - structured tool-call text, such as residue names, chain IDs, object names, and file-path references
+- database identifiers or search text when you ask the model to resolve a public AlphaFold DB, RCSB, EMDB, or UniProt asset
 - session instructions and model context needed to drive the live turn
 
 BioVoice does not upload molecular file contents to OpenAI for normal local tool execution, but path names and labels can appear in the model context. Keep sensitive project names out of paths if you plan to screen-share or file public issues.
+
+Database-backed fetching is local backend network activity, not an OpenAI file upload. The resolver is limited to known structural biology sources and writes downloaded files into the local scientific cache.
 
 ## Current Voice Implementation
 
@@ -83,9 +89,10 @@ BioVoice does not have a generic provider abstraction exposed to the user. The l
 - OpenAI Realtime session setup
 - WebRTC browser transport
 - local sideband control from the BioVoice backend
-- configurable voice and transcription model through `.env`
+- `gpt-realtime-2` as the default live voice model
+- configurable voice, reasoning effort, and transcription model through `.env`
 
-If you change `REALTIME_MODEL`, `REALTIME_VOICE`, or `REALTIME_TRANSCRIPTION_MODEL`, you are still staying inside the OpenAI Realtime stack.
+If you change `REALTIME_MODEL`, `REALTIME_REASONING_EFFORT`, `REALTIME_VOICE`, or `REALTIME_TRANSCRIPTION_MODEL`, you are still staying inside the OpenAI Realtime stack.
 
 ## Possible Future Providers
 

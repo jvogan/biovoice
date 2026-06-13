@@ -16,7 +16,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Launch a polished ChimeraX map demo directly: `npm run showcase:chimerax:map`
 - Launch a polished ChimeraX AlphaFold overlay demo directly: `npm run showcase:chimerax:overlay`
 - Start a target generically: `npm run agent:start -- <pymol|chimerax>`
-- Start a task-first scientific workflow: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [--uniprot <id>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>]`
+- Start a task-first scientific workflow: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>]`
 - Once the browser is open, the `Scientific Launch` rail can also stage the currently pinned AlphaFold or Rosetta workflow directly with `Stage Workflow Now`; this is the safest UI-first rehearsal path before voice.
 - Start a target with the browser pre-armed for expert mode: `npm run agent:start -- <pymol|chimerax> --advanced`
 - Start the PyMOL demo stack: `npm run agent:start:pymol`
@@ -29,7 +29,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Check managed runtime status: `npm run agent:status`
 - Stop the managed runtime: `npm run agent:stop`
 - Rehearse a workflow without voice: `npm run rehearse:workflow -- <recipeId> --target <pymol|chimerax> --capture`
-- Rehearse a scientific workflow without voice: `npm run rehearse:workflow -- <workflowId|recipeId> --target <pymol|chimerax> --capture [scientific inputs]`
+- Rehearse a scientific workflow without voice: `npm run rehearse:workflow -- <workflowId|recipeId> --target <pymol|chimerax> --capture [scientific inputs, including --uniprot, --experimental-pdb-id, --emdb-id, --structure-format, and --pdb-format]`
 - Rehearse the default PyMOL path: `npm run rehearse:pymol`
 - Rehearse the default ChimeraX path: `npm run rehearse:chimerax`
 
@@ -57,6 +57,7 @@ This repo is meant to be operable by coding agents without extra discovery.
   Run `npm run launch:pymol` for the minimal human flow, or `npm run agent:start -- pymol` / `npm run agent:start:pymol` for a pure agent flow
   If the user explicitly wants the floating remote, run `npm run overlay:pymol` or `npm run agent:start -- pymol --overlay`
   For AlphaFold or Rosetta tasks, add `--workflow <workflowId>` plus scientific inputs, for example `npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345`
+  For database-backed overlays, prefer explicit IDs, for example `npm run agent:start -- chimerax --workflow alphafold_vs_experiment_overlay --uniprot P69905 --experimental-pdb-id 4HHB --structure-format pdb`
   For a rehearsal-only path, run `npm run agent:start -- pymol --offline --clean-target`
 - “open realtime pymol”
   Run `npm run launch:pymol`
@@ -89,6 +90,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Set `REALTIME_DEBUG_RAW_EVENTS=true` only when debugging Realtime internals; the default filtered mode is better for live demos.
 - Leave `ENABLE_EXPERT_RAW_COMMANDS=false` for normal demos. Only turn it on when you genuinely need raw PyMOL or ChimeraX commands, and then also enable `Advanced Expert Commands` inside the UI or launch with `--advanced`.
 - Use `--workflow` to launch AlphaFold or Rosetta tasks from the start. Pair it with scientific inputs instead of relying on the model to discover files later.
+- Use `resolve_structure_asset` or `/api/assets/resolve` for known online database assets. It supports AlphaFold DB, RCSB, EMDB, and UniProt through allowlisted hosts and writes files under `.runtime/cache/scientific`; it does not accept arbitrary URLs.
 
 ## Verification
 
@@ -96,6 +98,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Direct structured action execution: `curl -s http://localhost:3000/api/actions -H 'content-type: application/json' -d '{"target":"pymol","actions":[...]}'`
 - Clean-slate reset without restarting the desktop app: `curl -s http://localhost:3000/api/actions -H 'content-type: application/json' -d '{"target":"pymol","actions":[{"type":"reset_workspace"}]}'`
 - Direct workflow rehearsal: `curl -s http://localhost:3000/api/recipes/<recipeId>/run -H 'content-type: application/json' -d '{"target":"pymol"}'`
+- Direct database asset resolution: `curl -s http://localhost:3000/api/assets/resolve -H 'content-type: application/json' -d '{"source":"rcsb","pdbId":"4HHB","format":"pdb","target":"pymol","loadIntoTarget":true}'`
 - Direct viewport capture: `curl -s http://localhost:3000/api/capture -H 'content-type: application/json' -d '{"target":"chimerax","attachToConversation":false}'`
 - Health payload identity: confirm `"appId":"biovoice"` and match the reported `instanceId` plus `pid` before reusing or stopping a managed server on that port.
 - In `npm run dev`, use `http://localhost:5173` for the UI. The backend on `3000` stays API-only so stale built assets are not served during development.

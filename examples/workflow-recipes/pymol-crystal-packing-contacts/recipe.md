@@ -110,7 +110,7 @@ Direct command equivalents:
 - `turn y, 18`
 - `turn x, -10`
 - `zoom packing_shell or organic, 7`
-- `clip slab, 10`
+- `clip slab, 40`
 - `clip slab, 12`
 - `scene F12, store, Crystal packing contact hero`
 - `png "./output/doc-exports/pymol-crystal-packing-contacts-frame-and-export-packing.png", width=2200, height=1500, dpi=350, ray=1`

@@ -17,7 +17,7 @@ dotenv.config({ path: resolveFromRoot(".env") });
 async function main() {
   const [identifier, ...flags] = process.argv.slice(2);
   if (!identifier) {
-    throw new Error("Usage: tsx scripts/rehearse-workflow.ts <recipeId|workflowId> [--target pymol|chimerax] [--step stepId] [--dry-run] [--capture] [--workflow workflowId] [--uniprot id] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n n]");
+    throw new Error("Usage: tsx scripts/rehearse-workflow.ts <recipeId|workflowId> [--target pymol|chimerax] [--step stepId] [--dry-run] [--capture] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n n]");
   }
 
   const parsed = parseScientificFlags(flags);
@@ -34,8 +34,9 @@ async function main() {
 
   const registry = new RealtimeSessionRegistry({
     openAiApiKey: process.env.OPENAI_API_KEY ?? "",
-    realtimeModel: process.env.REALTIME_MODEL ?? "gpt-realtime-1.5",
+    realtimeModel: process.env.REALTIME_MODEL ?? "gpt-realtime-2",
     realtimeVoice: process.env.REALTIME_VOICE ?? "marin",
+    realtimeReasoningEffort: parseRealtimeReasoningEffort(process.env.REALTIME_REASONING_EFFORT ?? "low"),
     audioTranscriptionModel: process.env.REALTIME_TRANSCRIPTION_MODEL ?? "gpt-4o-mini-transcribe",
     realtimeOutputSpeed: Number(process.env.REALTIME_OUTPUT_SPEED ?? 1),
     realtimeMaxOutputTokens: Number(process.env.REALTIME_MAX_OUTPUT_TOKENS ?? 384),
@@ -116,9 +117,15 @@ function buildScientificWorkflowRequest(
         modelPath: inputs.model,
         uniprotId: inputs.uniprot,
         experimentalPath: inputs.experimental,
+        experimentalPdbId: inputs.experimentalPdbId,
+        experimentalPdbFormat: inputs.pdbFormat ?? inputs.structureFormat,
+        pdbFormat: inputs.pdbFormat,
         paePath: inputs.pae,
         useAfdbPae: Boolean(inputs.uniprot && !inputs.pae),
         cryoMapPath: inputs.map,
+        emdbId: inputs.emdbId,
+        cryoMapEmdbId: inputs.emdbId,
+        structureFormat: inputs.structureFormat,
       },
     });
   }
@@ -129,6 +136,7 @@ function buildScientificWorkflowRequest(
       bundlePath: inputs.bundle,
       scorefilePath: inputs.scorefile,
       referencePath: inputs.model,
+      structureFormat: inputs.structureFormat,
       topN: inputs.topN,
     },
   });
@@ -143,6 +151,23 @@ function parseTarget(flags: string[]): TargetKind | undefined {
     return "chimerax";
   }
   return undefined;
+}
+
+function parseRealtimeReasoningEffort(value: string): "minimal" | "low" | "medium" | "high" | "xhigh" | null {
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || normalized === "none" || normalized === "off" || normalized === "false") {
+    return null;
+  }
+  if (
+    normalized === "minimal"
+    || normalized === "low"
+    || normalized === "medium"
+    || normalized === "high"
+    || normalized === "xhigh"
+  ) {
+    return normalized;
+  }
+  throw new Error(`Invalid REALTIME_REASONING_EFFORT: ${value}`);
 }
 
 function readFlagValue(flags: string[], name: string): string | undefined {
@@ -166,6 +191,10 @@ function parseScientificFlags(flags: string[]): {
       : undefined,
     scientificInputs: {
       uniprot: readFlagValue(flags, "--uniprot"),
+      experimentalPdbId: readFlagValue(flags, "--experimental-pdb-id"),
+      emdbId: readFlagValue(flags, "--emdb-id"),
+      structureFormat: readFlagValue(flags, "--structure-format"),
+      pdbFormat: readFlagValue(flags, "--pdb-format"),
       model: readFlagValue(flags, "--model"),
       experimental: readFlagValue(flags, "--experimental"),
       pae: readFlagValue(flags, "--pae"),
