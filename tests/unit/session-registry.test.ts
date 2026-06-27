@@ -47,6 +47,10 @@ describe("realtime session registry hardening", () => {
       buildSessionConfig: (
         target: "pymol" | "chimerax",
         voiceMode: "push_to_talk" | "open_mic",
+        recipeId?: string,
+        advancedMode?: boolean,
+        instructionContext?: string,
+        responseLanguageMode?: "standard" | "klingon",
       ) => Record<string, unknown>;
     };
 
@@ -55,6 +59,9 @@ describe("realtime session registry hardening", () => {
     expect(session.model).toBe("gpt-realtime-2");
     expect(session.reasoning).toEqual({ effort: "low" });
     expect(session.parallel_tool_calls).toBe(false);
+
+    const klingonSession = registry.buildSessionConfig("pymol", "push_to_talk", undefined, false, undefined, "klingon");
+    expect(klingonSession.instructions).toContain("Klingon easter egg mode is active");
   });
 
   it("applies optional hosted prompt config and safety headers to client-secret setup", async () => {
@@ -389,6 +396,86 @@ describe("realtime session registry hardening", () => {
     });
 
     registry.disposeSession("session-wait");
+  });
+
+  it("lets Realtime tool calls persist response language mode", async () => {
+    const registry = createRegistry() as never as {
+      createSessionRecord: (
+        sessionId: string,
+        callId: string,
+        target: "pymol" | "chimerax",
+        voiceMode: "push_to_talk" | "open_mic",
+      ) => {
+        ws: {
+          readyState: number;
+          send: (payload: string) => void;
+          removeAllListeners: () => void;
+          close: () => void;
+        };
+        status: {
+          responseLanguageMode: "standard" | "klingon";
+        };
+      };
+      executeToolCall: (
+        sessionId: string,
+        callId: string,
+        toolName: string,
+        argumentsJson: string,
+      ) => Promise<void>;
+      sessions: Map<string, unknown>;
+      disposeSession(sessionId: string): void;
+    };
+    const sent: string[] = [];
+    const record = registry.createSessionRecord("session-language", "call-language", "pymol", "push_to_talk");
+    record.ws = {
+      readyState: 1,
+      send: (payload: string) => {
+        sent.push(payload);
+      },
+      removeAllListeners: vi.fn(),
+      close: vi.fn(),
+    };
+    registry.sessions.set("session-language", record);
+
+    await registry.executeToolCall(
+      "session-language",
+      "tool-call-language",
+      "set_response_language_mode",
+      JSON.stringify({ mode: "klingon" }),
+    );
+
+    expect(record.status.responseLanguageMode).toBe("klingon");
+    const messages = sent.map((payload) => JSON.parse(payload) as {
+      type: string;
+      session?: {
+        instructions?: string;
+      };
+      item?: {
+        type?: string;
+        output?: string;
+      };
+    });
+    expect(messages[0]).toMatchObject({
+      type: "session.update",
+      session: {
+        instructions: expect.stringContaining("Klingon easter egg mode is active"),
+      },
+    });
+    expect(messages.map((message) => message.type)).toEqual([
+      "session.update",
+      "conversation.item.create",
+      "response.create",
+    ]);
+    expect(JSON.parse(messages[1]?.item?.output ?? "{}")).toMatchObject({
+      ok: true,
+      tool: "set_response_language_mode",
+      result: {
+        action: "set_response_language_mode",
+        responseLanguageMode: "klingon",
+      },
+    });
+
+    registry.disposeSession("session-language");
   });
 
   it("dispatches fetch-backed scientific workflow tool calls through schema validation", async () => {

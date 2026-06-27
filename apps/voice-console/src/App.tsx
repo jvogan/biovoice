@@ -13,8 +13,10 @@ import {
   type ManualActionResult,
   type ManualRecipeRunResponse,
   type OrganizationUsageSummaryResponse,
+  type ResponseLanguageMode,
   type RealtimeSessionGuardrails,
   type RuntimeHealthResponse,
+  updateSessionResponseLanguageMode,
   updateSessionRecipe,
   updateSessionTarget,
   updateSessionVoiceMode,
@@ -94,6 +96,7 @@ type ToolArtifact = {
 export function App() {
   const initialQueryTarget = readQueryTarget();
   const initialQueryVoiceMode = readQueryVoiceMode();
+  const initialQueryResponseLanguageMode = readQueryResponseLanguageMode();
   const initialQueryRecipeId = useRef(readQueryRecipeId());
   const initialQueryWidgetMode = useRef(readQueryBoolean("widget"));
   const initialQueryOverlayMode = useRef(readQueryBoolean("overlay"));
@@ -107,6 +110,7 @@ export function App() {
       : "pymol");
   const [target, setTarget] = useState<TargetKind>(initialScientificTarget);
   const [voiceMode, setVoiceMode] = useState<VoiceMode>(initialQueryVoiceMode ?? "push_to_talk");
+  const [responseLanguageMode, setResponseLanguageMode] = useState<ResponseLanguageMode>(initialQueryResponseLanguageMode ?? "standard");
   const [autoSleepEnabled] = useState(!initialQueryNoSleep.current);
   const [keyboardPttEnabled] = useState(true);
   const [openMicArmed, setOpenMicArmed] = useState(false);
@@ -149,22 +153,26 @@ export function App() {
   const [activeSettingsTab, setActiveSettingsTab] = useState<SettingsTab>("runtime");
   const [quickWorkflowBusyId, setQuickWorkflowBusyId] = useState<string | null>(null);
   const [logClearIndex, setLogClearIndex] = useState(0);
+  const lastStatusResponseLanguageModeRef = useRef<ResponseLanguageMode | null>(null);
 
   const sessionSyncRef = useRef<{
     sessionId: string | null;
     skipTarget: boolean;
     skipVoiceMode: boolean;
+    skipResponseLanguageMode: boolean;
     skipRecipe: boolean;
   }>({
     sessionId: null,
     skipTarget: false,
     skipVoiceMode: false,
+    skipResponseLanguageMode: false,
     skipRecipe: false,
   });
 
   const connection = useRealtimeConnection({
     target,
     voiceMode,
+    responseLanguageMode,
     recipeId: selectedRecipeId,
     muted: false,
     openMicArmed,
@@ -301,6 +309,25 @@ export function App() {
   }, [target]);
 
   useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+    const url = new URL(window.location.href);
+    const shouldEnable = responseLanguageMode === "klingon";
+    const alreadyEnabled = url.searchParams.get("klingon") === "1";
+    if (shouldEnable === alreadyEnabled && !url.searchParams.has("response_language")) {
+      return;
+    }
+    if (shouldEnable) {
+      url.searchParams.set("klingon", "1");
+    } else {
+      url.searchParams.delete("klingon");
+    }
+    url.searchParams.delete("response_language");
+    window.history.replaceState(null, "", url.toString());
+  }, [responseLanguageMode]);
+
+  useEffect(() => {
     if (voiceMode !== "open_mic" && openMicArmed) {
       setOpenMicArmed(false);
     }
@@ -327,6 +354,7 @@ export function App() {
       sessionId: connection.sessionId,
       skipTarget: Boolean(connection.sessionId),
       skipVoiceMode: Boolean(connection.sessionId),
+      skipResponseLanguageMode: Boolean(connection.sessionId),
       skipRecipe: Boolean(connection.sessionId),
     };
   }, [connection.sessionId]);
@@ -350,6 +378,29 @@ export function App() {
     if (!connection.sessionAccessToken) return;
     void updateSessionVoiceMode(connection.sessionId, connection.sessionAccessToken, voiceMode).catch(() => {});
   }, [connection.sessionAccessToken, connection.sessionId, voiceMode]);
+
+  useEffect(() => {
+    if (!connection.sessionId) return;
+    if (sessionSyncRef.current.sessionId === connection.sessionId && sessionSyncRef.current.skipResponseLanguageMode) {
+      sessionSyncRef.current.skipResponseLanguageMode = false;
+      return;
+    }
+    if (connection.status?.responseLanguageMode === responseLanguageMode) return;
+    if (!connection.sessionAccessToken) return;
+    void updateSessionResponseLanguageMode(connection.sessionId, connection.sessionAccessToken, responseLanguageMode).catch(() => {});
+  }, [connection.sessionAccessToken, connection.sessionId, connection.status?.responseLanguageMode, responseLanguageMode]);
+
+  useEffect(() => {
+    const mode = connection.status?.responseLanguageMode;
+    if (mode !== "standard" && mode !== "klingon") {
+      return;
+    }
+    if (lastStatusResponseLanguageModeRef.current === mode) {
+      return;
+    }
+    lastStatusResponseLanguageModeRef.current = mode;
+    setResponseLanguageMode(mode);
+  }, [connection.status?.responseLanguageMode]);
 
   useEffect(() => {
     if (!connection.sessionId) return;
@@ -858,6 +909,8 @@ export function App() {
             voiceUiState={voiceUiState}
             voiceMode={voiceMode}
             onVoiceModeChange={setVoiceMode}
+            responseLanguageMode={responseLanguageMode}
+            onResponseLanguageModeChange={setResponseLanguageMode}
             transcript={transcriptForStage}
             onPushToTalkStart={() => connection.beginPushToTalk()}
             onPushToTalkEnd={() => connection.endPushToTalk()}
@@ -989,6 +1042,22 @@ function readQueryVoiceMode(): VoiceMode | null {
   }
   const value = new URLSearchParams(window.location.search).get("voice");
   return value === "push_to_talk" || value === "open_mic" ? value : null;
+}
+
+function readQueryResponseLanguageMode(): ResponseLanguageMode | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const responseLanguage = params.get("response_language")?.trim().toLowerCase();
+  const klingonFlag = params.get("klingon")?.trim().toLowerCase();
+  if (responseLanguage === "klingon" || klingonFlag === "1" || klingonFlag === "true") {
+    return "klingon";
+  }
+  if (responseLanguage === "standard" || klingonFlag === "0" || klingonFlag === "false") {
+    return "standard";
+  }
+  return null;
 }
 
 function readQueryRecipeId(): string | null {

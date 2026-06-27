@@ -16,6 +16,8 @@ describe("voice stage mode controls", () => {
         voiceUiState="idle"
         voiceMode="push_to_talk"
         onVoiceModeChange={onVoiceModeChange}
+        responseLanguageMode="standard"
+        onResponseLanguageModeChange={() => {}}
         transcript=""
         onPushToTalkStart={() => {}}
         onPushToTalkEnd={() => {}}
@@ -28,5 +30,30 @@ describe("voice stage mode controls", () => {
 
     expect(onToggleOpenMic).toHaveBeenCalledTimes(1);
     expect(onVoiceModeChange).not.toHaveBeenCalledWith("open_mic");
+  });
+
+  it("toggles Klingon response mode separately from mic mode", () => {
+    const onVoiceModeChange = vi.fn();
+    const onResponseLanguageModeChange = vi.fn();
+
+    render(
+      <VoiceStage
+        connectionState="connected"
+        phase="ready"
+        voiceUiState="idle"
+        voiceMode="push_to_talk"
+        onVoiceModeChange={onVoiceModeChange}
+        responseLanguageMode="standard"
+        onResponseLanguageModeChange={onResponseLanguageModeChange}
+        transcript=""
+        onPushToTalkStart={() => {}}
+        onPushToTalkEnd={() => {}}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Toggle Klingon response mode" }));
+
+    expect(onResponseLanguageModeChange).toHaveBeenCalledWith("klingon");
+    expect(onVoiceModeChange).not.toHaveBeenCalled();
   });
 });

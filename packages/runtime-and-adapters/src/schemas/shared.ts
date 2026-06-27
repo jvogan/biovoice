@@ -9,11 +9,14 @@ import {
 
 export const targetKinds = ["pymol", "chimerax"] as const;
 export const voiceModes = ["push_to_talk", "open_mic"] as const;
+export const responseLanguageModes = ["standard", "klingon"] as const;
 
 export const targetKindSchema = z.enum(targetKinds);
 export const voiceModeSchema = z.enum(voiceModes);
+export const responseLanguageModeSchema = z.enum(responseLanguageModes);
 export type TargetKind = z.infer<typeof targetKindSchema>;
 export type VoiceMode = z.infer<typeof voiceModeSchema>;
+export type ResponseLanguageMode = z.infer<typeof responseLanguageModeSchema>;
 
 export const selectionValueSchema = z.union([
   buildSafeSelectionExpressionSchema(400, "selection"),

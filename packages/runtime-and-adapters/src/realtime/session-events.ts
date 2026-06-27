@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { targetKindSchema, voiceModeSchema } from "../schemas/index.js";
+import { responseLanguageModeSchema, targetKindSchema, voiceModeSchema } from "../schemas/index.js";
 import {
   createEmptySessionUsage,
   sessionUsageGuardStateSchema,
@@ -13,6 +13,7 @@ export const sessionStatusSchema = z.object({
   sidebandStatus: z.enum(["pending_call", "connecting", "connected", "reconnecting", "error", "disconnected"]).default("pending_call"),
   target: targetKindSchema,
   voiceMode: voiceModeSchema,
+  responseLanguageMode: responseLanguageModeSchema.default("standard"),
   advancedMode: z.boolean().default(false),
   recipeId: z.string().optional(),
   lastError: z.string().optional(),

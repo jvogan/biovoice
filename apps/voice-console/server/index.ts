@@ -19,6 +19,7 @@ import {
   resolveScientificAssetRequestSchema,
   resolvePublicBaseUrlOrigin,
   resolveFromRoot,
+  responseLanguageModeSchema,
   scientificWorkflowRequestSchema,
   targetKindSchema,
   type RealtimeContextPruningOptions,
@@ -836,11 +837,12 @@ app.post("/api/realtime/client-secret", createRateLimit("client-secret", 12, 60_
   try {
     const target = targetKindSchema.parse(req.body.target ?? defaultTarget);
     const voiceMode = voiceModeSchema.parse(req.body.voiceMode ?? "push_to_talk");
+    const responseLanguageMode = responseLanguageModeSchema.parse(req.body.responseLanguageMode ?? "standard");
     const instructionContext =
       typeof req.body.instructionContext === "string" && req.body.instructionContext.trim()
         ? req.body.instructionContext.trim()
         : await readManagedLaunchInstructionContext(target);
-    const prepared = await registry.prepareSession(target, voiceMode, req.body.recipeId, instructionContext);
+    const prepared = await registry.prepareSession(target, voiceMode, req.body.recipeId, instructionContext, responseLanguageMode);
     setCookie(res, buildSessionAccessCookieName(prepared.sessionId), prepared.sessionAccessToken, { maxAgeSeconds: 43_200 });
     markRealtimeCredentialValidated();
     res.json(prepared);
@@ -859,6 +861,7 @@ app.post("/api/realtime/connect", createRateLimit("realtime-connect", 12, 60_000
   try {
     const target = targetKindSchema.parse(req.body.target ?? defaultTarget);
     const voiceMode = voiceModeSchema.parse(req.body.voiceMode ?? "push_to_talk");
+    const responseLanguageMode = responseLanguageModeSchema.parse(req.body.responseLanguageMode ?? "standard");
     const instructionContext =
       typeof req.body.instructionContext === "string" && req.body.instructionContext.trim()
         ? req.body.instructionContext.trim()
@@ -873,6 +876,7 @@ app.post("/api/realtime/connect", createRateLimit("realtime-connect", 12, 60_000
       offerSdp,
       target,
       voiceMode,
+      responseLanguageMode,
       recipeId: req.body.recipeId,
       instructionContext,
     });
@@ -943,6 +947,18 @@ app.post("/api/sessions/:sessionId/target", requireSessionAccess, async (req, re
 app.post("/api/sessions/:sessionId/voice-mode", requireSessionAccess, async (req, res) => {
   try {
     const status = await registry.updateVoiceMode(String(req.params.sessionId ?? ""), voiceModeSchema.parse(req.body.voiceMode));
+    res.json(status);
+  } catch (error) {
+    res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
+  }
+});
+
+app.post("/api/sessions/:sessionId/response-language-mode", requireSessionAccess, async (req, res) => {
+  try {
+    const status = await registry.updateResponseLanguageMode(
+      String(req.params.sessionId ?? ""),
+      responseLanguageModeSchema.parse(req.body.responseLanguageMode),
+    );
     res.json(status);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });

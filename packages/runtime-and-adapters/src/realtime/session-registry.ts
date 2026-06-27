@@ -10,6 +10,7 @@ import {
   chimeraXExportSchema,
   pymolExportSchema,
   pymolEnvelopeSchema,
+  responseLanguageModeSchema,
   resolveScientificAssetRequestSchema,
   scientificWorkflowRequestSchema,
   targetKindSchema,
@@ -18,6 +19,7 @@ import {
   type CaptureViewRequest,
   type ChimeraXAction,
   type PymolAction,
+  type ResponseLanguageMode,
   type ResolveScientificAssetRequest,
   type ScientificWorkflowRequest,
   type ScientificWorkflowResult,
@@ -91,6 +93,7 @@ interface ConnectRequest {
   offerSdp: string;
   target: TargetKind;
   voiceMode: VoiceMode;
+  responseLanguageMode?: ResponseLanguageMode;
   recipeId?: string;
   instructionContext?: string;
 }
@@ -256,15 +259,27 @@ export class RealtimeSessionRegistry {
     this.cleanupTimer.unref?.();
   }
 
-  async createClientSecret(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): Promise<string> {
-    const prepared = await this.prepareSession(target, voiceMode, recipeId, instructionContext);
+  async createClientSecret(
+    target: TargetKind,
+    voiceMode: VoiceMode,
+    recipeId?: string,
+    instructionContext?: string,
+    responseLanguageMode: ResponseLanguageMode = "standard",
+  ): Promise<string> {
+    const prepared = await this.prepareSession(target, voiceMode, recipeId, instructionContext, responseLanguageMode);
     return prepared.clientSecret;
   }
 
-  async prepareSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): Promise<PreparedRealtimeSession> {
-    const prepared = this.prepareLocalSession(target, voiceMode, recipeId, instructionContext);
+  async prepareSession(
+    target: TargetKind,
+    voiceMode: VoiceMode,
+    recipeId?: string,
+    instructionContext?: string,
+    responseLanguageMode: ResponseLanguageMode = "standard",
+  ): Promise<PreparedRealtimeSession> {
+    const prepared = this.prepareLocalSession(target, voiceMode, recipeId, instructionContext, responseLanguageMode);
     try {
-      const clientSecret = await this.createEphemeralSession(target, voiceMode, recipeId, instructionContext);
+      const clientSecret = await this.createEphemeralSession(target, voiceMode, recipeId, instructionContext, responseLanguageMode);
       return {
         sessionId: prepared.sessionId,
         clientSecret: clientSecret.value,
@@ -279,11 +294,22 @@ export class RealtimeSessionRegistry {
 
   async connect(request: ConnectRequest): Promise<{ answerSdp: string; sessionId: string; callId: string; sessionAccessToken: string }> {
     this.requireOpenAiApiKey();
-    const prepared = this.prepareLocalSession(request.target, request.voiceMode, request.recipeId, request.instructionContext);
+    const responseLanguageMode = request.responseLanguageMode ?? "standard";
+    const prepared = this.prepareLocalSession(request.target, request.voiceMode, request.recipeId, request.instructionContext, responseLanguageMode);
     try {
       const formData = new FormData();
       formData.set("sdp", request.offerSdp);
-      formData.set("session", JSON.stringify(this.buildSessionConfig(request.target, request.voiceMode, request.recipeId, false, request.instructionContext)));
+      formData.set(
+        "session",
+        JSON.stringify(this.buildSessionConfig(
+          request.target,
+          request.voiceMode,
+          request.recipeId,
+          false,
+          request.instructionContext,
+          responseLanguageMode,
+        )),
+      );
 
       const response = await fetch("https://api.openai.com/v1/realtime/calls", {
         method: "POST",
@@ -315,12 +341,28 @@ export class RealtimeSessionRegistry {
     }
   }
 
-  private prepareLocalSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): LocalPreparedSession {
+  private prepareLocalSession(
+    target: TargetKind,
+    voiceMode: VoiceMode,
+    recipeId?: string,
+    instructionContext?: string,
+    responseLanguageMode: ResponseLanguageMode = "standard",
+  ): LocalPreparedSession {
     this.ensureSessionCapacity();
     const sessionId = crypto.randomUUID();
     const sessionAccessToken = crypto.randomUUID();
     const registerToken = crypto.randomUUID();
-    const record = this.createSessionRecord(sessionId, "", target, voiceMode, recipeId, sessionAccessToken, registerToken, instructionContext);
+    const record = this.createSessionRecord(
+      sessionId,
+      "",
+      target,
+      voiceMode,
+      recipeId,
+      sessionAccessToken,
+      registerToken,
+      instructionContext,
+      responseLanguageMode,
+    );
     this.sessions.set(sessionId, record);
     this.broadcast(sessionId, {
       kind: "status",
@@ -427,6 +469,7 @@ export class RealtimeSessionRegistry {
     accessToken?: string,
     registerToken?: string,
     instructionContext?: string,
+    responseLanguageMode: ResponseLanguageMode = "standard",
   ): SessionRecord {
     const createdAtMs = Date.now();
     const status = sessionStatusSchema.parse({
@@ -436,6 +479,7 @@ export class RealtimeSessionRegistry {
       sidebandStatus: "pending_call",
       target,
       voiceMode,
+      responseLanguageMode,
       advancedMode: false,
       recipeId,
       controllerReady: false,
@@ -520,6 +564,23 @@ export class RealtimeSessionRegistry {
     this.broadcast(sessionId, {
       kind: "status",
       text: `Voice mode set to ${voiceMode}.`,
+      payload: record.status,
+    });
+    return record.status;
+  }
+
+  async updateResponseLanguageMode(sessionId: string, responseLanguageMode: ResponseLanguageMode): Promise<SessionStatus> {
+    const record = this.requireSession(sessionId);
+    record.status = sessionStatusSchema.parse({
+      ...record.status,
+      responseLanguageMode,
+    });
+    await this.pushSessionUpdate(sessionId);
+    this.broadcast(sessionId, {
+      kind: "status",
+      text: responseLanguageMode === "klingon"
+        ? "Klingon response mode enabled."
+        : "Klingon response mode disabled.",
       payload: record.status,
     });
     return record.status;
@@ -1210,7 +1271,14 @@ export class RealtimeSessionRegistry {
 
     if (eventType === "session.created") {
       const current = this.requireSession(sessionId).status;
-      const expected = this.buildSessionConfig(current.target, current.voiceMode, current.recipeId, current.advancedMode);
+      const expected = this.buildSessionConfig(
+        current.target,
+        current.voiceMode,
+        current.recipeId,
+        current.advancedMode,
+        undefined,
+        current.responseLanguageMode,
+      );
       const sessionPayload = (payload.session && typeof payload.session === "object")
         ? payload.session as Record<string, unknown>
         : {};
@@ -1542,6 +1610,20 @@ export class RealtimeSessionRegistry {
             message: "Quiet turn acknowledged. Continue listening without a spoken response.",
           };
           createFollowUpResponse = false;
+          break;
+        }
+        case "set_response_language_mode": {
+          const parsed = responseLanguageModeSchema.parse(JSON.parse(argumentsJson).mode);
+          this.setStatus(sessionId, { responseLanguageMode: parsed });
+          await this.pushSessionUpdate(sessionId);
+          result = {
+            ok: true,
+            action: "set_response_language_mode",
+            responseLanguageMode: parsed,
+            message: parsed === "klingon"
+              ? "Klingon response mode is now active until the user asks to stop Klingon mode."
+              : "Standard response mode is now active.",
+          };
           break;
         }
         case "run_pymol_actions": {
@@ -2074,12 +2156,20 @@ export class RealtimeSessionRegistry {
           record.status.recipeId,
           record.status.advancedMode,
           record.instructionContext,
+          record.status.responseLanguageMode,
         ),
       }),
     );
   }
 
-  private buildSessionConfig(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, advancedMode = false, instructionContext?: string) {
+  private buildSessionConfig(
+    target: TargetKind,
+    voiceMode: VoiceMode,
+    recipeId?: string,
+    advancedMode = false,
+    instructionContext?: string,
+    responseLanguageMode: ResponseLanguageMode = "standard",
+  ) {
     const recipe = this.safeGetRecipe(recipeId);
     const recipeSummary = recipe ? buildPinnedRecipeSummary(recipe, target) : undefined;
     const expertModeEnabled = advancedMode || this.expertCommandsEnabled;
@@ -2095,7 +2185,14 @@ export class RealtimeSessionRegistry {
           }
         : undefined,
       parallel_tool_calls: reasoningModel ? false : undefined,
-      instructions: buildSessionInstructions(target, voiceMode, recipeSummary, expertModeEnabled, instructionContext),
+      instructions: buildSessionInstructions(
+        target,
+        voiceMode,
+        recipeSummary,
+        expertModeEnabled,
+        instructionContext,
+        responseLanguageMode,
+      ),
       tool_choice: "auto",
       tools: buildRealtimeTools(target, { advancedMode: expertModeEnabled }),
       max_output_tokens: this.realtimeMaxOutputTokens,
@@ -2146,7 +2243,13 @@ export class RealtimeSessionRegistry {
     };
   }
 
-  private async createEphemeralSession(target: TargetKind, voiceMode: VoiceMode, recipeId?: string, instructionContext?: string): Promise<{ value: string }> {
+  private async createEphemeralSession(
+    target: TargetKind,
+    voiceMode: VoiceMode,
+    recipeId?: string,
+    instructionContext?: string,
+    responseLanguageMode: ResponseLanguageMode = "standard",
+  ): Promise<{ value: string }> {
     this.requireOpenAiApiKey();
     const response = await fetch("https://api.openai.com/v1/realtime/client_secrets", {
       method: "POST",
@@ -2156,7 +2259,7 @@ export class RealtimeSessionRegistry {
           anchor: "created_at",
           seconds: REALTIME_CLIENT_SECRET_TTL_SECONDS,
         },
-        session: this.buildSessionConfig(target, voiceMode, recipeId, false, instructionContext),
+        session: this.buildSessionConfig(target, voiceMode, recipeId, false, instructionContext, responseLanguageMode),
       }),
     });
 

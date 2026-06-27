@@ -14,6 +14,7 @@ import {
   connectRealtimeCall,
   disconnectSessionBeacon,
   disconnectSession,
+  type ResponseLanguageMode,
 } from "../lib/api";
 import {
   buildSessionUsageGuardState,
@@ -80,6 +81,7 @@ export function isInputSpeechEndEvent(eventType: string | null | undefined): boo
 interface HookOptions {
   target: TargetKind;
   voiceMode: VoiceMode;
+  responseLanguageMode: ResponseLanguageMode;
   recipeId?: string;
   instructionContext?: string;
   muted: boolean;
@@ -630,6 +632,7 @@ export function useRealtimeConnection(options: HookOptions) {
       const connection = await connectRealtimeCall({
         target: options.target,
         voiceMode: options.voiceMode,
+        responseLanguageMode: options.responseLanguageMode,
         recipeId: options.recipeId,
         offerSdp: offer.sdp ?? "",
         instructionContext: options.instructionContext,

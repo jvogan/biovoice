@@ -1,4 +1,4 @@
-import type { RecipeManifest, TargetKind, VoiceMode } from "../schemas/index.js";
+import type { RecipeManifest, ResponseLanguageMode, TargetKind, VoiceMode } from "../schemas/index.js";
 
 export function buildPinnedRecipeSummary(recipe: RecipeManifest, target: TargetKind): string {
   return [
@@ -16,6 +16,7 @@ export function buildSessionInstructions(
   recipeSummary?: string,
   advancedMode = false,
   instructionContext?: string,
+  responseLanguageMode: ResponseLanguageMode = "standard",
 ): string {
   const modeLine =
     voiceMode === "push_to_talk"
@@ -36,6 +37,15 @@ export function buildSessionInstructions(
   const rawCommandLine = advancedMode
     ? "Advanced expert commands are enabled for this session. Use raw_command only when the structured action set still cannot express the request cleanly."
     : "Advanced expert commands are disabled for this session. Do not emit raw_command. Stay inside the structured action set and ask one short clarification question if needed.";
+  const responseLanguageLines = responseLanguageMode === "klingon"
+    ? [
+        "# Spoken Language Mode",
+        "Klingon easter egg mode is active. Understand the user normally, including English scientific requests, and carry out tool calls and scene actions exactly as usual.",
+        "For user-facing assistant speech and assistant text only, respond in Klingon (tlhIngan Hol) where possible. Keep responses brief and suitable for a live demo.",
+        "Do not translate JSON, tool names, tool arguments, object names, selectors, file paths, PDB IDs, UniProt IDs, EMDB IDs, residue names, chain IDs, numbers, units, or returned metric values. Preserve those technical tokens exactly.",
+        "If a precise Klingon term is unavailable for a technical concept, use the shortest clear English technical term rather than inventing a selector, ID, or scientific label.",
+      ]
+    : undefined;
 
   return [
     "# Role and Objective",
@@ -53,9 +63,12 @@ export function buildSessionInstructions(
     "After a successful tool call, give at most one short spoken confirmation and mention concrete metrics or artifacts only when they matter to the user's request.",
     "If the latest audio is silence, background noise, hold music, TV audio, side conversation, or speech not addressed to you, call wait_for_user and do not respond conversationally afterward. Do not say filler such as I'm here, I didn't catch that, take your time, or let me know when you're ready.",
     "If the user clearly addresses you but the audio is unintelligible, clipped, or ambiguous, ask one short clarification question instead of guessing, reasoning through missing words, or calling visualization tools.",
+    ...(responseLanguageLines ?? []),
 
     "# Tool Policy",
     "Use only the tools explicitly provided in the current session. Do not invent, assume, simulate, or rename tools.",
+    "When the user asks to enter, start, enable, or stay in Klingon mode, call set_response_language_mode with mode klingon. This is a session mode switch, not a visualization action.",
+    "When the user asks to stop, exit, disable, or leave Klingon mode, call set_response_language_mode with mode standard. If Klingon mode is active and the user simply says stop, treat it as stop Klingon mode unless they clearly mean a visualization action such as stop rotation, stop loading, or stop moving the model.",
     "A pinned demo workflow is context only, not permission to act. Do not change the scene, load data, align models, zoom, restyle, store views, or export anything until the user explicitly asks.",
     "Use run_recipe_step only for explicit packaged-demo intent: start the demo/workflow, continue to the next step, replay a named recipe step, or perform a request that clearly matches a complete packaged workflow step.",
     "For normal operator edits, use the active target action tool rather than run_recipe_step, even if a recipe is pinned. Examples include color this, make it thicker, show/hide a selection, turn or zoom, move a model, label something, clear labels, switch map style, capture the view, or export the current figure.",

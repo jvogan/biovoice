@@ -14,6 +14,8 @@ describe("realtime session config helpers", () => {
     expect(instructions).toContain("run_scientific_workflow");
     expect(instructions).toContain("capture_view");
     expect(instructions).toContain("wait_for_user");
+    expect(instructions).toContain("set_response_language_mode");
+    expect(instructions).toContain("enter, start, enable, or stay in Klingon mode");
     expect(instructions).toContain("# Voice Turn Policy");
     expect(instructions).toContain("Advanced expert commands are disabled");
   });
@@ -24,6 +26,15 @@ describe("realtime session config helpers", () => {
 
     expect(standardInstructions).toContain("Do not emit raw_command");
     expect(advancedInstructions).toContain("Advanced expert commands are enabled");
+  });
+
+  it("keeps Klingon mode scoped to user-facing assistant speech", () => {
+    const instructions = buildSessionInstructions("pymol", "push_to_talk", undefined, false, undefined, "klingon");
+
+    expect(instructions).toContain("Klingon easter egg mode is active");
+    expect(instructions).toContain("For user-facing assistant speech and assistant text only");
+    expect(instructions).toContain("Do not translate JSON, tool names, tool arguments");
+    expect(instructions).toContain("PDB IDs");
   });
 
   it("guides Realtime toward model-level actions for non-atomic storyboard scenes", () => {
@@ -44,5 +55,6 @@ describe("realtime session config helpers", () => {
     expect(names).toContain("run_scientific_workflow");
     expect(names).toContain("capture_view");
     expect(names).toContain("wait_for_user");
+    expect(names).toContain("set_response_language_mode");
   });
 });

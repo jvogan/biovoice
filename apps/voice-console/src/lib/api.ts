@@ -7,6 +7,8 @@ export interface RealtimeSessionGuardrails {
   warningRatio: number;
 }
 
+export type ResponseLanguageMode = "standard" | "klingon";
+
 export interface RealtimeContextPruningConfig {
   enabled: boolean;
   maxItems: number;
@@ -178,6 +180,7 @@ export async function fetchExamples<T>(): Promise<T> {
 export async function createRealtimeClientSecret(body: {
   target: "pymol" | "chimerax";
   voiceMode: "push_to_talk" | "open_mic";
+  responseLanguageMode?: ResponseLanguageMode;
   recipeId?: string;
   instructionContext?: string;
 }) {
@@ -194,6 +197,7 @@ export async function createRealtimeClientSecret(body: {
 export async function connectRealtimeCall(body: {
   target: "pymol" | "chimerax";
   voiceMode: "push_to_talk" | "open_mic";
+  responseLanguageMode?: ResponseLanguageMode;
   recipeId?: string;
   offerSdp: string;
   instructionContext?: string;
@@ -458,6 +462,18 @@ export async function updateSessionVoiceMode(sessionId: string, sessionAccessTok
     method: "POST",
     headers: withSessionHeaders(sessionAccessToken, { "Content-Type": "application/json" }),
     body: JSON.stringify({ voiceMode }),
+  });
+}
+
+export async function updateSessionResponseLanguageMode(
+  sessionId: string,
+  sessionAccessToken: string,
+  responseLanguageMode: ResponseLanguageMode,
+) {
+  return requestJson(`/api/sessions/${sessionId}/response-language-mode`, {
+    method: "POST",
+    headers: withSessionHeaders(sessionAccessToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ responseLanguageMode }),
   });
 }
 

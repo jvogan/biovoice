@@ -1,8 +1,9 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Loader2, Mic, Terminal } from "lucide-react";
+import { Languages, Loader2, Mic, Terminal } from "lucide-react";
 import type {
   ConnectionState,
   ConnectionPhase,
+  ResponseLanguageMode,
   VoiceMode,
   VoiceUiState,
 } from "./types";
@@ -13,6 +14,8 @@ export interface VoiceStageProps {
   voiceUiState: VoiceUiState;
   voiceMode: VoiceMode;
   onVoiceModeChange: (next: VoiceMode) => void;
+  responseLanguageMode: ResponseLanguageMode;
+  onResponseLanguageModeChange: (next: ResponseLanguageMode) => void;
   transcript: string;
   onPushToTalkStart: () => void;
   onPushToTalkEnd: () => void;
@@ -28,6 +31,8 @@ export function VoiceStage(props: VoiceStageProps) {
     voiceUiState,
     voiceMode,
     onVoiceModeChange,
+    responseLanguageMode,
+    onResponseLanguageModeChange,
     transcript,
     onPushToTalkStart,
     onPushToTalkEnd,
@@ -39,6 +44,7 @@ export function VoiceStage(props: VoiceStageProps) {
 
   const isConnected = connectionState === "connected";
   const pttMode = voiceMode === "push_to_talk";
+  const klingonMode = responseLanguageMode === "klingon";
   const interactionDisabled = !isConnected || micDisabled;
 
   const handlePttStart = () => {
@@ -211,6 +217,22 @@ export function VoiceStage(props: VoiceStageProps) {
           Open Mic
         </button>
       </div>
+
+      <button
+        type="button"
+        aria-label="Toggle Klingon response mode"
+        aria-pressed={klingonMode}
+        title={klingonMode ? "Disable Klingon response mode" : "Enable Klingon response mode"}
+        onClick={() => onResponseLanguageModeChange(klingonMode ? "standard" : "klingon")}
+        className={`absolute bottom-6 left-6 inline-flex items-center gap-2 px-3 py-2 text-xs font-medium rounded-lg border transition-all shadow-sm dark:shadow-none ${
+          klingonMode
+            ? "bg-amber-100/90 dark:bg-amber-950/40 border-amber-300/80 dark:border-amber-700/60 text-amber-800 dark:text-amber-200"
+            : "bg-zinc-100/90 dark:bg-zinc-900/80 border-zinc-300/80 dark:border-zinc-800/80 text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+        }`}
+      >
+        <Languages className="w-4 h-4" />
+        <span>Klingon</span>
+      </button>
     </div>
   );
 }

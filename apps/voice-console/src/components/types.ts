@@ -1,5 +1,6 @@
 export type TargetKind = "pymol" | "chimerax";
 export type VoiceMode = "push_to_talk" | "open_mic";
+export type ResponseLanguageMode = "standard" | "klingon";
 
 export type ConnectionPhase =
   | "idle"

@@ -569,6 +569,19 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
     },
     {
       type: "function",
+      name: "set_response_language_mode",
+      description: "Switch the assistant's user-facing spoken/text response language mode for the current Realtime session. Use mode=klingon when the user asks to enter, start, enable, or stay in Klingon mode. Use mode=standard when the user asks to stop, exit, disable, or leave Klingon mode. This does not change tool execution, target app state, selectors, IDs, or scientific action behavior.",
+      parameters: {
+        type: "object",
+        properties: {
+          mode: { type: "string", enum: ["standard", "klingon"] },
+        },
+        required: ["mode"],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: "function",
       name: "run_pymol_actions",
       description: `Run one or more structured PyMOL visualization actions. Only use this when the active target is PyMOL. Supports complex scientist workflows such as ligand-pocket styling, residue-neighborhood selections, distances/angles/dihedrals, structured polar contacts, close contacts and clashes, subset or CA-only alignment, crystal mates, whole-object or partner transforms for side-by-side comparison, scaffold-versus-design review, density mesh/surface creation, scene storage, label cleanup, clip slabs, and polished exports. ${sharedSelectorHints}`,
       parameters: {

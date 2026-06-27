@@ -321,6 +321,29 @@ describe("realtime tool definitions", () => {
     expect(pymolTool.parameters.additionalProperties).toBe(false);
   });
 
+  it("exposes response language switching as a shared session tool", () => {
+    const pymolTool = getTool("set_response_language_mode", "pymol") as unknown as {
+      description: string;
+      parameters: {
+        type: string;
+        properties: {
+          mode: { enum: string[] };
+        };
+        required: string[];
+        additionalProperties: boolean;
+      };
+    };
+    const chimeraTool = getTool("set_response_language_mode", "chimerax");
+
+    expect(chimeraTool).toBeDefined();
+    expect(pymolTool.description).toContain("enter, start, enable, or stay in Klingon mode");
+    expect(pymolTool.description).toContain("stop, exit, disable, or leave Klingon mode");
+    expect(pymolTool.parameters.type).toBe("object");
+    expect(pymolTool.parameters.properties.mode.enum).toEqual(["standard", "klingon"]);
+    expect(pymolTool.parameters.required).toEqual(["mode"]);
+    expect(pymolTool.parameters.additionalProperties).toBe(false);
+  });
+
   it("hides raw_command unless advanced mode is enabled", () => {
     const standardTool = getTool("run_pymol_actions", "pymol") as unknown as {
       parameters: {
