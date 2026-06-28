@@ -26,7 +26,7 @@ async function main() {
   const [targetArg, ...rest] = process.argv.slice(2);
   const target = normalizeTarget(targetArg);
   if (!target) {
-    throw new Error("Usage: tsx scripts/launch-console.ts <pymol|chimera|chimerax> [recipeId|workflowId] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n N] [--audience] [--open-mic] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
+    throw new Error("Usage: tsx scripts/launch-console.ts <pymol|chimera|chimerax> [recipeId|workflowId] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n N] [--audience] [--open-mic] [--browser] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
   }
   const launchId = rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined;
   const flags = launchId ? rest.slice(1) : rest;
@@ -34,6 +34,7 @@ async function main() {
   const workflowId = parsed.workflowId ?? (launchId && isScientificWorkflowId(launchId) ? launchId : undefined);
   const recipeId = parsed.recipeId ?? (launchId && !isScientificWorkflowId(launchId) ? launchId : undefined) ?? (workflowId ? resolveScientificWorkflowRecipeId(workflowId, target) ?? undefined : undefined);
   const launchInputs = parsed.scientificInputs;
+  const useFloatingWidget = parsed.overlay || !parsed.browser;
 
   const query = new URLSearchParams();
   const fallbackBaseUrl = resolvePublicBaseUrlOrigin({
@@ -50,7 +51,7 @@ async function main() {
     voice: parsed.openMic ? "open_mic" : undefined,
     advanced: parsed.advanced,
     widget: true,
-    overlay: parsed.overlay,
+    overlay: useFloatingWidget,
   });
   const queryUrl = new URL(url);
   for (const [key, value] of queryUrl.searchParams.entries()) {
@@ -73,7 +74,7 @@ async function main() {
   if (parsed.reuseDev) agentArgs.push("--reuse-dev");
   if (parsed.cleanTarget) agentArgs.push("--clean-target");
   if (parsed.advanced) agentArgs.push("--advanced");
-  if (parsed.overlay) agentArgs.push("--overlay");
+  if (useFloatingWidget) agentArgs.push("--overlay");
 
   const started = await execFileAsync(npmCommand, agentArgs, {
     cwd: projectRoot,
@@ -87,7 +88,8 @@ async function main() {
       ? new URL(reported.url).origin
       : fallbackBaseUrl;
   const launchUrl = reported.recommendedUrl ?? `${launchOrigin}/?${query.toString()}`;
-  if (!parsed.overlay) {
+  const openedBrowser = parsed.browser && !useFloatingWidget;
+  if (openedBrowser) {
     await execFileAsync("open", [launchUrl]);
   }
   console.log(JSON.stringify({
@@ -96,7 +98,8 @@ async function main() {
     url: launchUrl,
     workflowId,
     recipeId,
-    overlay: parsed.overlay,
+    overlay: useFloatingWidget,
+    openedBrowser,
   }, null, 2));
 }
 
@@ -154,6 +157,7 @@ function parseLaunchFlags(flags: string[]): {
   openMic: boolean;
   advanced: boolean;
   overlay: boolean;
+  browser: boolean;
   offline: boolean;
   skipBuild: boolean;
   skipPreflight: boolean;
@@ -187,6 +191,7 @@ function parseLaunchFlags(flags: string[]): {
     openMic: flags.includes("--open-mic"),
     advanced: flags.includes("--advanced"),
     overlay: flags.includes("--overlay"),
+    browser: flags.includes("--browser"),
     offline: flags.includes("--offline"),
     skipBuild: flags.includes("--skip-build"),
     skipPreflight: flags.includes("--skip-preflight"),

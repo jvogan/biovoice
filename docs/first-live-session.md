@@ -21,7 +21,7 @@ If you prefer ChimeraX first, use the same checklist with the ligand interaction
 - `npm run prepare:data`
 - `npm run generate:examples`
 - Local `.env` with `OPENAI_API_KEY`
-- Microphone permission available in your browser
+- Microphone permission available in the floating widget or browser console
 
 ## Exact Command To Run
 
@@ -29,14 +29,14 @@ If you prefer ChimeraX first, use the same checklist with the ligand interaction
 npm run quickstart:pymol
 ```
 
-This launches PyMOL, starts the local BioVoice backend, and opens the browser console on the default local port.
+This launches PyMOL, starts the local BioVoice backend, and opens the compact floating widget.
 
 ## What You Should Expect To See
 
 - PyMOL opens to a clean presentation baseline
-- The browser console loads with PyMOL selected
+- The floating widget loads with PyMOL selected
 - After you click **Connect Voice Session**, the `Data`, `Controller`, and `Event Stream` indicators turn green
-- The workflow rail is available if you want to stage a guided recipe before freestyle voice
+- Use `Open Full Console` if you want to stage a guided recipe before freestyle voice
 
 ## First Commands To Say
 
@@ -62,7 +62,7 @@ That is the best fallback if you want to validate the exact same ligand-pocket s
 
 ## Common Failure Points
 
-- **No microphone prompt appears**: check browser permissions and reload the page
+- **No microphone prompt appears**: check microphone permissions and reload the widget or console
 - **`Data`, `Controller`, or `Event Stream` never turns green**: disconnect, reconnect, and confirm your API key is present in local `.env`
 - **Ambient room noise triggers turns**: stay in push-to-talk and do not switch to always-on yet
 - **PyMOL looks stale or cluttered**: use `Reset Target` before reconnecting voice

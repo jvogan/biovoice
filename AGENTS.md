@@ -4,21 +4,23 @@ This repo is meant to be operable by coding agents without extra discovery.
 
 ## Primary commands
 
-- Blessed human-first startup: `npm run quickstart:pymol` or `npm run quickstart:chimerax`
-- Floating companion startup: `npm run overlay:pymol` or `npm run overlay:chimerax`
+- Blessed human-first floating-widget startup: `npm run quickstart:pymol` or `npm run quickstart:chimerax`
+- Floating companion startup: `npm run launch:pymol` or `npm run launch:chimerax`
+- Browser console startup, only when explicitly requested: `npm run browser:pymol` or `npm run browser:chimerax`
+- Legacy explicit floating companion aliases: `npm run overlay:pymol` or `npm run overlay:chimerax`
 - Blessed agent-first startup: `npm run agent:start -- <pymol|chimerax>`
 - Blessed agent-first overlay startup: `npm run agent:start -- <pymol|chimerax> --overlay`
 - Blessed scientific startup: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [scientific inputs]`
-- Launch and open the PyMOL console: `npm run launch:pymol`
-- Launch and open the ChimeraX console: `npm run launch:chimerax`
+- Launch the PyMOL floating widget: `npm run launch:pymol`
+- Launch the ChimeraX floating widget: `npm run launch:chimerax`
 - Launch a polished PyMOL cryo demo directly: `npm run showcase:pymol:cryo`
 - Launch a polished PyMOL AlphaFold overlay demo directly: `npm run showcase:pymol:overlay`
 - Launch a polished ChimeraX map demo directly: `npm run showcase:chimerax:map`
 - Launch a polished ChimeraX AlphaFold overlay demo directly: `npm run showcase:chimerax:overlay`
 - Start a target generically: `npm run agent:start -- <pymol|chimerax>`
 - Start a task-first scientific workflow: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>]`
-- Once the browser is open, the `Scientific Launch` rail can also stage the currently pinned AlphaFold or Rosetta workflow directly with `Stage Workflow Now`; this is the safest UI-first rehearsal path before voice.
-- Start a target with the browser pre-armed for expert mode: `npm run agent:start -- <pymol|chimerax> --advanced`
+- Once the full browser console is open, the `Scientific Launch` rail can also stage the currently pinned AlphaFold or Rosetta workflow directly with `Stage Workflow Now`; this is the safest UI-first rehearsal path before voice.
+- Start a target with the browser pre-armed for expert mode: `npm run browser:pymol -- --advanced` or `npm run browser:chimerax -- --advanced`
 - Start the PyMOL demo stack: `npm run agent:start:pymol`
 - Start the ChimeraX demo stack with the short alias: `npm run agent:start:chimera`
 - Start the ChimeraX demo stack: `npm run agent:start:chimerax`
@@ -46,6 +48,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Can skip the build with `--skip-build`, skip Realtime preflight with `--skip-preflight`, and reuse a healthy dev server with `--reuse-dev`.
 - Starts the shared voice console on `http://localhost:3000` with the requested default target.
 - Emits a recommended URL that already includes the target, optional recipe, audience mode, voice mode, widget mode, and optional advanced mode query params.
+- The `launch:*`, `quickstart:*`, and showcase launch paths open the floating Electron widget by default. Use `--browser` or `npm run browser:*` only when the user asks for a browser tab or full console.
 - Resets the desktop target to a clean presentation baseline when `--clean-target` is supplied.
 - Reuses an already-running managed console only when the health payload matches this repo and the source tree has not changed since it started.
 - Writes runtime state to `.runtime/agent-runtime/state.json`.
@@ -54,16 +57,14 @@ This repo is meant to be operable by coding agents without extra discovery.
 ## When the user says
 
 - “start realtime pymol”
-  Run `npm run launch:pymol` for the minimal human flow, or `npm run agent:start -- pymol` / `npm run agent:start:pymol` for a pure agent flow
-  If the user explicitly wants the floating remote, run `npm run overlay:pymol` or `npm run agent:start -- pymol --overlay`
+  Run `npm run launch:pymol` for the minimal human floating-widget flow, or `npm run agent:start -- pymol` / `npm run agent:start:pymol` for a pure agent flow. Do not manually open the recommended URL unless the user asks for a browser tab or full console.
   For AlphaFold or Rosetta tasks, add `--workflow <workflowId>` plus scientific inputs, for example `npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345`
   For database-backed overlays, prefer explicit IDs, for example `npm run agent:start -- chimerax --workflow alphafold_vs_experiment_overlay --uniprot P69905 --experimental-pdb-id 4HHB --structure-format pdb`
   For a rehearsal-only path, run `npm run agent:start -- pymol --offline --clean-target`
 - “open realtime pymol”
   Run `npm run launch:pymol`
 - “start realtime chimera” or “start realtime chimerax”
-  Run `npm run launch:chimerax` for the minimal human flow, or `npm run agent:start -- chimerax`, `npm run agent:start:chimera`, or `npm run agent:start:chimerax`
-  If the user explicitly wants the floating remote, run `npm run overlay:chimerax` or `npm run agent:start -- chimerax --overlay`
+  Run `npm run launch:chimerax` for the minimal human floating-widget flow, or `npm run agent:start -- chimerax`, `npm run agent:start:chimera`, or `npm run agent:start:chimerax`. Do not manually open the recommended URL unless the user asks for a browser tab or full console.
   For scientific tasks, add `--workflow <workflowId>` plus `--bundle`, `--scorefile`, or `--top-n` as needed
   For a rehearsal-only path, run `npm run agent:start -- chimerax --offline --clean-target`
 - “open realtime chimera” or “open realtime chimerax”
@@ -118,11 +119,11 @@ This repo is meant to be operable by coding agents without extra discovery.
 
 ## Notes for agent behavior
 
-- Prefer the `launch:*` commands when a human will immediately use the browser and the `agent:start:*` commands when another agent only needs the service up.
+- Prefer the `launch:*` commands when a human will immediately use the floating widget and the `agent:start:*` commands when another agent only needs the service up.
 - If the console is healthy but the target app stops responding, prefer the matching `agent:restart:*` command over manually killing processes.
-- The browser still needs a human to grant mic permission and click `Connect Voice Session`, unless the agent is also using browser automation.
-- The launcher now prefers the compact widget view; it is a small hold-to-talk voice instrument, not a dashboard. Use `Open Full Console` only when you need the full operator layout.
-- The `--overlay` path puts that same widget into a transparent, always-on-top Electron companion window that behaves more like a tiny hardware remote floating over PyMOL or ChimeraX.
+- The Realtime UI still needs a human to grant mic permission and click `Connect Voice Session`, unless the agent is also using UI automation.
+- The launcher defaults to the compact floating widget. It is a small hold-to-talk voice instrument, not a dashboard. Use `Open Full Console`, `--browser`, or `npm run browser:*` only when you need the full operator layout.
+- The `--overlay` path remains as an explicit alias for that transparent, always-on-top Electron companion window.
 - For a first live test, prefer push-to-talk, speak the first `Voice Pack` line before freestyle speech, and leave idle auto-sleep enabled.
 - Realtime billing is per response and input-transcription turn, not for simply keeping the connection open. Idle silence itself is not billed, but open-mic or VAD can still create billable turns from ambient speech.
 - If the user wants to verify the workflow before voice, use `npm run rehearse:workflow` or the direct `/api/recipes/:recipeId/run` route instead of forcing a live mic test first.

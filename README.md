@@ -8,7 +8,7 @@
 
 ![Lego-style BioVoice social preview showing voice-driven molecular visualization for PyMOL and ChimeraX](./docs/social-preview-lego.jpg)
 
-BioVoice connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) to the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) through a local backend and a browser voice console. It can also rehearse the same workflows without live voice, so you can validate demos, AlphaFold overlays, Rosetta reviews, and cryo-EM scenes before speaking a word.
+BioVoice connects [PyMOL](https://pymol.org/) and [ChimeraX](https://www.cgl.ucsf.edu/chimerax/) to the [OpenAI Realtime API](https://platform.openai.com/docs/guides/realtime) through a local backend and a floating or browser voice console. It can also rehearse the same workflows without live voice, so you can validate demos, AlphaFold overlays, Rosetta reviews, and cryo-EM scenes before speaking a word.
 
 ![BioVoice controlling PyMOL mid-session: the 4HHB hemoglobin tetramer in dark cartoon with orange heme ligands and a purple surface isolated on a single chain, with the floating voice console showing the LISTENING state](./docs/biovoice-console.jpg)
 
@@ -41,7 +41,7 @@ If you are building a voice agent, a Realtime API integration, or any LLM tool-c
 - A **self-hosted** voice interface for PyMOL and ChimeraX, not a cloud molecular viewer (the backend runs on your machine; the voice layer goes to the OpenAI Realtime API)
 - A scientist-first workflow tool for **structural biology**, not a general-purpose chatbot shell
 - A guided way to walk through **ligand pockets, AlphaFold, Rosetta, and cryo-EM** workflows with reproducible demo data
-- A browser UI plus local backend that can run in **live voice** mode or **offline rehearsal** mode
+- A floating widget or browser UI plus local backend that can run in **live voice** mode or **offline rehearsal** mode
 
 ## Who This Is For
 
@@ -90,10 +90,12 @@ npm run quickstart:pymol
 npm run quickstart:chimerax
 ```
 
+The default launch opens the compact floating widget. Use `npm run browser:pymol` or `npm run browser:chimerax` only when you want the browser-hosted console.
+
 If you only want to rehearse without live voice, skip the `.env` step and start with:
 
 ```bash
-npm run agent:start -- pymol --offline --clean-target
+npm run quickstart:pymol -- --offline
 ```
 
 ## Choose Your Path

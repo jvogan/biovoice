@@ -67,20 +67,20 @@ flowchart TD
 This is the best first command if you want to validate the interface, demo data, and local target control before touching microphone permissions or OpenAI billing.
 
 ```bash
-npm run agent:start -- pymol --offline --clean-target
+npm run quickstart:pymol -- --offline
 ```
 
 ### What You Should Expect To See
 
 - The local server starts on `http://localhost:3000`
 - PyMOL launches or reconnects
-- The browser opens the BioVoice console
-- You can inspect the workflow rail, run dry runs, reset the target, and capture the current view
+- The compact floating BioVoice widget opens
+- You can use `Open Full Console` if you need the workflow rail, dry runs, target reset, or view capture tools
 
 ### If You Prefer ChimeraX First
 
 ```bash
-npm run agent:start -- chimerax --offline --clean-target
+npm run quickstart:chimerax -- --offline
 ```
 
 ## Where To Go Next
