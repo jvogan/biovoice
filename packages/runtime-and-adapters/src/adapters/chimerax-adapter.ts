@@ -21,6 +21,7 @@ export interface ChimeraXAdapterOptions {
   timeoutMs: number;
   autolaunch: boolean;
   enableExpertRawCommands?: boolean;
+  allowMissingLocalInputsForDocumentation?: boolean;
 }
 
 export interface ChimeraXAvailabilitySummary {
@@ -57,6 +58,7 @@ export class ChimeraXAdapter {
   private readonly timeoutMs: number;
   private readonly autolaunch: boolean;
   private readonly enableExpertRawCommands: boolean;
+  private readonly allowMissingLocalInputsForDocumentation: boolean;
   private ready = false;
   private lastReferenceHints: SelectorReferenceMap = {};
   private workflowReferenceHints: SelectorReferenceMap = {};
@@ -69,6 +71,7 @@ export class ChimeraXAdapter {
     this.timeoutMs = options.timeoutMs;
     this.autolaunch = options.autolaunch;
     this.enableExpertRawCommands = options.enableExpertRawCommands ?? false;
+    this.allowMissingLocalInputsForDocumentation = options.allowMissingLocalInputsForDocumentation ?? false;
   }
 
   async ensureReady(): Promise<string> {
@@ -185,7 +188,13 @@ export class ChimeraXAdapter {
         if (!dryRun) {
           if (executeSequentially) {
             for (const action of preparedActions) {
-              const actionCommands = compileChimeraXAction(action, compileContext, referenceHints, allowExpertRawCommands);
+              const actionCommands = compileChimeraXAction(
+                action,
+                compileContext,
+                referenceHints,
+                allowExpertRawCommands,
+                dryRun && this.allowMissingLocalInputsForDocumentation,
+              );
               commands.push(...actionCommands);
               const result = await this.runCommands(baseUrl!, actionCommands);
               commandResponses.push({ commands: actionCommands, response: result });
@@ -193,7 +202,13 @@ export class ChimeraXAdapter {
             }
             logs[1] = `${commands.length} commands queued.`;
           } else {
-            commands.push(...compileChimeraXActions(preparedActions, compileContext, referenceHints, allowExpertRawCommands));
+            commands.push(...compileChimeraXActions(
+              preparedActions,
+              compileContext,
+              referenceHints,
+              allowExpertRawCommands,
+              dryRun && this.allowMissingLocalInputsForDocumentation,
+            ));
             logs[1] = `${commands.length} commands queued.`;
             const commandBatches = createChimeraXCommandBatches(commands);
             for (const batch of commandBatches) {
@@ -219,7 +234,13 @@ export class ChimeraXAdapter {
             }
           }
         } else {
-          commands.push(...compileChimeraXActions(preparedActions, compileContext, referenceHints, allowExpertRawCommands));
+          commands.push(...compileChimeraXActions(
+            preparedActions,
+            compileContext,
+            referenceHints,
+            allowExpertRawCommands,
+            dryRun && this.allowMissingLocalInputsForDocumentation,
+          ));
           logs[1] = `${commands.length} commands queued.`;
           logs.push("Dry run only.");
         }
@@ -601,8 +622,15 @@ function compileChimeraXActions(
   context: ChimeraXCompileContext,
   referenceHints?: SelectorReferenceMap,
   allowExpertRawCommands = false,
+  allowMissingLocalInputsForDocumentation = false,
 ): string[] {
-  return actions.flatMap((action) => compileChimeraXAction(action, context, referenceHints, allowExpertRawCommands));
+  return actions.flatMap((action) => compileChimeraXAction(
+    action,
+    context,
+    referenceHints,
+    allowExpertRawCommands,
+    allowMissingLocalInputsForDocumentation,
+  ));
 }
 
 function compileChimeraXAction(
@@ -610,6 +638,7 @@ function compileChimeraXAction(
   context?: ChimeraXCompileContext,
   referenceHints?: SelectorReferenceMap,
   allowExpertRawCommands = false,
+  allowMissingLocalInputsForDocumentation = false,
 ): string[] {
   switch (action.type) {
     case "reset_workspace":
@@ -630,7 +659,12 @@ function compileChimeraXAction(
       if (action.source === "pdb") return [`open ${action.id}`];
       if (action.source === "alphafold") return [`alphafold fetch ${action.id}`];
       if (action.source === "local") {
-        const localPath = resolveLocalStructureInputPath(action.path, [action.id], action.id ?? "structure");
+        const localPath = resolveLocalStructureInputPath(
+          action.path,
+          [action.id],
+          action.id ?? "structure",
+          { allowMissingExplicitPath: allowMissingLocalInputsForDocumentation },
+        );
         return [`open ${quoteCommandValue(localPath)}`];
       }
       throw new Error(`Unsupported ChimeraX open source: ${action.source}`);

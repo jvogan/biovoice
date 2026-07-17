@@ -23,6 +23,7 @@ export interface PymolAdapterOptions {
   renderTimeoutMs: number;
   autolaunch: boolean;
   enableExpertRawCommands?: boolean;
+  allowMissingLocalInputsForDocumentation?: boolean;
 }
 
 export interface PymolAvailabilitySummary {
@@ -63,6 +64,7 @@ export class PymolAdapter {
   private readonly renderTimeoutMs: number;
   private readonly autolaunch: boolean;
   private readonly enableExpertRawCommands: boolean;
+  private readonly allowMissingLocalInputsForDocumentation: boolean;
   private activeUrl: string | null = null;
   private lastReachableUrl: string | null = null;
   private lastCommandReadyUrl: string | null = null;
@@ -86,6 +88,7 @@ export class PymolAdapter {
     this.renderTimeoutMs = options.renderTimeoutMs;
     this.autolaunch = options.autolaunch;
     this.enableExpertRawCommands = options.enableExpertRawCommands ?? false;
+    this.allowMissingLocalInputsForDocumentation = options.allowMissingLocalInputsForDocumentation ?? false;
   }
 
   async ensureReady(): Promise<string> {
@@ -184,7 +187,12 @@ export class PymolAdapter {
           this.clearTransientSceneState();
         }
         const referenceHints = await this.resolveReferenceHintsForActions(preparedActions, rpcUrl);
-        const commands = preparedActions.flatMap((action) => compilePymolAction(action, referenceHints, allowExpertRawCommands));
+        const commands = preparedActions.flatMap((action) => compilePymolAction(
+          action,
+          referenceHints,
+          allowExpertRawCommands,
+          dryRun && this.allowMissingLocalInputsForDocumentation,
+        ));
         const commandBatches = createPymolCommandBatches(commands, this.timeoutMs, this.renderTimeoutMs, {
           coldStart: !dryRun && this.isColdStartActive(),
         });
@@ -1420,7 +1428,12 @@ function sortPymolEndpointProbes(probes: PymolEndpointProbe[]): PymolEndpointPro
   });
 }
 
-function compilePymolAction(action: PymolAction, referenceHints?: SelectorReferenceMap, allowExpertRawCommands = false): string[] {
+function compilePymolAction(
+  action: PymolAction,
+  referenceHints?: SelectorReferenceMap,
+  allowExpertRawCommands = false,
+  allowMissingLocalInputsForDocumentation = false,
+): string[] {
   switch (action.type) {
     case "reset_workspace":
       return [
@@ -1438,7 +1451,12 @@ function compilePymolAction(action: PymolAction, referenceHints?: SelectorRefere
         ];
       }
       if (action.source === "local") {
-        const localPath = resolveLocalStructureInputPath(action.path, [action.id, action.object, objectName], objectName);
+        const localPath = resolveLocalStructureInputPath(
+          action.path,
+          [action.id, action.object, objectName],
+          objectName,
+          { allowMissingExplicitPath: allowMissingLocalInputsForDocumentation },
+        );
         return [
           `delete ${objectName}`,
           `load ${quoteCommandValue(localPath)}, ${objectName}`,

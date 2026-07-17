@@ -33,4 +33,11 @@ describe("process locks", () => {
       pollMs: 10,
     })).resolves.toBe("acquired");
   });
+
+  it("rejects lock names that could escape the runtime directory", async () => {
+    await expect(withProcessLock("../outside", 1_000, async () => "unreachable"))
+      .rejects.toThrow(/process lock names/i);
+    await expect(isProcessLockActive("nested/outside"))
+      .rejects.toThrow(/process lock names/i);
+  });
 });

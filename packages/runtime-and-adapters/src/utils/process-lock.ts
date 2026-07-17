@@ -2,6 +2,8 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { runtimeDir } from "./paths.js";
 
+const SAFE_PROCESS_LOCK_NAME = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+
 export async function withProcessLock<T>(
   name: string,
   timeoutMs: number,
@@ -11,10 +13,11 @@ export async function withProcessLock<T>(
     pollMs?: number;
   },
 ): Promise<T> {
-  const lockPath = path.join(runtimeDir, `${name}.lock`);
+  const lockPath = resolveProcessLockPath(name);
   const deadline = Date.now() + timeoutMs;
   const staleAfterMs = options?.staleAfterMs ?? Math.max(timeoutMs, 60_000);
   const pollMs = options?.pollMs ?? 500;
+  await fs.mkdir(runtimeDir, { recursive: true });
 
   while (Date.now() < deadline) {
     try {
@@ -46,7 +49,7 @@ export async function withProcessLock<T>(
 }
 
 export async function isProcessLockActive(name: string, options?: { staleAfterMs?: number }): Promise<boolean> {
-  const lockPath = path.join(runtimeDir, `${name}.lock`);
+  const lockPath = resolveProcessLockPath(name);
   try {
     await fs.access(lockPath);
     if (await isStaleLock(lockPath, options?.staleAfterMs ?? 60_000)) {
@@ -56,6 +59,13 @@ export async function isProcessLockActive(name: string, options?: { staleAfterMs
   } catch {
     return false;
   }
+}
+
+function resolveProcessLockPath(name: string): string {
+  if (!SAFE_PROCESS_LOCK_NAME.test(name)) {
+    throw new Error("Process lock names must use only letters, numbers, dots, underscores, or hyphens.");
+  }
+  return path.join(runtimeDir, `${name}.lock`);
 }
 
 async function isStaleLock(lockPath: string, staleAfterMs: number): Promise<boolean> {

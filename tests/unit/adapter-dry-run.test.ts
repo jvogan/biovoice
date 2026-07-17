@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -5,9 +6,10 @@ import { describe, expect, it } from "vitest";
 import { ChimeraXAdapter } from "../../packages/runtime-and-adapters/src/adapters/chimerax-adapter.js";
 import { PymolAdapter } from "../../packages/runtime-and-adapters/src/adapters/pymol-adapter.js";
 import { resolveFromRoot } from "../../packages/runtime-and-adapters/src/utils/paths.js";
+import { scientificTestFixturePath } from "../helpers/scientific-test-fixtures.js";
 
 describe("adapter dry-run compilation", () => {
-  const localStructurePath = resolveFromRoot("examples", "data", "local", "1grl.pdb");
+  const localStructurePath = scientificTestFixturePath("af-p69905.pdb");
 
   it("compiles PyMOL actions without requiring a live RPC session", async () => {
     const adapter = new PymolAdapter({
@@ -174,15 +176,23 @@ describe("adapter dry-run compilation", () => {
     });
 
     const result = await adapter.execute([
-      { type: "load", source: "local", path: resolveFromRoot("examples", "data", "local", "af-p69905.pdb") },
+      { type: "load", source: "local", path: scientificTestFixturePath("af-p69905.pdb") },
     ], true);
 
     expect(result.commandsExecuted).toEqual(expect.arrayContaining([
-      `load "${resolveFromRoot("examples", "data", "local", "af-p69905.pdb")}", af_p69905`,
+      `load "${scientificTestFixturePath("af-p69905.pdb")}", af_p69905`,
     ]));
   });
 
-  it("resolves built-in local demo structures from ids without requiring full paths", async () => {
+  it("resolves a prepared local demo structure from its id without a full path", async () => {
+    const fixtureId = `vitest_local_${randomUUID().replaceAll("-", "")}`;
+    const preparedPath = resolveFromRoot("examples", "data", "local", `${fixtureId}.pdb`);
+    await fs.mkdir(path.dirname(preparedPath), { recursive: true });
+    await fs.writeFile(
+      preparedPath,
+      "ATOM      1  CA  GLY A   1      0.000   0.000   0.000  1.00 90.00           C\nEND\n",
+      { encoding: "utf8", flag: "wx" },
+    );
     const pymol = new PymolAdapter({
       baseUrl: "http://127.0.0.1",
       startPort: 9123,
@@ -196,19 +206,19 @@ describe("adapter dry-run compilation", () => {
       autolaunch: false,
     });
 
-    const pymol4Hhb = await pymol.execute([
-      { type: "load", source: "local", id: "4hhb", object: "4hhb" },
-    ], true);
-    const pymolAlphaFold = await pymol.execute([
-      { type: "load", source: "local", id: "P69905", object: "af_p69905" },
-    ], true);
-    const chimera4Hhb = await chimerax.execute([
-      { type: "open", source: "local", id: "4hhb" },
-    ], true);
+    try {
+      const pymolResult = await pymol.execute([
+        { type: "load", source: "local", id: fixtureId, object: "prepared_model" },
+      ], true);
+      const chimeraResult = await chimerax.execute([
+        { type: "open", source: "local", id: fixtureId },
+      ], true);
 
-    expect(pymol4Hhb.commandsExecuted).toContain(`load "${resolveFromRoot("examples", "data", "local", "4hhb.pdb")}", 4hhb`);
-    expect(pymolAlphaFold.commandsExecuted).toContain(`load "${resolveFromRoot("examples", "data", "local", "af-p69905.pdb")}", af_p69905`);
-    expect(chimera4Hhb.commandsExecuted).toContain(`open "${resolveFromRoot("examples", "data", "local", "4hhb.pdb")}"`);
+      expect(pymolResult.commandsExecuted).toContain(`load "${preparedPath}", prepared_model`);
+      expect(chimeraResult.commandsExecuted).toContain(`open "${preparedPath}"`);
+    } finally {
+      await fs.rm(preparedPath, { force: true });
+    }
   });
 
   it("rejects PyMOL align actions that resolve to the same selection", async () => {

@@ -32,10 +32,10 @@ npm ci
 npm run prepare:data
 npm run generate:examples
 npm run check
-npm run verify:examples
+npm run verify:examples -- --require-data
 ```
 
-`npm run check` already chains `generate:examples` into its build step, but running it explicitly up front keeps the generated doc tree and the release-readiness scan aligned before `verify:examples` hits it.
+`npm run check` already chains `generate:examples` into its build step, but running it explicitly up front keeps the generated doc tree and the release-readiness scan aligned. The `--require-data` flag adds installed-file checks to the portable structural checks used by CI.
 
 Run showcase verification when demo workflows changed:
 

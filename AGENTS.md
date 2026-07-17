@@ -139,5 +139,5 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Prefer structured actions over raw commands even for complex scientist tasks: clip planes, label clearing, map views, assembly or symmetry, interface contacts, view recall, and export polish are all first-class now.
 - Use `capture_view` when the user asks whether the scene looks good, whether labels are cluttered, or before a final hero export. The resulting image will show in the timeline and `Latest View`.
 - If a tool result already returns metrics, quote those numeric values directly instead of re-describing them loosely.
-- `npm run verify:examples` now compile-checks every recipe step in dry-run mode, so it is safe to run even when PyMOL and ChimeraX are not open.
+- `npm run verify:examples` compile-checks every recipe step in dry-run mode without requiring downloaded demo data, so it is safe in a clean checkout. Add `-- --require-data` to verify installed sample files too.
 - The operator panel includes a live `Objects + Views` section. Use it to confirm that scenes, named views, surfaces, and measurements were actually created in the target app.

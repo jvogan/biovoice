@@ -10,12 +10,14 @@ const docPymolAdapter = new PymolAdapter({
   timeoutMs: 8_000,
   renderTimeoutMs: 120_000,
   autolaunch: false,
+  allowMissingLocalInputsForDocumentation: true,
 });
 
 const docChimeraXAdapter = new ChimeraXAdapter({
   port: 60_958,
   timeoutMs: 30_000,
   autolaunch: false,
+  allowMissingLocalInputsForDocumentation: true,
 });
 
 export interface CompiledRecipeStepDoc {

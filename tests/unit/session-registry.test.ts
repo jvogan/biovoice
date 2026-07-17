@@ -3,6 +3,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import { RealtimeSessionCapacityError, RealtimeSessionRegistry, type RealtimeRegistryOptions } from "../../packages/runtime-and-adapters/src/realtime/session-registry.js";
 import { createEmptySessionUsage } from "../../packages/runtime-and-adapters/src/realtime/usage.js";
+import { scientificTestFixturePath } from "../helpers/scientific-test-fixtures.js";
 
 function createRegistry(overrides: Partial<RealtimeRegistryOptions> = {}) {
   return new RealtimeSessionRegistry({
@@ -1336,8 +1337,8 @@ describe("realtime session registry hardening", () => {
       workflow: "alphafold_confidence_review",
       presentationMode: "demo",
       inputs: {
-        modelPath: path.resolve("examples/data/local/af-p69905.pdb"),
-        paePath: path.resolve("examples/data/local/af-p69905-pae.json"),
+        modelPath: scientificTestFixturePath("af-p69905.pdb"),
+        paePath: scientificTestFixturePath("af-p69905-pae.json"),
       },
     });
 
@@ -1361,7 +1362,7 @@ describe("realtime session registry hardening", () => {
       workflow: "alphafold_confidence_review",
       dryRun: true,
       inputs: {
-        modelPath: path.resolve("examples/data/local/af-p69905.pdb"),
+        modelPath: scientificTestFixturePath("af-p69905.pdb"),
       },
     });
     expect(registry.receiptStore.create).toHaveBeenCalledWith(expect.objectContaining({

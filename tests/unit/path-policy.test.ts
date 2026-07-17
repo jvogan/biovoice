@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import fs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
@@ -69,10 +70,82 @@ describe("path policy", () => {
     }
   });
 
-  it("resolves built-in local structures from common id variants", () => {
-    expect(resolveLocalStructureInputPath(undefined, ["4HHB"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "4hhb.pdb"));
-    expect(resolveLocalStructureInputPath(undefined, ["P69905"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "af-p69905.pdb"));
-    expect(resolveLocalStructureInputPath(undefined, ["af_p69905"], "structure")).toBe(resolveFromRoot("examples", "data", "local", "af-p69905.pdb"));
+  it("resolves built-in local structures from common id variants", async () => {
+    const fixtureToken = `biovoice${randomUUID().replaceAll("-", "")}`;
+    const directStem = `${fixtureToken}-direct`;
+    const alphaFoldStem = `${fixtureToken}alpha`;
+    const directPath = resolveFromRoot("examples", "data", "local", `${directStem}.pdb`);
+    const alphaFoldPath = resolveFromRoot("examples", "data", "local", `af-${alphaFoldStem}.pdb`);
+    await fs.mkdir(path.dirname(directPath), { recursive: true });
+    await fs.writeFile(directPath, "ATOM\n", { encoding: "utf8", flag: "wx" });
+    await fs.writeFile(alphaFoldPath, "ATOM\n", { encoding: "utf8", flag: "wx" });
+
+    try {
+      expect(resolveLocalStructureInputPath(undefined, [directStem.toUpperCase()], "structure")).toBe(directPath);
+      expect(resolveLocalStructureInputPath(undefined, [alphaFoldStem.toUpperCase()], "structure")).toBe(alphaFoldPath);
+      expect(resolveLocalStructureInputPath(undefined, [`af_${alphaFoldStem}`], "structure")).toBe(alphaFoldPath);
+    } finally {
+      await fs.rm(directPath, { force: true });
+      await fs.rm(alphaFoldPath, { force: true });
+    }
+  });
+
+  it("allows missing explicit paths only for documentation compilation", async () => {
+    const missingPath = resolveFromRoot(".runtime", "tests", "path-policy", "missing-doc-input.pdb");
+    await fs.rm(missingPath, { force: true });
+
+    expect(() => resolveLocalStructureInputPath(missingPath, [], "structure")).toThrow(/does not exist/i);
+    expect(resolveLocalStructureInputPath(
+      missingPath,
+      [],
+      "structure",
+      { allowMissingExplicitPath: true },
+    )).toBe(missingPath);
+
+    expect(() => resolveLocalStructureInputPath(
+      undefined,
+      ["__biovoice_missing_implicit_fixture__"],
+      "structure",
+      { allowMissingExplicitPath: true },
+    )).toThrow(/does not exist/i);
+  });
+
+  it("keeps root and command-text checks enabled for missing documentation inputs", () => {
+    const outsideRoot = path.join(os.tmpdir(), "biovoice-missing-doc-input.pdb");
+    const controlCharacterPath = resolveFromRoot(".runtime", "tests", "path-policy", "missing\ndoc-input.pdb");
+
+    expect(() => resolveLocalStructureInputPath(
+      outsideRoot,
+      [],
+      "structure",
+      { allowMissingExplicitPath: true },
+    )).toThrow(/outside the allowed roots/i);
+    expect(() => resolveLocalStructureInputPath(
+      controlCharacterPath,
+      [],
+      "structure",
+      { allowMissingExplicitPath: true },
+    )).toThrow(/unsupported control characters/i);
+  });
+
+  it("rejects dangling symlinks when documentation inputs are missing", async () => {
+    const fixtureToken = randomUUID().replaceAll("-", "");
+    const fixtureDir = resolveFromRoot(".runtime", "tests", `path-policy-dangling-${fixtureToken}`);
+    const danglingPath = path.join(fixtureDir, "model.pdb");
+    const missingTarget = path.join(os.tmpdir(), `biovoice-missing-${fixtureToken}.pdb`);
+    await fs.mkdir(fixtureDir, { recursive: true });
+    await fs.symlink(missingTarget, danglingPath);
+
+    try {
+      expect(() => resolveLocalStructureInputPath(
+        danglingPath,
+        [],
+        "structure",
+        { allowMissingExplicitPath: true },
+      )).toThrow(/dangling symbolic link/i);
+    } finally {
+      await fs.rm(fixtureDir, { recursive: true, force: true });
+    }
   });
 
   it("requires explicit opt-in for private structure folders", async () => {

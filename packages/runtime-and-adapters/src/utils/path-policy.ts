@@ -12,6 +12,16 @@ function resolvePolicyPath(candidate: string): string {
   let current = absolute;
 
   while (!fs.existsSync(current)) {
+    try {
+      if (fs.lstatSync(current).isSymbolicLink()) {
+        throw new Error(`Path contains a dangling symbolic link: ${current}`);
+      }
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      if (code !== "ENOENT" && code !== "ENOTDIR") {
+        throw error;
+      }
+    }
     const parent = path.dirname(current);
     if (parent === current) {
       break;
@@ -69,15 +79,19 @@ export function isPathInsideRoots(candidate: string, roots: string[]): boolean {
 }
 
 export function ensureAllowedStructureInputPath(candidate: string, label = "Structure path"): string {
+  return validateStructureInputPath(candidate, label, true);
+}
+
+function validateStructureInputPath(candidate: string, label: string, requireExists: boolean): string {
   const resolved = resolvePolicyPath(candidate);
   assertSafeCommandPath(resolved, label);
-  if (!fs.existsSync(resolved)) {
-    throw new Error(`${label} does not exist: ${resolved}`);
-  }
   if (!isPathInsideRoots(resolved, getAllowedStructureInputRoots())) {
     throw new Error(
       `${label} is outside the allowed roots. Move it under examples/data/local, .runtime, output, or explicitly extend STRUCTURE_ALLOWED_PATHS in local .env.`,
     );
+  }
+  if (requireExists && !fs.existsSync(resolved)) {
+    throw new Error(`${label} does not exist: ${resolved}`);
   }
   return resolved;
 }
@@ -86,13 +100,17 @@ export function resolveLocalStructureInputPath(
   explicitPath: string | undefined,
   identifiers: Array<string | undefined>,
   fallbackStem = "structure",
+  options: { allowMissingExplicitPath?: boolean } = {},
 ): string {
   if (explicitPath?.trim()) {
-    return ensureAllowedStructureInputPath(explicitPath);
+    return validateStructureInputPath(explicitPath, "Structure path", !options.allowMissingExplicitPath);
   }
 
   const candidates = buildLocalStructureCandidates(identifiers, fallbackStem);
   const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  // Missing-file compilation is deliberately limited to explicit paths. An
+  // identifier can expand to several extensions, so accepting a guessed path
+  // would make static output depend on candidate ordering instead of real data.
   return ensureAllowedStructureInputPath(existing ?? candidates[0] ?? path.join(localDataDir, `${fallbackStem}.cif`));
 }
 

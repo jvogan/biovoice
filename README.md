@@ -267,6 +267,8 @@ npm run verify:voice-evals
 npm run verify:showcases
 ```
 
+`npm run verify:examples` checks recipe structure and command compilation without requiring downloaded demo data. Add `-- --require-data` when you also want to confirm that every declared local demo file is installed.
+
 Useful direct checks:
 
 ```bash

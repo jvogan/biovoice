@@ -9,9 +9,10 @@ import {
   type ScientificWorkflowContext,
   type TargetKind,
 } from "../../packages/runtime-and-adapters/src/index.js";
+import { scientificTestFixturePath } from "../helpers/scientific-test-fixtures.js";
 
 function fixturePath(...segments: string[]): string {
-  return resolveFromRoot("examples", "data", "local", ...segments);
+  return scientificTestFixturePath(...segments);
 }
 
 const scratchDir = resolveFromRoot(".runtime", "tests", "scientific-runner");
@@ -175,7 +176,7 @@ describe("scientific workflow runner", () => {
     });
 
     await expect(runScientificWorkflow(request, runtime)).rejects.toThrow(
-      /PAE matrix residue count \(2\) does not match polymer residue count \(142\)/,
+      /PAE matrix residue count \(2\) does not match polymer residue count \(4\)/,
     );
   });
 
@@ -248,8 +249,8 @@ describe("scientific workflow runner", () => {
         presentationMode: "publication",
         export: { format: "png" },
         inputs: {
-          modelPath: fixturePath("4hhb.pdb"),
-          comparisonPath: fixturePath("4hhb.pdb"),
+          modelPath: fixturePath("variant-model.pdb"),
+          comparisonPath: fixturePath("variant-model.pdb"),
           mutations: [{ position: "58", chain: "A", from: "H", to: "Y" }],
           ligandCode: "HEM",
           neighborhoodAngstroms: 6,
@@ -296,7 +297,7 @@ describe("scientific workflow runner", () => {
       workflow: "variant_environment_review",
       dryRun: true,
       inputs: {
-        modelPath: fixturePath("4hhb.pdb"),
+        modelPath: fixturePath("variant-model.pdb"),
         mutations: [{ position: "58" }],
       },
     });

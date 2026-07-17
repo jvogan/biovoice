@@ -1,6 +1,6 @@
-import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { PymolAdapter, createPymolCommandBatches, shouldPreservePymolViewForActions } from "../../packages/runtime-and-adapters/src/adapters/pymol-adapter.js";
+import { scientificTestFixturePath } from "../helpers/scientific-test-fixtures.js";
 
 describe("PymolAdapter readiness and cold-start policy", () => {
   it("fails closed until a reachable endpoint becomes command-ready", async () => {
@@ -443,7 +443,7 @@ describe("PymolAdapter readiness and cold-start policy", () => {
         type: "load",
         source: "local",
         object: "repeatable_model",
-        path: path.join(process.cwd(), "examples", "data", "local", "1hsg.pdb"),
+        path: scientificTestFixturePath("af-p69905.pdb"),
       },
     ], true);
 
