@@ -258,7 +258,7 @@ Rehearsal mode compiles the same workflow the live voice path would compile and 
 | ChimeraX adapter (REST) | [`packages/runtime-and-adapters/src/adapters/chimerax-adapter.ts`](../packages/runtime-and-adapters/src/adapters/chimerax-adapter.ts) |
 | Scientific workflow catalog | [`packages/runtime-and-adapters/src/scientific/catalog.ts`](../packages/runtime-and-adapters/src/scientific/catalog.ts) |
 | Scientific workflow compiler | [`packages/runtime-and-adapters/src/scientific/runner.ts`](../packages/runtime-and-adapters/src/scientific/runner.ts) |
-| Recipe / step runner | [`packages/runtime-and-adapters/src/recipes/`](../packages/runtime-and-adapters/src/recipes/) |
+| Recipe / step catalog | [`packages/runtime-and-adapters/src/examples/library.ts`](../packages/runtime-and-adapters/src/examples/library.ts) |
 | Tool playbooks reference | [`examples/tool-playbooks/`](../examples/tool-playbooks/) |
 | Browser-side Realtime client | [`apps/voice-console/src/`](../apps/voice-console/src/) |
 
