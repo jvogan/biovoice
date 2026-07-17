@@ -21,10 +21,10 @@ Direct command equivalents:
 - `lighting soft`
 - `open "./examples/data/local/4ake.pdb"`
 - `open "./examples/data/local/1ake.pdb"`
-- `cartoon sel`
-- `cartoon sel`
-- `color sel slate`
-- `color sel hotpink`
+- `cartoon #1`
+- `cartoon #2`
+- `color #1 slate`
+- `color #2 hotpink`
 - `preset publication 1`
 - `graphics bgColor #FBFBF7`
 - `graphics silhouettes true color #3A3A3A width 1.6`
@@ -54,12 +54,12 @@ Checkpoints:
 - design-shell is stored as a named view.
 
 Direct command equivalents:
-- `matchmaker sel to sel`
-- `style :118-160 stick`
-- `style :118-160 stick`
-- `color :118-160 hotpink`
-- `color :118-160 deepskyblue`
-- `distance :136@CA :136@CA`
+- `matchmaker #2 to #1`
+- `style #2:118-160 stick`
+- `style #1:118-160 stick`
+- `color #2:118-160 hotpink`
+- `color #1:118-160 deepskyblue`
+- `distance #1/A:136@CA #2/A:136@CA`
 - `view #1:118-160 | #2:118-160 orient`
 - `turn y 10`
 - `turn x 5`
@@ -78,8 +78,8 @@ Checkpoints:
 - A high-resolution design-review PNG export exists.
 
 Direct command equivalents:
-- `move x 22 atoms sel`
-- `turn y 22 center sel atoms sel`
+- `move x 22 models #2`
+- `turn y 22 center #2 models #2`
 - `view #1 | #2 orient`
 - `turn y 10`
 - `turn x 5`

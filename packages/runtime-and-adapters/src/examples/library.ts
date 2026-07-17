@@ -3154,7 +3154,7 @@ export const exampleCatalog: RecipeManifest[] = recipeManifestSchema.array().par
           { type: "style", selection: { reference: "scaffoldModel", residues: ["118-160"] }, atoms: "stick" },
           { type: "color", color: "hot pink", selection: { reference: "designModel", residues: ["118-160"] } },
           { type: "color", color: "deepskyblue", selection: { reference: "scaffoldModel", residues: ["118-160"] } },
-          { type: "distance", selection1: { reference: "scaffoldChainA", residue: "136", atom: "CA" }, selection2: { reference: "designChainA", residue: "136", atom: "CA" } },
+          { type: "distance", selection1: { model: "#1", chain: "A", residue: "136", atom: "CA" }, selection2: { model: "#2", chain: "A", residue: "136", atom: "CA" } },
           { type: "camera", action: "comparison_frame", selection: "#1:118-160 | #2:118-160" },
           { type: "view", action: "save", name: "design-shell" },
         ],

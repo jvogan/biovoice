@@ -1,12 +1,14 @@
 import { AnimatePresence, motion } from "motion/react";
-import { Languages, Loader2, Mic, Terminal } from "lucide-react";
+import { ImageUp, Languages, Loader2, Mic, Terminal } from "lucide-react";
 import type {
+  AudioInputDeviceSummary,
   ConnectionState,
   ConnectionPhase,
   ResponseLanguageMode,
   VoiceMode,
   VoiceUiState,
 } from "./types";
+import { AudioInputSelect } from "./AudioInputSelect";
 
 export interface VoiceStageProps {
   connectionState: ConnectionState;
@@ -16,6 +18,10 @@ export interface VoiceStageProps {
   onVoiceModeChange: (next: VoiceMode) => void;
   responseLanguageMode: ResponseLanguageMode;
   onResponseLanguageModeChange: (next: ResponseLanguageMode) => void;
+  audioInputDevices: AudioInputDeviceSummary[];
+  selectedAudioInputDeviceId: string;
+  onAudioInputDeviceChange: (deviceId: string) => void;
+  audioInputDisabled?: boolean;
   transcript: string;
   onPushToTalkStart: () => void;
   onPushToTalkEnd: () => void;
@@ -23,6 +29,9 @@ export interface VoiceStageProps {
   openMicArmed?: boolean;
   onToggleOpenMic?: () => void;
   hint?: string | null;
+  captureSharingEnabled?: boolean;
+  captureShareState?: "idle" | "busy" | "granted" | "error";
+  onGrantNextViewportShare?: () => void;
 }
 
 export function VoiceStage(props: VoiceStageProps) {
@@ -33,6 +42,10 @@ export function VoiceStage(props: VoiceStageProps) {
     onVoiceModeChange,
     responseLanguageMode,
     onResponseLanguageModeChange,
+    audioInputDevices,
+    selectedAudioInputDeviceId,
+    onAudioInputDeviceChange,
+    audioInputDisabled = false,
     transcript,
     onPushToTalkStart,
     onPushToTalkEnd,
@@ -40,6 +53,9 @@ export function VoiceStage(props: VoiceStageProps) {
     openMicArmed = false,
     onToggleOpenMic,
     hint,
+    captureSharingEnabled = false,
+    captureShareState = "idle",
+    onGrantNextViewportShare,
   } = props;
 
   const isConnected = connectionState === "connected";
@@ -186,6 +202,38 @@ export function VoiceStage(props: VoiceStageProps) {
           </AnimatePresence>
         </div>
       </div>
+
+      <AudioInputSelect
+        id="voice-stage-audio-input"
+        devices={audioInputDevices}
+        selectedDeviceId={selectedAudioInputDeviceId}
+        onChange={onAudioInputDeviceChange}
+        disabled={audioInputDisabled}
+        showIcon
+        className="absolute top-6 left-6 z-20 flex items-center gap-2 bg-zinc-100/90 dark:bg-zinc-900/80 backdrop-blur px-3 py-2 rounded-lg border border-zinc-300/80 dark:border-zinc-800/80 shadow-sm dark:shadow-none"
+        iconClassName="w-4 h-4 text-zinc-500 dark:text-zinc-400"
+        labelClassName="text-[10px] font-semibold uppercase text-zinc-500 dark:text-zinc-400"
+        selectClassName="w-48 bg-transparent text-xs font-medium text-zinc-800 dark:text-zinc-100 disabled:opacity-60"
+      />
+
+      {captureSharingEnabled ? (
+        <button
+          type="button"
+          onClick={onGrantNextViewportShare}
+          disabled={!isConnected || captureShareState === "busy" || captureShareState === "granted"}
+          title="Allow exactly one subsequent viewport capture to be sent to the active model conversation. The grant expires after 60 seconds."
+          className={`absolute top-6 right-6 z-20 inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-xs font-medium shadow-sm transition-colors disabled:cursor-not-allowed ${
+            captureShareState === "granted"
+              ? "border-emerald-300 bg-emerald-50 text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300"
+              : captureShareState === "error"
+                ? "border-rose-300 bg-rose-50 text-rose-700 dark:border-rose-800 dark:bg-rose-950/40 dark:text-rose-300"
+                : "border-zinc-300 bg-zinc-100/90 text-zinc-600 hover:text-zinc-900 dark:border-zinc-800 dark:bg-zinc-900/80 dark:text-zinc-300 dark:hover:text-white"
+          }`}
+        >
+          {captureShareState === "busy" ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageUp className="h-4 w-4" />}
+          {captureShareState === "granted" ? "Next viewport approved" : captureShareState === "error" ? "Share approval failed" : "Share next viewport once"}
+        </button>
+      ) : null}
 
       <div className="absolute bottom-6 right-6 flex bg-zinc-100/90 dark:bg-zinc-900/80 backdrop-blur p-1 rounded-lg border border-zinc-300/80 dark:border-zinc-800/80 shadow-sm dark:shadow-none">
         <button

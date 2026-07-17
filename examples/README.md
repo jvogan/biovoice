@@ -11,14 +11,14 @@ If you are new to the project, start with the hand-authored guides first:
 
 If you are a **developer or AI engineer** studying the Realtime API tool-calling pattern, start with:
 
-- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 9 function tools in the catalog, selector schema, database asset resolution, state grounding, and workflow compilation
+- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 11 function tools in the catalog (10 in each target-specific session), selector schema, database asset resolution, state grounding, and workflow compilation
 - [`tool-playbooks/`](./tool-playbooks/) - the atomic PyMOL and ChimeraX action surface available to the model
-- [`scientific-workflows/`](./scientific-workflows/) - the task-level AlphaFold / Rosetta catalog exposed behind `run_scientific_workflow`
+- [`scientific-workflows/`](./scientific-workflows/) - the task-level AlphaFold, Rosetta, and variant-review catalog exposed behind `run_scientific_workflow`
 - The source of truth: [`packages/runtime-and-adapters/src/realtime/tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts)
 
 ## Structure
 - `start-here/`: concise operator quick reference
-- `scientific-workflows/`: task-first AlphaFold and Rosetta launch catalog
+- `scientific-workflows/`: task-first AlphaFold, Rosetta, and variant-review launch catalog
 - `workflow-recipes/`: full demo workflows for both apps
 - `prompt-library/`: curated utterance packs and follow-up prompts
 - `tool-playbooks/`: what the structured tool surface can do

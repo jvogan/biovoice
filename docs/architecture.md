@@ -65,7 +65,8 @@ flowchart LR
 
 - PDB, CIF, and map file contents
 - Cached AlphaFold DB, RCSB, EMDB, and UniProt assets under `.runtime/cache/scientific`
-- Generated exports and captures
+- Generated exports and captures (captures are local by default)
+- Run receipts and one-level undo checkpoints under `.runtime/`
 - Runtime state and local logs under `.runtime/` when enabled
 - `local/`, `private/`, `tmp/`, and `output/` content
 - Your real credentials in local `.env`
@@ -77,8 +78,9 @@ flowchart LR
 - structured tool-call text, such as residue names, chain IDs, object names, and file-path references
 - database identifiers or search text when you ask the model to resolve a public AlphaFold DB, RCSB, EMDB, or UniProt asset
 - session instructions and model context needed to drive the live turn
+- a viewport image only when capture uploads are explicitly enabled and the user consents to attaching that capture
 
-BioVoice does not upload molecular file contents to OpenAI for normal local tool execution, but path names and labels can appear in the model context. Keep sensitive project names out of paths if you plan to screen-share or file public issues.
+BioVoice does not upload molecular file contents to OpenAI for normal local tool execution. Captures also remain local by default. Path names and labels can appear in the model context, so keep sensitive project names out of paths if you plan to screen-share or file public issues.
 
 Database-backed fetching is local backend network activity, not an OpenAI file upload. The resolver is limited to known structural biology sources and writes downloaded files into the local scientific cache.
 

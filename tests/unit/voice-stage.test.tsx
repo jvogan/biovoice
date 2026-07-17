@@ -4,6 +4,12 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { VoiceStage } from "../../apps/voice-console/src/components/VoiceStage";
 
+const audioInputProps = {
+  audioInputDevices: [{ deviceId: "default", label: "System Default", source: "default" as const }],
+  selectedAudioInputDeviceId: "default",
+  onAudioInputDeviceChange: () => {},
+};
+
 describe("voice stage mode controls", () => {
   it("routes open-mic entry through the explicit toggle handler", () => {
     const onVoiceModeChange = vi.fn();
@@ -18,6 +24,7 @@ describe("voice stage mode controls", () => {
         onVoiceModeChange={onVoiceModeChange}
         responseLanguageMode="standard"
         onResponseLanguageModeChange={() => {}}
+        {...audioInputProps}
         transcript=""
         onPushToTalkStart={() => {}}
         onPushToTalkEnd={() => {}}
@@ -45,6 +52,7 @@ describe("voice stage mode controls", () => {
         onVoiceModeChange={onVoiceModeChange}
         responseLanguageMode="standard"
         onResponseLanguageModeChange={onResponseLanguageModeChange}
+        {...audioInputProps}
         transcript=""
         onPushToTalkStart={() => {}}
         onPushToTalkEnd={() => {}}
@@ -55,5 +63,34 @@ describe("voice stage mode controls", () => {
 
     expect(onResponseLanguageModeChange).toHaveBeenCalledWith("klingon");
     expect(onVoiceModeChange).not.toHaveBeenCalled();
+  });
+
+  it("routes audio input selection changes", () => {
+    const onAudioInputDeviceChange = vi.fn();
+
+    render(
+      <VoiceStage
+        connectionState="connected"
+        phase="ready"
+        voiceUiState="idle"
+        voiceMode="push_to_talk"
+        onVoiceModeChange={() => {}}
+        responseLanguageMode="standard"
+        onResponseLanguageModeChange={() => {}}
+        audioInputDevices={[
+          { deviceId: "default", label: "System Default", source: "default" },
+          { deviceId: "blackhole", label: "BlackHole 2ch", source: "system" },
+        ]}
+        selectedAudioInputDeviceId="default"
+        onAudioInputDeviceChange={onAudioInputDeviceChange}
+        transcript=""
+        onPushToTalkStart={() => {}}
+        onPushToTalkEnd={() => {}}
+      />,
+    );
+
+    fireEvent.change(screen.getByLabelText("Audio In"), { target: { value: "blackhole" } });
+
+    expect(onAudioInputDeviceChange).toHaveBeenCalledWith("blackhole");
   });
 });

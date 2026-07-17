@@ -23,6 +23,8 @@ import {
   setOverlayMiniState,
   writeOverlayThemePreference,
 } from "../lib/overlay-preferences";
+import { AudioInputSelect } from "./AudioInputSelect";
+import type { AudioInputDeviceSummary } from "./types";
 
 // NOTE: The raw-SVG inner-HTML below is safe: SVG templates come from build-time
 // `?raw` imports (not user content), and all dynamic substitutions pass through
@@ -31,6 +33,9 @@ import {
 export interface VoiceWidgetProps {
   target: TargetKind;
   targetReady: boolean;
+  audioInputDevices: AudioInputDeviceSummary[];
+  selectedAudioInputDeviceId: string;
+  audioInputDisabled?: boolean;
   voiceMode: VoiceMode;
   overlayMode: boolean;
   phase: string;
@@ -54,6 +59,11 @@ export interface VoiceWidgetProps {
   onDisconnect: () => void;
   onPauseToggle: () => void;
   onToggleOpenMic: () => void;
+  undoAvailable?: boolean;
+  undoBusy?: boolean;
+  undoFeedback?: { tone: "success" | "error"; message: string } | null;
+  onUndo?: () => void;
+  onAudioInputDeviceChange: (deviceId: string) => void;
   onPushToTalkStart: () => void;
   onPushToTalkEnd: () => void;
   onToggleTarget: () => void;
@@ -186,6 +196,10 @@ export function VoiceWidget(props: VoiceWidgetProps) {
     : "Pause session";
   const modeLabel = props.voiceMode === "push_to_talk" ? "PTT" : "OPEN";
   const openMicLabel = props.voiceMode === "open_mic" && props.openMicArmed ? "ptt" : "open mic";
+  const selectedAudioInputLabel =
+    props.audioInputDevices.find((device) => device.deviceId === props.selectedAudioInputDeviceId)?.label
+    ?? "System Default";
+  const selectedAudioInputSummary = truncateInstrumentText(selectedAudioInputLabel, 19);
   const hint = props.overlayMode
     ? !props.connected
       ? props.connectBusy
@@ -517,8 +531,40 @@ export function VoiceWidget(props: VoiceWidgetProps) {
                 activateOverlayControl("pause", props.sessionPaused ? "resume" : "pause", props.onPauseToggle);
               } : undefined}
             />
+            <button
+              className="instrument-audio-chip"
+              type="button"
+              aria-label={`Audio input: ${selectedAudioInputLabel}. Open audio input menu`}
+              title={`Audio input: ${selectedAudioInputLabel}`}
+              onClick={() => setOverlayMenuOpen(true)}
+            >
+              <span className="instrument-audio-chip-label">Audio In</span>
+              <span className="instrument-audio-chip-value">{selectedAudioInputSummary}</span>
+            </button>
             {overlayMenuOpen ? (
               <div className="instrument-menu" ref={overlayMenuRef} role="menu" aria-label="Widget menu">
+                <AudioInputSelect
+                  id="instrument-audio-input"
+                  devices={props.audioInputDevices}
+                  selectedDeviceId={props.selectedAudioInputDeviceId}
+                  onChange={props.onAudioInputDeviceChange}
+                  disabled={props.audioInputDisabled}
+                  className="instrument-menu-field"
+                  labelClassName="instrument-menu-label"
+                  selectClassName="instrument-menu-select"
+                />
+                <button
+                  className="instrument-menu-button"
+                  role="menuitem"
+                  type="button"
+                  disabled={!props.undoAvailable || props.undoBusy || !props.onUndo}
+                  onClick={() => {
+                    props.onUndo?.();
+                    setOverlayMenuOpen(false);
+                  }}
+                >
+                  {props.undoBusy ? "Undoing…" : "Undo Last Turn"}
+                </button>
                 <button
                   className="instrument-menu-button"
                   role="menuitem"
@@ -546,6 +592,11 @@ export function VoiceWidget(props: VoiceWidgetProps) {
             {props.sessionNotice ? (
               <div className={`voice-widget-notice voice-widget-notice-${props.sessionNoticeTone ?? "warn"}`}>
                 {props.sessionNotice}
+              </div>
+            ) : null}
+            {props.undoFeedback ? (
+              <div className={`voice-widget-notice voice-widget-notice-${props.undoFeedback.tone}`} role={props.undoFeedback.tone === "error" ? "alert" : "status"}>
+                {props.undoFeedback.message}
               </div>
             ) : null}
           </div>
@@ -586,6 +637,23 @@ export function VoiceWidget(props: VoiceWidgetProps) {
         </div>
       ) : null}
 
+      {props.undoFeedback ? (
+        <div className={`voice-widget-notice voice-widget-notice-${props.undoFeedback.tone}`} role={props.undoFeedback.tone === "error" ? "alert" : "status"}>
+          {props.undoFeedback.message}
+        </div>
+      ) : null}
+
+      <AudioInputSelect
+        id="voice-widget-audio-input"
+        devices={props.audioInputDevices}
+        selectedDeviceId={props.selectedAudioInputDeviceId}
+        onChange={props.onAudioInputDeviceChange}
+        disabled={props.audioInputDisabled}
+        className="voice-widget-audio-input"
+        labelClassName="voice-widget-label"
+        selectClassName="voice-widget-select"
+      />
+
       <div className="voice-widget-mic-wrap">
         <button
           aria-label={props.voiceMode === "push_to_talk" ? "Hold to speak" : "Voice session indicator"}
@@ -618,6 +686,15 @@ export function VoiceWidget(props: VoiceWidgetProps) {
 
       <div className="voice-widget-controls">
         <div className="voice-widget-control-group">
+          <button
+            className="voice-widget-button"
+            disabled={!props.undoAvailable || props.undoBusy || !props.onUndo}
+            onClick={props.onUndo}
+            title={props.undoAvailable ? "Undo last turn" : "Nothing to undo"}
+            type="button"
+          >
+            {props.undoBusy ? "undoing…" : "undo"}
+          </button>
           {!props.connected ? (
             <button
               className="voice-widget-button"

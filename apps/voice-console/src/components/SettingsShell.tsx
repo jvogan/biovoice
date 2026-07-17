@@ -1,7 +1,7 @@
 import { SettingsDrawer, type SettingsDrawerProps } from "./SettingsDrawer";
 import { WorkflowsPanel, type WorkflowsPanelProps } from "./WorkflowsPanel";
 
-export interface SettingsShellProps extends Omit<SettingsDrawerProps, "workflowsContent"> {
+export interface SettingsShellProps extends Omit<SettingsDrawerProps, "workflowsContent" | "rehearsalRecipeId"> {
   workflowsPanelProps: WorkflowsPanelProps;
 }
 
@@ -10,6 +10,7 @@ export function SettingsShell(props: SettingsShellProps) {
   return (
     <SettingsDrawer
       {...drawerProps}
+      rehearsalRecipeId={workflowsPanelProps.selectedRecipeId}
       workflowsContent={<WorkflowsPanel {...workflowsPanelProps} />}
     />
   );

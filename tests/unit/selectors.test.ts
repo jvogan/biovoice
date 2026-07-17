@@ -91,6 +91,18 @@ describe("selector compilers", () => {
     ).toBe("byres (4hhb and sidechain and ((4hhb and resn HEM) around 5))");
   });
 
+  it("uses ChimeraX atom-spec zone operators for proximity selectors", () => {
+    expect(
+      compileChimeraXAtomspec({
+        model: "#1",
+        entity: "protein",
+        around: "#1:HEM",
+        withinAngstroms: 5,
+        byResidue: true,
+      }),
+    ).toBe("((#1:HEM) :< 5) & (#1 & protein)");
+  });
+
   it("supports multi-chain and multi-residue selectors for both targets", () => {
     expect(
       compilePymolSelection({
@@ -129,5 +141,19 @@ describe("selector compilers", () => {
         residue: "118-160",
       }, referenceHints),
     ).toBe("#2/A:118-160");
+  });
+
+  it("fails closed when a PyMOL semantic reference cannot be resolved", () => {
+    expect(() => compilePymolSelection({
+      reference: "missingModel",
+      residue: "58",
+    }, {})).toThrow(/Unresolved selector reference "missingModel" for pymol/);
+  });
+
+  it("fails closed when a ChimeraX semantic reference cannot be resolved", () => {
+    expect(() => compileChimeraXAtomspec({
+      reference: "missingModel",
+      chain: "A",
+    })).toThrow(/Unresolved selector reference "missingModel" for chimerax/);
   });
 });

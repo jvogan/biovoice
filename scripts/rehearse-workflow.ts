@@ -4,6 +4,7 @@ import {
   getScientificWorkflowSpec,
   scientificWorkflowRequestSchema,
   getRecipe,
+  parseVariantMutationArgument,
   resolveScientificWorkflowRecipeId,
   resolveFromRoot,
   scientificWorkflowKinds,
@@ -17,7 +18,7 @@ dotenv.config({ path: resolveFromRoot(".env") });
 async function main() {
   const [identifier, ...flags] = process.argv.slice(2);
   if (!identifier) {
-    throw new Error("Usage: tsx scripts/rehearse-workflow.ts <recipeId|workflowId> [--target pymol|chimerax] [--step stepId] [--dry-run] [--capture] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n n]");
+    throw new Error("Usage: tsx scripts/rehearse-workflow.ts <recipeId|workflowId> [--target pymol|chimerax] [--step stepId] [--dry-run] [--capture] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n n] [--mutation A:H58Y] [--comparison path] [--ligand HEM] [--neighborhood-angstroms 5]");
   }
 
   const parsed = parseScientificFlags(flags);
@@ -121,11 +122,27 @@ function buildScientificWorkflowRequest(
         experimentalPdbFormat: inputs.pdbFormat ?? inputs.structureFormat,
         pdbFormat: inputs.pdbFormat,
         paePath: inputs.pae,
-        useAfdbPae: Boolean(inputs.uniprot && !inputs.pae),
+        useAfdbPae: workflowId === "alphafold_pae_guided_triage" && inputs.uniprot && !inputs.model && !inputs.pae
+          ? true
+          : undefined,
         cryoMapPath: inputs.map,
         emdbId: inputs.emdbId,
         cryoMapEmdbId: inputs.emdbId,
         structureFormat: inputs.structureFormat,
+      },
+    });
+  }
+
+  if (workflowId === "variant_environment_review") {
+    return scientificWorkflowRequestSchema.parse({
+      ...common,
+      inputs: {
+        modelPath: inputs.model,
+        uniprotId: inputs.uniprot,
+        mutations: inputs.mutations,
+        comparisonPath: inputs.comparison,
+        ligandCode: inputs.ligand,
+        neighborhoodAngstroms: inputs.neighborhoodAngstroms,
       },
     });
   }
@@ -185,6 +202,8 @@ function parseScientificFlags(flags: string[]): {
 } {
   const workflowValue = readFlagValue(flags, "--workflow");
   const topNValue = readFlagValue(flags, "--top-n");
+  const neighborhoodValue = readFlagValue(flags, "--neighborhood-angstroms");
+  const mutations = readFlagValues(flags, "--mutation").map(parseVariantMutationArgument);
   return {
     workflowId: workflowValue && scientificWorkflowKinds.includes(workflowValue as (typeof scientificWorkflowKinds)[number])
       ? (workflowValue as (typeof scientificWorkflowKinds)[number])
@@ -202,9 +221,21 @@ function parseScientificFlags(flags: string[]): {
       bundle: readFlagValue(flags, "--bundle"),
       scorefile: readFlagValue(flags, "--scorefile"),
       topN: topNValue ? Number(topNValue) : undefined,
+      mutations: mutations.length ? mutations : undefined,
+      comparison: readFlagValue(flags, "--comparison"),
+      ligand: readFlagValue(flags, "--ligand"),
+      neighborhoodAngstroms: neighborhoodValue ? Number(neighborhoodValue) : undefined,
     },
     target: parseTarget(flags),
   };
+}
+
+function readFlagValues(flags: string[], name: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < flags.length; index += 1) {
+    if (flags[index] === name && flags[index + 1]) values.push(flags[index + 1]);
+  }
+  return values;
 }
 
 main()

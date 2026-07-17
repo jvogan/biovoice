@@ -1,4 +1,5 @@
 import {
+  formatVariantMutationArgument,
   buildScientificLaunchCommand,
   buildScientificWorkflowUrl,
   type ScientificLaunchInputs,
@@ -157,6 +158,12 @@ function appendScientificArgs(parts: string[], inputs?: ScientificLaunchInputs):
   if (inputs.bundle) parts.push("--bundle", inputs.bundle);
   if (inputs.scorefile) parts.push("--scorefile", inputs.scorefile);
   if (typeof inputs.topN === "number" && Number.isFinite(inputs.topN)) parts.push("--top-n", String(Math.max(1, Math.round(inputs.topN))));
+  for (const mutation of inputs.mutations ?? []) parts.push("--mutation", formatVariantMutationArgument(mutation));
+  if (inputs.comparison) parts.push("--comparison", inputs.comparison);
+  if (inputs.ligand) parts.push("--ligand", inputs.ligand);
+  if (typeof inputs.neighborhoodAngstroms === "number" && Number.isFinite(inputs.neighborhoodAngstroms)) {
+    parts.push("--neighborhood-angstroms", String(inputs.neighborhoodAngstroms));
+  }
 }
 
 function fallbackRecipeId(target: "pymol" | "chimerax"): string {

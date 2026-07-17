@@ -10,5 +10,5 @@
 
 ## Recovery
 - Use the built-in recipe steps to recover a complex demo without restyling the scene manually.
-- Use `Reset Target` when you want a clean presentation baseline without restarting the app.
+- Use the header `Undo` control to restore the scene before the last action bundle, or restart with `--clean-target` for a fresh presentation baseline.
 - Use `Cancel Turn` if a spoken instruction starts to drift before the tool call executes.

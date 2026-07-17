@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import fs from "node:fs/promises";
+import path from "node:path";
 import { RealtimeSessionCapacityError, RealtimeSessionRegistry, type RealtimeRegistryOptions } from "../../packages/runtime-and-adapters/src/realtime/session-registry.js";
 import { createEmptySessionUsage } from "../../packages/runtime-and-adapters/src/realtime/usage.js";
 
@@ -797,6 +799,7 @@ describe("realtime session registry hardening", () => {
     const second = await registry.prepareSession("chimerax", "push_to_talk");
 
     await expect(registry.prepareSession("pymol", "push_to_talk")).rejects.toBeInstanceOf(RealtimeSessionCapacityError);
+    await expect(registry.prepareSession("pymol", "push_to_talk")).rejects.toThrow(/Local Realtime slots are full/);
 
     (registry as never as { disposeSession(sessionId: string): void }).disposeSession(first.sessionId);
     (registry as never as { disposeSession(sessionId: string): void }).disposeSession(second.sessionId);
@@ -924,6 +927,63 @@ describe("realtime session registry hardening", () => {
     expect(registry.sessions.has("session-reconnect")).toBe(true);
   });
 
+  it("prunes stale setup records before reporting active runtime health", async () => {
+    const registry = createRegistry() as never as {
+      createSessionRecord: (
+        sessionId: string,
+        callId: string,
+        target: "pymol" | "chimerax",
+        voiceMode: "push_to_talk" | "open_mic",
+      ) => {
+        connectedAtMs: number | null;
+        lastActivityAt: number;
+        status: {
+          status: "awaiting_call" | "connecting" | "connected" | "error" | "disconnected";
+          sidebandStatus: "pending_call" | "connecting" | "connected" | "reconnecting" | "error" | "disconnected";
+        };
+      };
+      sessions: Map<string, unknown>;
+      pymolAdapter: {
+        getAvailabilitySummary: () => Promise<{ ready: boolean }>;
+      };
+      chimeraXAdapter: {
+        getAvailabilitySummary: () => Promise<{ ready: boolean }>;
+      };
+      getRuntimeHealth: () => Promise<{
+        sessions: {
+          total: number;
+          active: number;
+          awaitingCall: number;
+          connected: number;
+        };
+      }>;
+    };
+
+    registry.pymolAdapter = { getAvailabilitySummary: vi.fn(async () => ({ ready: true })) };
+    registry.chimeraXAdapter = { getAvailabilitySummary: vi.fn(async () => ({ ready: true })) };
+
+    const staleSetup = registry.createSessionRecord("session-stale-setup", "", "pymol", "push_to_talk");
+    staleSetup.lastActivityAt = Date.now() - 31_000;
+    registry.sessions.set("session-stale-setup", staleSetup);
+
+    const liveSession = registry.createSessionRecord("session-live", "call-live", "pymol", "push_to_talk");
+    liveSession.connectedAtMs = Date.now();
+    liveSession.status = {
+      ...liveSession.status,
+      status: "connected",
+      sidebandStatus: "connected",
+    };
+    registry.sessions.set("session-live", liveSession);
+
+    const health = await registry.getRuntimeHealth();
+
+    expect(registry.sessions.has("session-stale-setup")).toBe(false);
+    expect(health.sessions.total).toBe(1);
+    expect(health.sessions.active).toBe(1);
+    expect(health.sessions.awaitingCall).toBe(0);
+    expect(health.sessions.connected).toBe(1);
+  });
+
   it("uses conservative server-side VAD settings for open mic", () => {
     const registry = createRegistry() as never as {
       buildSessionConfig: (
@@ -951,5 +1011,604 @@ describe("realtime session registry hardening", () => {
       interrupt_response: false,
       create_response: true,
     });
+  });
+
+  it("requires both global and per-session opt-in for raw expert commands", async () => {
+    const globallyEnabled = createRegistry({ expertCommandsEnabled: true }) as never as {
+      buildSessionConfig: (
+        target: "pymol" | "chimerax",
+        voiceMode: "push_to_talk" | "open_mic",
+        recipeId?: string,
+        advancedMode?: boolean,
+      ) => { tools: Array<{ name: string; parameters: unknown }> };
+      executeTargetActions: (
+        target: "pymol" | "chimerax",
+        actions: Array<Record<string, unknown>>,
+        dryRun: boolean,
+        allowRawCommands: boolean,
+      ) => Promise<{ commandsExecuted: string[] }>;
+    };
+    const globallyDisabled = createRegistry({ expertCommandsEnabled: false }) as never as typeof globallyEnabled;
+
+    const standardTool = globallyEnabled.buildSessionConfig("pymol", "push_to_talk").tools
+      .find((tool) => tool.name === "run_pymol_actions");
+    const advancedTool = globallyEnabled.buildSessionConfig("pymol", "push_to_talk", undefined, true).tools
+      .find((tool) => tool.name === "run_pymol_actions");
+    expect(JSON.stringify(standardTool)).not.toContain("raw_command");
+    expect(JSON.stringify(advancedTool)).toContain("raw_command");
+
+    await expect(globallyEnabled.executeTargetActions(
+      "pymol",
+      [{ type: "raw_command", command: "print('no confirmation')" }],
+      true,
+      true,
+    )).rejects.toThrow(/explicit confirmation/i);
+    await expect(globallyDisabled.executeTargetActions(
+      "pymol",
+      [{ type: "raw_command", command: "print('globally disabled')", requiresConfirmation: true }],
+      true,
+      true,
+    )).rejects.toThrow(/disabled/i);
+
+    const allowed = await globallyEnabled.executeTargetActions(
+      "pymol",
+      [{ type: "raw_command", command: "print('confirmed')", requiresConfirmation: true }],
+      true,
+      true,
+    );
+    expect(allowed.commandsExecuted).toContain("print('confirmed')");
+  });
+
+  it("hangs up the upstream Realtime call when a local session disconnects", async () => {
+    const fetchMock = vi.fn(async () => new Response("", { status: 200 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const registry = createRegistry({ openAiApiKey: "sk-test" });
+    vi.spyOn(registry as any, "createEphemeralSession").mockResolvedValue({ value: "ephemeral-secret" });
+    vi.spyOn(registry as any, "attachSideband").mockResolvedValue(undefined);
+
+    const prepared = await registry.prepareSession("pymol", "push_to_talk");
+    registry.registerCall(prepared.sessionId, "call_disconnect_test", prepared.registerToken);
+    await registry.disconnect(prepared.sessionId);
+
+    expect(fetchMock).toHaveBeenCalledWith(
+      "https://api.openai.com/v1/realtime/calls/call_disconnect_test/hangup",
+      expect.objectContaining({
+        method: "POST",
+        headers: expect.objectContaining({ Authorization: "Bearer sk-test" }),
+      }),
+    );
+  });
+
+  it("creates one-step checkpoints and consumes them after undo", async () => {
+    const registry = createRegistry() as never as {
+      executeTargetActions: (
+        target: "pymol" | "chimerax",
+        actions: Array<Record<string, unknown>>,
+        dryRun?: boolean,
+        allowRawCommands?: boolean,
+      ) => Promise<unknown>;
+      getUndoAvailability: (target: "pymol" | "chimerax") => { available: boolean };
+      undoLastAction: (target: "pymol" | "chimerax") => Promise<unknown>;
+      pymolAdapter: {
+        execute: ReturnType<typeof vi.fn>;
+        restoreCheckpoint: ReturnType<typeof vi.fn>;
+      };
+      receiptStore: {
+        create: ReturnType<typeof vi.fn>;
+        clearCheckpointAvailability: ReturnType<typeof vi.fn>;
+      };
+    };
+    const actionResult = {
+      target: "pymol",
+      commandsExecuted: ["color cyan, all"],
+      logs: [],
+      artifacts: [],
+      metrics: [],
+      warnings: [],
+      state: {},
+    };
+    registry.receiptStore = {
+      create: vi.fn(async () => ({})),
+      clearCheckpointAvailability: vi.fn(async () => {}),
+    };
+    registry.pymolAdapter = {
+      execute: vi.fn(async (_actions, _dryRun, _raw, checkpointPath?: string) => {
+        expect(checkpointPath).toMatch(/\.pse$/);
+        await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(checkpointPath!), { recursive: true })
+          .then(() => fs.writeFile(checkpointPath!, "checkpoint", "utf8")));
+        return actionResult;
+      }),
+      restoreCheckpoint: vi.fn(async () => actionResult),
+    };
+
+    await registry.executeTargetActions("pymol", [{ type: "color", color: "cyan" }]);
+    expect(registry.getUndoAvailability("pymol").available).toBe(true);
+
+    await registry.undoLastAction("pymol");
+    expect(registry.pymolAdapter.restoreCheckpoint).toHaveBeenCalledTimes(1);
+    expect(registry.getUndoAvailability("pymol").available).toBe(false);
+  });
+
+  it("records dry-run action bundles as planned without claiming an undo checkpoint", async () => {
+    const registry = createRegistry() as never as {
+      runActionEnvelope: (request: Record<string, unknown>) => Promise<unknown>;
+      pymolAdapter: { execute: ReturnType<typeof vi.fn> };
+      receiptStore: {
+        create: ReturnType<typeof vi.fn>;
+        clearCheckpointAvailability: ReturnType<typeof vi.fn>;
+      };
+    };
+    registry.receiptStore = {
+      create: vi.fn(async () => ({})),
+      clearCheckpointAvailability: vi.fn(async () => {}),
+    };
+    registry.pymolAdapter = {
+      execute: vi.fn(async () => ({
+        target: "pymol",
+        commandsExecuted: [],
+        logs: [],
+        artifacts: [],
+        metrics: [],
+        warnings: [],
+        state: {},
+      })),
+    };
+
+    await registry.runActionEnvelope({
+      target: "pymol",
+      dryRun: true,
+      actions: [{ type: "color", color: "cyan" }],
+    });
+
+    expect(registry.receiptStore.create).toHaveBeenCalledWith(expect.objectContaining({
+      evidenceLevel: "planned",
+      checkpointAvailable: false,
+    }));
+  });
+
+  it("queues undo behind an in-flight target action and restores that action's checkpoint", async () => {
+    const registry = createRegistry() as never as {
+      executeTargetActions: (
+        target: "pymol" | "chimerax",
+        actions: Array<Record<string, unknown>>,
+      ) => Promise<unknown>;
+      undoLastAction: (target: "pymol" | "chimerax") => Promise<unknown>;
+      getUndoAvailability: (target: "pymol" | "chimerax") => { available: boolean };
+      pymolAdapter: {
+        execute: ReturnType<typeof vi.fn>;
+        restoreCheckpoint: ReturnType<typeof vi.fn>;
+      };
+      receiptStore: {
+        create: ReturnType<typeof vi.fn>;
+        clearCheckpointAvailability: ReturnType<typeof vi.fn>;
+      };
+    };
+    const actionResult = {
+      target: "pymol",
+      commandsExecuted: ["color cyan, all"],
+      logs: [],
+      artifacts: [],
+      metrics: [],
+      warnings: [],
+      state: {},
+    };
+    let releaseAction!: () => void;
+    const actionGate = new Promise<void>((resolve) => {
+      releaseAction = resolve;
+    });
+    let createdCheckpointPath: string | undefined;
+    registry.receiptStore = {
+      create: vi.fn(async () => ({})),
+      clearCheckpointAvailability: vi.fn(async () => {}),
+    };
+    registry.pymolAdapter = {
+      execute: vi.fn(async (_actions, _dryRun, _raw, checkpointPath?: string) => {
+        createdCheckpointPath = checkpointPath;
+        await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(checkpointPath!), { recursive: true })
+          .then(() => fs.writeFile(checkpointPath!, "pre-action scene", "utf8")));
+        await actionGate;
+        return actionResult;
+      }),
+      restoreCheckpoint: vi.fn(async () => actionResult),
+    };
+
+    const actionPromise = registry.executeTargetActions("pymol", [{ type: "color", color: "cyan" }]);
+    await vi.waitFor(() => expect(createdCheckpointPath).toMatch(/\.pse$/));
+    const undoPromise = registry.undoLastAction("pymol");
+    await Promise.resolve();
+    expect(registry.pymolAdapter.restoreCheckpoint).not.toHaveBeenCalled();
+
+    releaseAction();
+    await actionPromise;
+    await undoPromise;
+
+    expect(registry.pymolAdapter.restoreCheckpoint).toHaveBeenCalledWith(createdCheckpointPath);
+    expect(registry.getUndoAvailability("pymol").available).toBe(false);
+  });
+
+  it("keeps one pre-run checkpoint across every step of a complete recipe", async () => {
+    const registry = createRegistry() as never as {
+      runRecipeDirect: (
+        recipeId: string,
+        target: "pymol" | "chimerax",
+        dryRun?: boolean,
+      ) => Promise<unknown>;
+      getUndoAvailability: (target: "pymol" | "chimerax") => { available: boolean; summary?: string };
+      undoLastAction: (target: "pymol" | "chimerax") => Promise<unknown>;
+      pymolAdapter: {
+        execute: ReturnType<typeof vi.fn>;
+        restoreCheckpoint: ReturnType<typeof vi.fn>;
+        waitUntilCommandReady: ReturnType<typeof vi.fn>;
+      };
+      receiptStore: {
+        create: ReturnType<typeof vi.fn>;
+        clearCheckpointAvailability: ReturnType<typeof vi.fn>;
+      };
+    };
+    const actionResult = {
+      target: "pymol",
+      commandsExecuted: [],
+      logs: [],
+      artifacts: [],
+      metrics: [],
+      warnings: [],
+      state: {},
+    };
+    registry.receiptStore = {
+      create: vi.fn(async () => ({})),
+      clearCheckpointAvailability: vi.fn(async () => {}),
+    };
+    registry.pymolAdapter = {
+      execute: vi.fn(async (_actions, _dryRun, _raw, checkpointPath?: string) => {
+        if (checkpointPath) {
+          await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(checkpointPath), { recursive: true })
+            .then(() => fs.writeFile(checkpointPath, "pre-recipe scene", "utf8")));
+        }
+        return { ...actionResult };
+      }),
+      restoreCheckpoint: vi.fn(async () => actionResult),
+      waitUntilCommandReady: vi.fn(async () => {}),
+    };
+
+    await registry.runRecipeDirect("pymol-surface-and-presentation", "pymol");
+
+    const checkpointPaths = registry.pymolAdapter.execute.mock.calls
+      .map((call) => call[3] as string | undefined)
+      .filter((value): value is string => Boolean(value));
+    expect(registry.pymolAdapter.execute).toHaveBeenCalledTimes(4);
+    expect(checkpointPaths).toHaveLength(1);
+    expect(registry.getUndoAvailability("pymol")).toMatchObject({
+      available: true,
+      summary: expect.stringMatching(/surface.*presentation/i),
+    });
+    expect(registry.receiptStore.create).toHaveBeenCalledWith(expect.objectContaining({
+      source: "recipe",
+      checkpointAvailable: true,
+    }));
+
+    await registry.undoLastAction("pymol");
+    expect(registry.pymolAdapter.restoreCheckpoint).toHaveBeenCalledWith(checkpointPaths[0]);
+  });
+
+  it("keeps one pre-run checkpoint across a multi-phase scientific workflow", async () => {
+    const registry = createRegistry() as never as {
+      runScientificWorkflowDirect: (request: Record<string, unknown>) => Promise<unknown>;
+      getUndoAvailability: (target: "pymol" | "chimerax") => { available: boolean; summary?: string };
+      undoLastAction: (target: "pymol" | "chimerax") => Promise<unknown>;
+      pymolAdapter: {
+        execute: ReturnType<typeof vi.fn>;
+        restoreCheckpoint: ReturnType<typeof vi.fn>;
+        getStateSummary: ReturnType<typeof vi.fn>;
+      };
+      receiptStore: {
+        create: ReturnType<typeof vi.fn>;
+        clearCheckpointAvailability: ReturnType<typeof vi.fn>;
+      };
+    };
+    const actionResult = {
+      target: "pymol",
+      commandsExecuted: [],
+      logs: [],
+      artifacts: [],
+      metrics: [],
+      warnings: [],
+      state: {},
+    };
+    registry.receiptStore = {
+      create: vi.fn(async () => ({})),
+      clearCheckpointAvailability: vi.fn(async () => {}),
+    };
+    registry.pymolAdapter.execute = vi.fn(async (actions, _dryRun, _raw, checkpointPath?: string) => {
+      if (checkpointPath) {
+        await import("node:fs/promises").then((fs) => fs.mkdir(path.dirname(checkpointPath), { recursive: true })
+          .then(() => fs.writeFile(checkpointPath, "pre-workflow scene", "utf8")));
+      }
+      return {
+        ...actionResult,
+        commandsExecuted: (actions as Array<{ type?: string }>).map((action) => action.type ?? "action"),
+      };
+    });
+    registry.pymolAdapter.restoreCheckpoint = vi.fn(async () => actionResult);
+    registry.pymolAdapter.getStateSummary = vi.fn(async () => ({}));
+
+    await registry.runScientificWorkflowDirect({
+      target: "pymol",
+      workflow: "alphafold_confidence_review",
+      presentationMode: "demo",
+      inputs: {
+        modelPath: path.resolve("examples/data/local/af-p69905.pdb"),
+        paePath: path.resolve("examples/data/local/af-p69905-pae.json"),
+      },
+    });
+
+    const checkpointPaths = registry.pymolAdapter.execute.mock.calls
+      .map((call) => call[3] as string | undefined)
+      .filter((value): value is string => Boolean(value));
+    expect(registry.pymolAdapter.execute.mock.calls.length).toBeGreaterThan(1);
+    expect(checkpointPaths).toHaveLength(1);
+    expect(registry.getUndoAvailability("pymol")).toMatchObject({
+      available: true,
+      summary: "Scientific workflow: alphafold_confidence_review",
+    });
+    expect(registry.receiptStore.create).toHaveBeenCalledWith(expect.objectContaining({
+      source: "scientific-workflow",
+      checkpointAvailable: true,
+    }));
+
+    registry.receiptStore.create.mockClear();
+    await registry.runScientificWorkflowDirect({
+      target: "pymol",
+      workflow: "alphafold_confidence_review",
+      dryRun: true,
+      inputs: {
+        modelPath: path.resolve("examples/data/local/af-p69905.pdb"),
+      },
+    });
+    expect(registry.receiptStore.create).toHaveBeenCalledWith(expect.objectContaining({
+      source: "scientific-workflow",
+      evidenceLevel: "planned",
+      checkpointAvailable: false,
+    }));
+
+    await registry.undoLastAction("pymol");
+    expect(registry.pymolAdapter.restoreCheckpoint).toHaveBeenCalledWith(checkpointPaths[0]);
+  });
+
+  it("requires a session-bound, unexpired, single-use grant before viewport upload", () => {
+    const disabledRegistry = createRegistry() as never as {
+      grantCaptureUploadConsent: (sessionId: string) => { expiresAt: string };
+    };
+    expect(() => disabledRegistry.grantCaptureUploadConsent("any-session")).toThrow(/ALLOW_CAPTURE_UPLOADS=true/);
+
+    const registry = createRegistry({ captureUploadsEnabled: true }) as never as {
+      createSessionRecord: (...args: unknown[]) => { captureUploadConsent: { expiresAtMs: number } | null };
+      sessions: Map<string, unknown>;
+      grantCaptureUploadConsent: (sessionId: string) => { expiresAt: string };
+      consumeCaptureUploadConsent: (sessionId: string) => void;
+      disposeSession: (sessionId: string) => void;
+    };
+    const first = registry.createSessionRecord("session-consent-a", "call-a", "pymol", "push_to_talk");
+    const second = registry.createSessionRecord("session-consent-b", "call-b", "pymol", "push_to_talk");
+    registry.sessions.set("session-consent-a", first);
+    registry.sessions.set("session-consent-b", second);
+
+    const grant = registry.grantCaptureUploadConsent("session-consent-a");
+    expect(Date.parse(grant.expiresAt)).toBeGreaterThan(Date.now());
+    expect(() => registry.consumeCaptureUploadConsent("session-consent-b")).toThrow(/fresh one-shot consent/i);
+    expect(() => registry.consumeCaptureUploadConsent("session-consent-a")).not.toThrow();
+    expect(() => registry.consumeCaptureUploadConsent("session-consent-a")).toThrow(/fresh one-shot consent/i);
+
+    registry.grantCaptureUploadConsent("session-consent-a");
+    first.captureUploadConsent = { expiresAtMs: Date.now() - 1 };
+    expect(() => registry.consumeCaptureUploadConsent("session-consent-a")).toThrow(/fresh one-shot consent/i);
+
+    registry.disposeSession("session-consent-a");
+    registry.disposeSession("session-consent-b");
+  });
+
+  it("rejects capture attachment tool calls when the session has no user consent grant", async () => {
+    const registry = createRegistry({ captureUploadsEnabled: true }) as never as {
+      createSessionRecord: (...args: unknown[]) => {
+        ws: {
+          readyState: number;
+          send: (payload: string) => void;
+          removeAllListeners: () => void;
+          close: () => void;
+        };
+      };
+      executeToolCall: (sessionId: string, callId: string, toolName: string, argumentsJson: string) => Promise<void>;
+      captureViewDirect: ReturnType<typeof vi.fn>;
+      sessions: Map<string, unknown>;
+      disposeSession: (sessionId: string) => void;
+    };
+    const sent: string[] = [];
+    const record = registry.createSessionRecord("session-capture-no-consent", "call-capture", "pymol", "push_to_talk");
+    record.ws = {
+      readyState: 1,
+      send: (payload: string) => sent.push(payload),
+      removeAllListeners: vi.fn(),
+      close: vi.fn(),
+    };
+    registry.sessions.set("session-capture-no-consent", record);
+    registry.captureViewDirect = vi.fn();
+
+    await registry.executeToolCall(
+      "session-capture-no-consent",
+      "tool-call-capture",
+      "capture_view",
+      JSON.stringify({ target: "pymol", attachToConversation: true }),
+    );
+
+    expect(registry.captureViewDirect).not.toHaveBeenCalled();
+    const outputMessage = sent
+      .map((payload) => JSON.parse(payload) as { type: string; item?: { output?: string } })
+      .find((message) => message.type === "conversation.item.create");
+    expect(JSON.parse(outputMessage?.item?.output ?? "{}")).toMatchObject({
+      ok: false,
+      tool: "capture_view",
+      error: expect.stringMatching(/one-shot consent grant/i),
+    });
+
+    registry.disposeSession("session-capture-no-consent");
+  });
+
+  it("keeps oversized consented captures local and reports the attachment limit", async () => {
+    const scratchDir = path.join(process.cwd(), ".runtime", "tests", `capture-upload-${crypto.randomUUID()}`);
+    const capturePath = path.join(scratchDir, "oversized-viewport.png");
+    await fs.mkdir(scratchDir, { recursive: true });
+    await fs.writeFile(capturePath, Buffer.from([0]));
+    await fs.truncate(capturePath, 10 * 1024 * 1024 + 1);
+
+    const registry = createRegistry({ captureUploadsEnabled: true }) as never as {
+      createSessionRecord: (...args: unknown[]) => {
+        ws: {
+          readyState: number;
+          send: (payload: string) => void;
+          removeAllListeners: () => void;
+          close: () => void;
+        };
+      };
+      executeToolCall: (sessionId: string, callId: string, toolName: string, argumentsJson: string) => Promise<void>;
+      captureViewDirect: ReturnType<typeof vi.fn>;
+      grantCaptureUploadConsent: (sessionId: string) => { expiresAt: string };
+      sessions: Map<string, unknown>;
+      disposeSession: (sessionId: string) => void;
+    };
+    const sent: string[] = [];
+    const record = registry.createSessionRecord("session-capture-oversized", "call-capture", "pymol", "push_to_talk");
+    record.ws = {
+      readyState: 1,
+      send: (payload: string) => sent.push(payload),
+      removeAllListeners: vi.fn(),
+      close: vi.fn(),
+    };
+    registry.sessions.set("session-capture-oversized", record);
+    registry.captureViewDirect = vi.fn(async () => ({
+      target: "pymol",
+      commandsExecuted: [],
+      logs: [],
+      artifacts: [{ kind: "image", path: capturePath, label: "PyMOL PNG capture" }],
+      metrics: [],
+      warnings: [],
+    }));
+
+    try {
+      registry.grantCaptureUploadConsent("session-capture-oversized");
+      await registry.executeToolCall(
+        "session-capture-oversized",
+        "tool-call-capture-oversized",
+        "capture_view",
+        JSON.stringify({ target: "pymol", attachToConversation: true }),
+      );
+
+      const messages = sent.map((payload) => JSON.parse(payload) as {
+        type: string;
+        item?: { type?: string; output?: string; content?: Array<{ type?: string }> };
+      });
+      const outputMessage = messages.find((message) => (
+        message.type === "conversation.item.create" && message.item?.type === "function_call_output"
+      ));
+      const output = JSON.parse(outputMessage?.item?.output ?? "{}") as { warnings?: string[] };
+      expect(output.warnings).toEqual(expect.arrayContaining([
+        expect.stringMatching(/remained local.*10 MB conversation-attachment limit/i),
+      ]));
+      expect(messages.some((message) => (
+        message.item?.type === "message"
+        && message.item.content?.some((content) => content.type === "input_image")
+      ))).toBe(false);
+      await expect(fs.stat(capturePath)).resolves.toMatchObject({ size: 10 * 1024 * 1024 + 1 });
+    } finally {
+      registry.disposeSession("session-capture-oversized");
+      await fs.rm(scratchDir, { recursive: true, force: true });
+    }
+  });
+
+  it("attaches a bounded capture after one-shot consent", async () => {
+    const scratchDir = path.join(process.cwd(), ".runtime", "tests", `capture-upload-${crypto.randomUUID()}`);
+    const capturePath = path.join(scratchDir, "viewport.png");
+    const captureBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47]);
+    await fs.mkdir(scratchDir, { recursive: true });
+    await fs.writeFile(capturePath, captureBytes);
+
+    const registry = createRegistry({ captureUploadsEnabled: true }) as never as {
+      createSessionRecord: (...args: unknown[]) => {
+        ws: {
+          readyState: number;
+          send: (payload: string) => void;
+          removeAllListeners: () => void;
+          close: () => void;
+        };
+      };
+      executeToolCall: (sessionId: string, callId: string, toolName: string, argumentsJson: string) => Promise<void>;
+      captureViewDirect: ReturnType<typeof vi.fn>;
+      grantCaptureUploadConsent: (sessionId: string) => { expiresAt: string };
+      sessions: Map<string, unknown>;
+      disposeSession: (sessionId: string) => void;
+    };
+    const sent: string[] = [];
+    const record = registry.createSessionRecord("session-capture-bounded", "call-capture", "pymol", "push_to_talk");
+    record.ws = {
+      readyState: 1,
+      send: (payload: string) => sent.push(payload),
+      removeAllListeners: vi.fn(),
+      close: vi.fn(),
+    };
+    registry.sessions.set("session-capture-bounded", record);
+    registry.captureViewDirect = vi.fn(async () => ({
+      target: "pymol",
+      commandsExecuted: [],
+      logs: [],
+      artifacts: [{ kind: "image", path: capturePath, label: "PyMOL PNG capture" }],
+      metrics: [],
+      warnings: [],
+    }));
+
+    try {
+      registry.grantCaptureUploadConsent("session-capture-bounded");
+      await registry.executeToolCall(
+        "session-capture-bounded",
+        "tool-call-capture-bounded",
+        "capture_view",
+        JSON.stringify({ target: "pymol", attachToConversation: true }),
+      );
+
+      const messages = sent.map((payload) => JSON.parse(payload) as {
+        type: string;
+        item?: {
+          type?: string;
+          content?: Array<{ type?: string; image_url?: string }>;
+        };
+      });
+      const captureMessage = messages.find((message) => message.item?.type === "message");
+      const image = captureMessage?.item?.content?.find((content) => content.type === "input_image");
+      expect(image?.image_url).toBe(`data:image/png;base64,${captureBytes.toString("base64")}`);
+    } finally {
+      registry.disposeSession("session-capture-bounded");
+      await fs.rm(scratchDir, { recursive: true, force: true });
+    }
+  });
+
+  it("disconnects a session when a server-side usage cap is breached", () => {
+    const registry = createRegistry() as never as {
+      createSessionRecord: (...args: unknown[]) => {
+        status: { usage: ReturnType<typeof createEmptySessionUsage> };
+        connectedAtMs: number | null;
+      };
+      sessions: Map<string, unknown>;
+      refreshSessionUsageGuardrails: (sessionId: string) => void;
+      disconnect: ReturnType<typeof vi.fn>;
+    };
+    const record = registry.createSessionRecord("session-breach", "call-breach", "pymol", "push_to_talk");
+    record.connectedAtMs = Date.now();
+    record.status.usage = {
+      ...createEmptySessionUsage(),
+      responseCount: 19,
+    };
+    registry.sessions.set("session-breach", record);
+    registry.disconnect = vi.fn(async () => {});
+
+    registry.refreshSessionUsageGuardrails("session-breach");
+
+    expect(registry.disconnect).toHaveBeenCalledWith("session-breach");
   });
 });

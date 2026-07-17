@@ -18,8 +18,8 @@ This repo is meant to be operable by coding agents without extra discovery.
 - Launch a polished ChimeraX map demo directly: `npm run showcase:chimerax:map`
 - Launch a polished ChimeraX AlphaFold overlay demo directly: `npm run showcase:chimerax:overlay`
 - Start a target generically: `npm run agent:start -- <pymol|chimerax>`
-- Start a task-first scientific workflow: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>]`
-- Once the full browser console is open, the `Scientific Launch` rail can also stage the currently pinned AlphaFold or Rosetta workflow directly with `Stage Workflow Now`; this is the safest UI-first rehearsal path before voice.
+- Start a task-first scientific workflow: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>] [--mutation <site>] [--comparison <path>] [--ligand <code>] [--neighborhood-angstroms <n>]`
+- In the full console, open `Settings` → `Workflows`. Scientific cards provide separate `Dry run` and `Run` controls; recipe cards provide `Run`.
 - Start a target with the browser pre-armed for expert mode: `npm run browser:pymol -- --advanced` or `npm run browser:chimerax -- --advanced`
 - Start the PyMOL demo stack: `npm run agent:start:pymol`
 - Start the ChimeraX demo stack with the short alias: `npm run agent:start:chimera`
@@ -58,7 +58,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 
 - “start realtime pymol”
   Run `npm run launch:pymol` for the minimal human floating-widget flow, or `npm run agent:start -- pymol` / `npm run agent:start:pymol` for a pure agent flow. Do not manually open the recommended URL unless the user asks for a browser tab or full console.
-  For AlphaFold or Rosetta tasks, add `--workflow <workflowId>` plus scientific inputs, for example `npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345`
+  For AlphaFold, Rosetta, or variant-review tasks, add `--workflow <workflowId>` plus scientific inputs, for example `npm run agent:start -- pymol --workflow alphafold_confidence_review --uniprot P12345`
   For database-backed overlays, prefer explicit IDs, for example `npm run agent:start -- chimerax --workflow alphafold_vs_experiment_overlay --uniprot P69905 --experimental-pdb-id 4HHB --structure-format pdb`
   For a rehearsal-only path, run `npm run agent:start -- pymol --offline --clean-target`
 - “open realtime pymol”
@@ -90,7 +90,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - If a pinned PyMOL endpoint stops responding, restart the managed PyMOL target instead of trying to let the console discover a different live RPC port.
 - Set `REALTIME_DEBUG_RAW_EVENTS=true` only when debugging Realtime internals; the default filtered mode is better for live demos.
 - Leave `ENABLE_EXPERT_RAW_COMMANDS=false` for normal demos. Only turn it on when you genuinely need raw PyMOL or ChimeraX commands, and then also enable `Advanced Expert Commands` inside the UI or launch with `--advanced`.
-- Use `--workflow` to launch AlphaFold or Rosetta tasks from the start. Pair it with scientific inputs instead of relying on the model to discover files later.
+- Use `--workflow` to launch AlphaFold, Rosetta, or variant-review tasks from the start. Pair it with scientific inputs instead of relying on the model to discover files later.
 - Use `resolve_structure_asset` or `/api/assets/resolve` for known online database assets. It supports AlphaFold DB, RCSB, EMDB, and UniProt through allowlisted hosts and writes files under `.runtime/cache/scientific`; it does not accept arbitrary URLs.
 
 ## Verification
@@ -127,7 +127,7 @@ This repo is meant to be operable by coding agents without extra discovery.
 - For a first live test, prefer push-to-talk, speak the first `Voice Pack` line before freestyle speech, and leave idle auto-sleep enabled.
 - Realtime billing is per response and input-transcription turn, not for simply keeping the connection open. Idle silence itself is not billed, but open-mic or VAD can still create billable turns from ambient speech.
 - If the user wants to verify the workflow before voice, use `npm run rehearse:workflow` or the direct `/api/recipes/:recipeId/run` route instead of forcing a live mic test first.
-- The left-hand workflow dossier now includes `Dry Run` and `Reset Target`; prefer those before live voice when a recipe is visually complex or the target app has stale state.
+- In `Settings` → `Workflows`, use a scientific card's `Dry run` before `Run` when inputs or a scene are complex. Use header `Undo` after a run, or restart with `--clean-target` for a fresh baseline.
 - The managed startup path now runs runtime housekeeping first. Use `npm run cleanup:runtime` if you want the same stale-export cleanup without restarting the service.
 - Treat the session as ready only when the UI shows `Data: READY`, `Controller: READY`, and `Event Stream: OPEN`.
 - `Controller: WAIT` means the sideband controller is still waiting for `session.updated` after pushing tools and instructions.

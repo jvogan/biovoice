@@ -5,7 +5,13 @@ import { spawn } from "node:child_process";
 import { actionResultSchema, type ActionResult, type ChimeraXAction } from "../schemas/index.js";
 import { CommandQueue } from "../utils/command-queue.js";
 import { normalizeChimeraXColorSpec } from "../utils/colors.js";
-import { defaultExportPath, ensureAllowedExportPath, quoteCommandValue, resolveLocalStructureInputPath } from "../utils/path-policy.js";
+import {
+  defaultExportPath,
+  ensureAllowedExportPath,
+  ensureAllowedStructureInputPath,
+  quoteCommandValue,
+  resolveLocalStructureInputPath,
+} from "../utils/path-policy.js";
 import { withProcessLock } from "../utils/process-lock.js";
 import { compileChimeraXAtomspec, selectorUsesReference, type SelectorReferenceMap } from "../utils/selectors.js";
 import { buildChimeraXReferenceSummary, type ReferenceHint, type SceneAnnotation } from "../utils/semantic-handles.js";
@@ -134,16 +140,26 @@ export class ChimeraXAdapter {
     });
   }
 
-  async execute(actions: ChimeraXAction[], dryRun = false, allowExpertRawCommands = this.enableExpertRawCommands): Promise<ActionResult> {
+  async execute(
+    actions: ChimeraXAction[],
+    dryRun = false,
+    allowExpertRawCommands = this.enableExpertRawCommands,
+    checkpointPath?: string,
+  ): Promise<ActionResult> {
     return this.queue.enqueue(async () => {
       const run = async () => {
         const startedAt = Date.now();
         const preparedActions = materializeChimeraXActions(actions);
+        const baseUrl = dryRun ? null : await this.ensureReady();
+        if (!dryRun && checkpointPath) {
+          const safeCheckpointPath = ensureAllowedExportPath(checkpointPath);
+          await fs.mkdir(path.dirname(safeCheckpointPath), { recursive: true });
+          await this.runCommands(baseUrl!, [`save ${quoteCommandValue(safeCheckpointPath)}`]);
+        }
         if (preparedActions.some((action) => action.type === "reset_workspace" || (action.type === "close" && action.target === "all"))) {
           this.clearWorkflowContext();
           this.clearTransientSceneState();
         }
-        const baseUrl = dryRun ? null : await this.ensureReady();
         const referenceHints = await this.resolveReferenceHintsForActions(preparedActions, baseUrl);
         validateChimeraXMeasurementSelectors(preparedActions, referenceHints, this.lastChainsByModel);
         const compileContext = {
@@ -203,7 +219,7 @@ export class ChimeraXAdapter {
             }
           }
         } else {
-          commands.push(...compileChimeraXActions(preparedActions, compileContext, undefined, allowExpertRawCommands));
+          commands.push(...compileChimeraXActions(preparedActions, compileContext, referenceHints, allowExpertRawCommands));
           logs[1] = `${commands.length} commands queued.`;
           logs.push("Dry run only.");
         }
@@ -245,6 +261,36 @@ export class ChimeraXAdapter {
         },
       );
     });
+  }
+
+  async restoreCheckpoint(checkpointPath: string): Promise<ActionResult> {
+    const safeCheckpointPath = ensureAllowedStructureInputPath(checkpointPath, "ChimeraX checkpoint");
+    const lockBudgetMs = Math.max(this.timeoutMs + 60_000, 120_000);
+    return this.queue.enqueue(() => withProcessLock(
+      "chimerax.command",
+      lockBudgetMs,
+      async () => {
+        const baseUrl = await this.ensureReady();
+        const command = `open ${quoteCommandValue(safeCheckpointPath)}`;
+        await this.runCommands(baseUrl, [command]);
+        this.clearWorkflowContext();
+        this.clearTransientSceneState();
+        const state = await this.collectStateSummary(baseUrl);
+        return actionResultSchema.parse({
+          target: "chimerax",
+          commandsExecuted: [command],
+          logs: ["Restored the previous ChimeraX checkpoint."],
+          artifacts: [],
+          metrics: [],
+          warnings: [],
+          state,
+        });
+      },
+      {
+        staleAfterMs: lockBudgetMs,
+        pollMs: 250,
+      },
+    ));
   }
 
   async getStateSummary(): Promise<Record<string, unknown>> {

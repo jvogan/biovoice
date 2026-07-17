@@ -31,6 +31,12 @@ jobs:
       - name: Run tests
         run: npm test
 
+      - name: Verify example workflows
+        run: npm run verify:examples
+
+      - name: Verify voice contract fixture
+        run: npm run verify:voice-evals
+
       - name: Release readiness
         run: npm run release:check
 

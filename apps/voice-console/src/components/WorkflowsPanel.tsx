@@ -1,4 +1,4 @@
-import { Atom, BeakerIcon, Database, FlaskConical, Loader2, Play, Sparkles } from "lucide-react";
+import { Atom, BeakerIcon, Database, Dna, FlaskConical, Loader2, Play, Sparkles } from "lucide-react";
 import type { TargetKind } from "./types";
 
 export interface WorkflowsPanelRecipe {
@@ -13,11 +13,15 @@ export interface WorkflowsPanelScientificCard {
   id: string;
   title: string;
   summary: string;
-  group: "AlphaFold" | "Rosetta";
+  group: "AlphaFold" | "Rosetta" | "Variant";
   intent: string;
   bestRecipeId: string;
   inputHints: string[];
   voiceStarter: string;
+  evidenceLevel: "visualization" | "qualitative" | "quantitative";
+  assumptions: string[];
+  inputsReady: boolean;
+  inputMessage?: string;
 }
 
 export interface WorkflowsPanelProps {
@@ -26,6 +30,7 @@ export interface WorkflowsPanelProps {
   selectedRecipeId?: string;
   onSelectRecipe: (recipeId: string) => void;
   onLaunchRecipe: (recipeId: string) => void;
+  onLaunchScientificWorkflow: (workflowId: string, dryRun: boolean) => void;
   scientificLaunchCards: WorkflowsPanelScientificCard[];
   activeScientificWorkflowId: string | null;
   scientificInputSummary: string;
@@ -41,6 +46,7 @@ export function WorkflowsPanel(props: WorkflowsPanelProps) {
     selectedRecipeId,
     onSelectRecipe,
     onLaunchRecipe,
+    onLaunchScientificWorkflow,
     scientificLaunchCards,
     activeScientificWorkflowId,
     scientificInputSummary,
@@ -52,6 +58,7 @@ export function WorkflowsPanel(props: WorkflowsPanelProps) {
   const targetLabel = target === "pymol" ? "PyMOL" : "ChimeraX";
   const alphafoldCards = scientificLaunchCards.filter((card) => card.group === "AlphaFold");
   const rosettaCards = scientificLaunchCards.filter((card) => card.group === "Rosetta");
+  const variantCards = scientificLaunchCards.filter((card) => card.group === "Variant");
 
   return (
     <div className="space-y-7">
@@ -76,7 +83,7 @@ export function WorkflowsPanel(props: WorkflowsPanelProps) {
         </div>
       </div>
 
-      {alphafoldCards.length > 0 || rosettaCards.length > 0 ? (
+      {alphafoldCards.length > 0 || rosettaCards.length > 0 || variantCards.length > 0 ? (
         <div>
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4 text-violet-500 dark:text-violet-400" />
@@ -91,7 +98,7 @@ export function WorkflowsPanel(props: WorkflowsPanelProps) {
               icon={<Atom className="w-3.5 h-3.5 text-cyan-600 dark:text-cyan-400" />}
               cards={alphafoldCards}
               activeId={activeScientificWorkflowId}
-              onLaunch={onLaunchRecipe}
+              onLaunch={onLaunchScientificWorkflow}
               busyRecipeId={busyRecipeId}
               disabled={launchDisabled}
             />
@@ -104,7 +111,21 @@ export function WorkflowsPanel(props: WorkflowsPanelProps) {
                 icon={<FlaskConical className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />}
                 cards={rosettaCards}
                 activeId={activeScientificWorkflowId}
-                onLaunch={onLaunchRecipe}
+                onLaunch={onLaunchScientificWorkflow}
+                busyRecipeId={busyRecipeId}
+                disabled={launchDisabled}
+              />
+            </div>
+          ) : null}
+
+          {variantCards.length > 0 ? (
+            <div className={alphafoldCards.length > 0 || rosettaCards.length > 0 ? "mt-4" : ""}>
+              <ScientificWorkflowGroup
+                label="Variant"
+                icon={<Dna className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />}
+                cards={variantCards}
+                activeId={activeScientificWorkflowId}
+                onLaunch={onLaunchScientificWorkflow}
                 busyRecipeId={busyRecipeId}
                 disabled={launchDisabled}
               />
@@ -211,7 +232,7 @@ function ScientificWorkflowGroup({
   icon: React.ReactNode;
   cards: WorkflowsPanelScientificCard[];
   activeId: string | null;
-  onLaunch: (recipeId: string) => void;
+  onLaunch: (workflowId: string, dryRun: boolean) => void;
   busyRecipeId: string | null;
   disabled: boolean;
 }) {
@@ -226,7 +247,8 @@ function ScientificWorkflowGroup({
       <div className="space-y-2">
         {cards.map((card) => {
           const isActive = activeId === card.id;
-          const isBusy = busyRecipeId === card.bestRecipeId;
+          const isBusy = busyRecipeId === card.id;
+          const cardDisabled = disabled || isBusy || !card.inputsReady;
           return (
             <div
               key={card.id}
@@ -249,18 +271,38 @@ function ScientificWorkflowGroup({
               <div className="text-xs text-zinc-600 dark:text-zinc-400 leading-relaxed line-clamp-2 mb-2">
                 {card.summary}
               </div>
+              <div className="mb-2 flex items-start gap-2 rounded-lg bg-zinc-100/80 px-2 py-1.5 text-[11px] leading-relaxed text-zinc-600 dark:bg-zinc-950/50 dark:text-zinc-400">
+                <span className="shrink-0 font-semibold uppercase tracking-wider text-violet-600 dark:text-violet-400">
+                  {card.evidenceLevel}
+                </span>
+                <span className="line-clamp-2">{card.assumptions[1] ?? card.assumptions[0]}</span>
+              </div>
               {card.inputHints.length > 0 ? (
                 <div className="text-[11px] text-zinc-500 dark:text-zinc-600 font-mono mb-2 line-clamp-1">
                   {card.inputHints.join(" · ")}
                 </div>
               ) : null}
-              <div className="flex items-center justify-end">
+              {!card.inputsReady ? (
+                <p className="mb-2 text-[11px] leading-relaxed text-amber-700 dark:text-amber-300">
+                  Add inputs before running: {card.inputMessage}
+                </p>
+              ) : null}
+              <div className="flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => onLaunch(card.bestRecipeId)}
-                  disabled={disabled || isBusy}
+                  onClick={() => onLaunch(card.id, true)}
+                  disabled={cardDisabled}
+                  className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium text-zinc-600 dark:text-zinc-300 hover:bg-zinc-200/70 dark:hover:bg-zinc-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {isBusy ? <Loader2 className="w-3 h-3 animate-spin" /> : <BeakerIcon className="w-3 h-3" />}
+                  Dry run
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onLaunch(card.id, false)}
+                  disabled={cardDisabled}
                   className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${
-                    disabled || isBusy
+                    cardDisabled
                       ? "bg-zinc-200/50 dark:bg-zinc-800/50 text-zinc-400 dark:text-zinc-600 cursor-not-allowed"
                       : "bg-violet-500/10 dark:bg-violet-500/20 text-violet-700 dark:text-violet-300 hover:bg-violet-500/20 dark:hover:bg-violet-500/30 border border-violet-400/40 dark:border-violet-500/40"
                   }`}
@@ -273,7 +315,7 @@ function ScientificWorkflowGroup({
                   ) : (
                     <>
                       <Play className="w-3 h-3" />
-                      Launch
+                      Run
                     </>
                   )}
                 </button>

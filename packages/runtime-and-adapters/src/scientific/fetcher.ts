@@ -27,6 +27,17 @@ const mapDownloadHosts = new Set([
 const maxModelDownloadBytes = 64 * 1024 * 1024;
 const maxMetadataDownloadBytes = 8 * 1024 * 1024;
 const maxMapDownloadBytes = 512 * 1024 * 1024;
+const scientificCacheBuckets = new Set([
+  "alphafold",
+  "emdb",
+  "manifests",
+  "pae",
+  "pdb",
+  "rosetta",
+  "uniprot",
+]);
+const redirectStatuses = new Set([301, 302, 303, 307, 308]);
+const maxScientificRedirects = 5;
 
 export type ScientificAssetSource = "alphafold" | "rcsb" | "rcsb_search" | "emdb" | "uniprot";
 export type StructureAssetFormat = "pdb" | "cif";
@@ -241,13 +252,11 @@ export async function resolveAlphaFoldRecord(uniprotId: string): Promise<Record<
     return cached as Record<string, string | number | boolean | unknown>;
   }
 
-  const response = await fetch(`https://alphafold.ebi.ac.uk/api/prediction/${encodeURIComponent(normalized)}`, {
-    signal: AbortSignal.timeout(20_000),
-  });
+  const { response } = await fetchScientificMetadata(`https://alphafold.ebi.ac.uk/api/prediction/${encodeURIComponent(normalized)}`);
   if (!response.ok) {
     throw new Error(`AlphaFold DB lookup failed for ${normalized}: ${response.status}`);
   }
-  const payload = await response.json() as Array<Record<string, string | number | boolean | unknown>>;
+  const payload = await readBoundedJsonResponse(response, `AlphaFold DB lookup for ${normalized}`) as Array<Record<string, string | number | boolean | unknown>>;
   const record = payload[0];
   if (!record?.pdbUrl && !record?.cifUrl) {
     throw new Error(`AlphaFold DB did not return a model URL for ${normalized}.`);
@@ -296,13 +305,11 @@ export async function fetchRcsbEntryMetadata(pdbId: string): Promise<Record<stri
   if (cached) {
     return cached as Record<string, unknown>;
   }
-  const response = await fetch(`https://data.rcsb.org/rest/v1/core/entry/${encodeURIComponent(normalized)}`, {
-    signal: AbortSignal.timeout(20_000),
-  });
+  const { response } = await fetchScientificMetadata(`https://data.rcsb.org/rest/v1/core/entry/${encodeURIComponent(normalized)}`);
   if (!response.ok) {
     throw new Error(`RCSB metadata lookup failed for ${normalized}: ${response.status}`);
   }
-  const payload = await response.json() as Record<string, unknown>;
+  const payload = await readBoundedJsonResponse(response, `RCSB metadata for ${normalized}`) as Record<string, unknown>;
   await writeJsonFile(cachePath, payload);
   return payload;
 }
@@ -314,10 +321,9 @@ export async function searchRcsb(query: string, limit = 5): Promise<Array<Record
     throw new Error("RCSB search query must be 1-240 characters.");
   }
   const cappedLimit = Math.max(1, Math.min(25, Math.trunc(limit)));
-  const response = await fetch("https://search.rcsb.org/rcsbsearch/v2/query", {
+  const { response } = await fetchScientificMetadata("https://search.rcsb.org/rcsbsearch/v2/query", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    signal: AbortSignal.timeout(20_000),
     body: JSON.stringify({
       query: {
         type: "terminal",
@@ -338,7 +344,7 @@ export async function searchRcsb(query: string, limit = 5): Promise<Array<Record
   if (!response.ok) {
     throw new Error(`RCSB search failed for ${trimmed}: ${response.status}`);
   }
-  const payload = await response.json() as { result_set?: Array<Record<string, unknown>> };
+  const payload = await readBoundedJsonResponse(response, `RCSB search for ${trimmed}`) as { result_set?: Array<Record<string, unknown>> };
   const candidates = (payload.result_set ?? []).slice(0, cappedLimit);
   return Promise.all(candidates.map(async (candidate) => {
     const identifier = typeof candidate.identifier === "string" ? candidate.identifier : undefined;
@@ -391,13 +397,11 @@ export async function fetchEmdbMetadata(emdbId: string): Promise<Record<string, 
   if (cached) {
     return cached as Record<string, unknown>;
   }
-  const response = await fetch(`https://www.ebi.ac.uk/emdb/api/entry/${encodeURIComponent(normalized)}`, {
-    signal: AbortSignal.timeout(20_000),
-  });
+  const { response } = await fetchScientificMetadata(`https://www.ebi.ac.uk/emdb/api/entry/${encodeURIComponent(normalized)}`);
   if (!response.ok) {
     throw new Error(`EMDB metadata lookup failed for ${normalized}: ${response.status}`);
   }
-  const payload = await response.json() as Record<string, unknown>;
+  const payload = await readBoundedJsonResponse(response, `EMDB metadata for ${normalized}`) as Record<string, unknown>;
   await writeJsonFile(cachePath, payload);
   return payload;
 }
@@ -423,13 +427,11 @@ export async function resolveUniProt(
         metadata: cached as Record<string, unknown>,
       };
     }
-    const response = await fetch(`https://rest.uniprot.org/uniprotkb/${encodeURIComponent(accession)}.json`, {
-      signal: AbortSignal.timeout(20_000),
-    });
+    const { response } = await fetchScientificMetadata(`https://rest.uniprot.org/uniprotkb/${encodeURIComponent(accession)}.json`);
     if (!response.ok) {
       throw new Error(`UniProt lookup failed for ${accession}: ${response.status}`);
     }
-    const payload = await response.json() as Record<string, unknown>;
+    const payload = await readBoundedJsonResponse(response, `UniProt lookup for ${accession}`) as Record<string, unknown>;
     await writeJsonFile(cachePath, payload);
     return {
       id: accession,
@@ -448,13 +450,11 @@ export async function resolveUniProt(
   url.searchParams.set("format", "json");
   url.searchParams.set("size", String(cappedLimit));
   url.searchParams.set("fields", "accession,id,protein_name,gene_names,organism_name,reviewed,length");
-  const response = await fetch(url, {
-    signal: AbortSignal.timeout(20_000),
-  });
+  const { response } = await fetchScientificMetadata(url);
   if (!response.ok) {
     throw new Error(`UniProt search failed for ${query}: ${response.status}`);
   }
-  const payload = await response.json() as { results?: Array<Record<string, unknown>> };
+  const payload = await readBoundedJsonResponse(response, `UniProt search for ${query}`) as { results?: Array<Record<string, unknown>> };
   return {
     id: query,
     label: `UniProt search: ${query}`,
@@ -486,7 +486,8 @@ export async function downloadScientificAssetDetailed(
   await ensureScientificCacheDirs();
   const parsedUrl = validateScientificDownloadUrl(url, options.kind);
   const safeFilename = validateScientificDownloadFilename(filename);
-  const bucketDir = path.join(scientificCacheDir, bucket);
+  const safeBucket = validateScientificCacheBucket(bucket);
+  const bucketDir = path.join(scientificCacheDir, safeBucket);
   const destination = path.join(bucketDir, safeFilename);
   const normalizedBucketDir = path.resolve(bucketDir);
   const normalizedDestination = path.resolve(destination);
@@ -498,26 +499,44 @@ export async function downloadScientificAssetDetailed(
     return existing;
   }
 
-  const response = await fetch(parsedUrl, {
-    signal: AbortSignal.timeout(options.kind === "map" ? 180_000 : 60_000),
-  });
+  const { response, finalUrl } = await fetchScientificDownload(
+    parsedUrl,
+    options.kind,
+    options.kind === "map" ? 180_000 : 60_000,
+  );
   if (!response.ok) {
-    throw new Error(`Failed to download ${parsedUrl.toString()}: ${response.status}`);
+    throw new Error(`Failed to download ${finalUrl.toString()}: ${response.status}`);
   }
   const declaredLength = Number(response.headers.get("content-length") ?? "");
   if (Number.isFinite(declaredLength) && declaredLength > options.maxBytes) {
     throw new Error(`Scientific download exceeds the ${options.maxBytes} byte safety limit.`);
   }
-  const bytes = await readBoundedResponseBuffer(response, parsedUrl.toString(), options.maxBytes);
-  const outputBytes = options.gunzip ? gunzipSync(bytes) : bytes;
+  const bytes = await readBoundedResponseBuffer(response, finalUrl.toString(), options.maxBytes);
+  let outputBytes: Buffer;
+  try {
+    outputBytes = options.gunzip
+      ? gunzipSync(bytes, { maxOutputLength: options.maxBytes })
+      : bytes;
+  } catch (error) {
+    if (options.gunzip) {
+      throw new Error(
+        `Scientific download could not be safely decompressed within the ${options.maxBytes} byte limit: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+    throw error;
+  }
   if (outputBytes.length > options.maxBytes) {
     throw new Error(`Scientific download exceeded the ${options.maxBytes} byte safety limit after decompression.`);
   }
   await fs.mkdir(bucketDir, { recursive: true });
   const tempPath = `${destination}.part-${process.pid}-${Date.now()}`;
-  await fs.writeFile(tempPath, outputBytes);
-  await fs.rename(tempPath, destination);
-  const file = await describeCachedFile(destination, options.kind, options.label, parsedUrl.toString(), false);
+  try {
+    await fs.writeFile(tempPath, outputBytes, { mode: 0o600 });
+    await fs.rename(tempPath, destination);
+  } finally {
+    await fs.rm(tempPath, { force: true }).catch(() => {});
+  }
+  const file = await describeCachedFile(destination, options.kind, options.label, finalUrl.toString(), false);
   await writeJsonFile(`${destination}.manifest.json`, {
     ...file,
     fetchedAt: new Date().toISOString(),
@@ -556,6 +575,94 @@ export function validateScientificDownloadFilename(value: string): string {
     throw new Error(`Scientific download filename is not allowed: ${value}`);
   }
   return trimmed;
+}
+
+function validateScientificCacheBucket(value: string): string {
+  const normalized = value.trim().toLowerCase();
+  if (!scientificCacheBuckets.has(normalized)) {
+    throw new Error(`Scientific cache bucket is not allowed: ${value}`);
+  }
+  return normalized;
+}
+
+async function fetchScientificDownload(
+  initialUrl: URL,
+  kind: ScientificAssetFile["kind"],
+  timeoutMs: number,
+): Promise<{ response: Response; finalUrl: URL }> {
+  let currentUrl = initialUrl;
+  const signal = AbortSignal.timeout(timeoutMs);
+  for (let redirectCount = 0; redirectCount <= maxScientificRedirects; redirectCount += 1) {
+    const response = await fetch(currentUrl, {
+      redirect: "manual",
+      signal,
+    });
+    if (!redirectStatuses.has(response.status)) {
+      return { response, finalUrl: currentUrl };
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error(`Scientific download redirect from ${currentUrl.toString()} did not include a Location header.`);
+    }
+    if (redirectCount >= maxScientificRedirects) {
+      throw new Error(`Scientific download exceeded the ${maxScientificRedirects}-redirect safety limit.`);
+    }
+    currentUrl = validateScientificDownloadUrl(new URL(location, currentUrl).toString(), kind);
+  }
+
+  throw new Error(`Scientific download exceeded the ${maxScientificRedirects}-redirect safety limit.`);
+}
+
+async function fetchScientificMetadata(
+  initialUrl: string | URL,
+  init: RequestInit = {},
+): Promise<{ response: Response; finalUrl: URL }> {
+  let currentUrl = validateScientificDownloadUrl(initialUrl.toString(), "metadata");
+  let method = (init.method ?? "GET").toUpperCase();
+  let body = init.body;
+  const signal = AbortSignal.timeout(20_000);
+
+  for (let redirectCount = 0; redirectCount <= maxScientificRedirects; redirectCount += 1) {
+    const response = await fetch(currentUrl, {
+      ...init,
+      method,
+      body,
+      redirect: "manual",
+      signal,
+    });
+    if (!redirectStatuses.has(response.status)) {
+      return { response, finalUrl: currentUrl };
+    }
+
+    const location = response.headers.get("location");
+    if (!location) {
+      throw new Error(`Scientific metadata redirect from ${currentUrl.toString()} did not include a Location header.`);
+    }
+    if (redirectCount >= maxScientificRedirects) {
+      throw new Error(`Scientific metadata request exceeded the ${maxScientificRedirects}-redirect safety limit.`);
+    }
+    if (response.status === 303 || ((response.status === 301 || response.status === 302) && method !== "GET" && method !== "HEAD")) {
+      method = "GET";
+      body = undefined;
+    }
+    currentUrl = validateScientificDownloadUrl(new URL(location, currentUrl).toString(), "metadata");
+  }
+
+  throw new Error(`Scientific metadata request exceeded the ${maxScientificRedirects}-redirect safety limit.`);
+}
+
+async function readBoundedJsonResponse(response: Response, label: string): Promise<unknown> {
+  const declaredLength = Number(response.headers.get("content-length") ?? "");
+  if (Number.isFinite(declaredLength) && declaredLength > maxMetadataDownloadBytes) {
+    throw new Error(`${label} exceeded the ${maxMetadataDownloadBytes} byte metadata limit.`);
+  }
+  const bytes = await readBoundedResponseBuffer(response, label, maxMetadataDownloadBytes);
+  try {
+    return JSON.parse(bytes.toString("utf8")) as unknown;
+  } catch {
+    throw new Error(`${label} returned invalid JSON.`);
+  }
 }
 
 function chooseAlphaFoldModelUrl(record: Record<string, string | number | boolean | unknown>, format: StructureAssetFormat): string {

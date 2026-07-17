@@ -95,6 +95,29 @@ describe("adapter dry-run compilation", () => {
     ]));
   });
 
+  it("uses grounded semantic handles during ChimeraX dry runs", async () => {
+    const chimerax = new ChimeraXAdapter({
+      port: 60958,
+      timeoutMs: 30_000,
+      autolaunch: false,
+    });
+
+    await chimerax.execute([
+      {
+        type: "open",
+        source: "local",
+        id: "af_prediction",
+        path: localStructurePath,
+        semanticRole: "predicted",
+      },
+    ], true);
+    const transformed = await chimerax.execute([
+      { type: "transform", mode: "translate", selection: { reference: "predictedModel" }, axis: "x", amount: 18 },
+    ], true);
+
+    expect(transformed.commandsExecuted).toContain("move x 18 models #1");
+  });
+
   it("quotes local input and export paths so real user files with spaces still work", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "rt-protein-"));
     const allowedRoot = path.join(tempDir, "Downloads");

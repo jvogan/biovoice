@@ -1,12 +1,16 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { X } from "lucide-react";
+import type { DoctorResponse, RunReceiptSummary } from "../lib/api";
+import { ReadinessPanel } from "./ReadinessPanel";
+import { ReceiptsPanel } from "./ReceiptsPanel";
 import type {
   AuthSnapshot,
   GuardrailsSnapshot,
   RuntimeSnapshot,
   SettingsTab,
   UsageSnapshot,
+  TargetKind,
 } from "./types";
 
 export interface SettingsDrawerProps {
@@ -19,11 +23,22 @@ export interface SettingsDrawerProps {
   activeTab?: SettingsTab;
   onTabChange?: (tab: SettingsTab) => void;
   workflowsContent?: React.ReactNode;
+  doctor?: DoctorResponse | null;
+  doctorLoading?: boolean;
+  doctorError?: string | null;
+  doctorTarget?: TargetKind;
+  rehearsalRecipeId?: string;
+  onRefreshDoctor?: () => void;
+  receipts?: RunReceiptSummary[];
+  receiptsLoading?: boolean;
+  receiptsError?: string | null;
+  onRefreshReceipts?: () => void;
 }
 
 const TABS: Array<{ id: SettingsTab; label: string }> = [
   { id: "runtime", label: "Runtime" },
   { id: "workflows", label: "Workflows" },
+  { id: "runs", label: "Runs" },
   { id: "usage", label: "Usage" },
 ];
 
@@ -38,16 +53,57 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
     activeTab = "runtime",
     onTabChange,
     workflowsContent,
+    doctor = null,
+    doctorLoading = false,
+    doctorError = null,
+    doctorTarget = "pymol",
+    rehearsalRecipeId,
+    onRefreshDoctor = () => {},
+    receipts = [],
+    receiptsLoading = false,
+    receiptsError = null,
+    onRefreshReceipts = () => {},
   } = props;
+  const drawerRef = useRef<HTMLElement | null>(null);
+  const closeButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
 
   useEffect(() => {
     if (!open) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusFrame = window.requestAnimationFrame(() => closeButtonRef.current?.focus());
     const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCloseRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !drawerRef.current) return;
+      const focusable = getFocusableElements(drawerRef.current);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        drawerRef.current.focus();
+        return;
+      }
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
     };
     window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [open, onClose]);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -60,6 +116,7 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onClose}
+            aria-hidden="true"
             className="fixed inset-0 bg-zinc-950/30 dark:bg-zinc-950/60 backdrop-blur-sm z-40"
           />
           <motion.aside
@@ -70,21 +127,26 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
             transition={{ type: "spring", stiffness: 320, damping: 32 }}
             className="fixed right-0 top-0 bottom-0 w-[480px] max-w-full bg-zinc-50 dark:bg-zinc-950 border-l border-zinc-300/80 dark:border-zinc-800/80 shadow-2xl z-50 flex flex-col"
             role="dialog"
-            aria-label="Settings"
+            aria-modal="true"
+            aria-labelledby="settings-title"
+            ref={drawerRef}
+            tabIndex={-1}
           >
             <div className="h-16 border-b border-zinc-300/80 dark:border-zinc-800/80 flex items-center justify-between px-6 shrink-0">
-              <h2 className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Settings</h2>
+              <h2 id="settings-title" className="text-base font-semibold text-zinc-900 dark:text-zinc-100">Settings</h2>
               <button
                 type="button"
                 onClick={onClose}
                 title="Close"
+                aria-label="Close settings"
+                ref={closeButtonRef}
                 className="p-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="flex border-b border-zinc-300/80 dark:border-zinc-800/80 shrink-0">
+            <div className="flex border-b border-zinc-300/80 dark:border-zinc-800/80 shrink-0" role="tablist" aria-label="Settings sections">
               {TABS.map((tab) => {
                 const isActive = activeTab === tab.id;
                 return (
@@ -92,6 +154,10 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                     key={tab.id}
                     type="button"
                     onClick={() => onTabChange?.(tab.id)}
+                    id={`settings-tab-${tab.id}`}
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`settings-panel-${tab.id}`}
                     className={`flex-1 px-4 py-3 text-sm font-medium transition-colors ${
                       isActive
                         ? "text-cyan-600 dark:text-cyan-400 border-b-2 border-cyan-500"
@@ -104,9 +170,24 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
               })}
             </div>
 
-            <div className="flex-1 overflow-y-auto p-6">
+            <div
+              className="flex-1 overflow-y-auto p-6"
+              id={`settings-panel-${activeTab}`}
+              role="tabpanel"
+              aria-labelledby={`settings-tab-${activeTab}`}
+              tabIndex={0}
+            >
               {activeTab === "runtime" ? (
                 <div className="space-y-6">
+                  <ReadinessPanel
+                    doctor={doctor}
+                    loading={doctorLoading}
+                    error={doctorError}
+                    target={doctorTarget}
+                    rehearsalRecipeId={rehearsalRecipeId}
+                    onRefresh={onRefreshDoctor}
+                    onReviewWorkflows={() => onTabChange?.("workflows")}
+                  />
                   <div>
                     <h3 className="text-xs font-semibold text-zinc-500 dark:text-zinc-500 uppercase tracking-wider mb-3">
                       Runtime
@@ -181,6 +262,15 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
                 </div>
               ) : null}
 
+              {activeTab === "runs" ? (
+                <ReceiptsPanel
+                  receipts={receipts}
+                  loading={receiptsLoading}
+                  error={receiptsError}
+                  onRefresh={onRefreshReceipts}
+                />
+              ) : null}
+
               {activeTab === "usage" ? (
                 <div className="space-y-3">
                   {usage ? (
@@ -251,6 +341,12 @@ export function SettingsDrawer(props: SettingsDrawerProps) {
       ) : null}
     </AnimatePresence>
   );
+}
+
+function getFocusableElements(container: HTMLElement): HTMLElement[] {
+  return Array.from(container.querySelectorAll<HTMLElement>(
+    'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+  )).filter((element) => element.getAttribute("aria-hidden") !== "true");
 }
 
 function formatSeconds(totalSeconds: number): string {

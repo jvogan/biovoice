@@ -3,6 +3,8 @@ import path from "node:path";
 import dotenv from "dotenv";
 import express from "express";
 import type { NextFunction, Request, Response } from "express";
+import { prepareReceiptForApi } from "./receipt-response.js";
+import { prepareTargetHealthDetail } from "./runtime-health-response.js";
 import {
   actionEnvelopeSchema,
   captureViewRequestSchema,
@@ -49,6 +51,10 @@ type ManagedAgentState = {
     bundle?: string;
     scorefile?: string;
     topN?: number;
+    mutations?: Array<{ position: string; chain?: string; from?: string; to?: string }>;
+    comparison?: string;
+    ligand?: string;
+    neighborhoodAngstroms?: number;
   };
 };
 
@@ -58,12 +64,10 @@ function buildSessionAccessCookieName(sessionId: string): string {
 
 async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax"): Promise<string | undefined> {
   const defaultContext = buildDefaultDemoAssetInstructionContext(target);
-  const raw = await fs.readFile(managedAgentStatePath, "utf8").catch(() => null);
-  if (!raw) {
+  const parsed = await readManagedAgentState();
+  if (!parsed) {
     return defaultContext;
   }
-
-  const parsed = JSON.parse(raw) as ManagedAgentState;
   if (parsed.target !== target) {
     return defaultContext;
   }
@@ -111,6 +115,22 @@ async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax")
   if (typeof parsed.scientificInputs.topN === "number" && Number.isFinite(parsed.scientificInputs.topN)) {
     context.push(`Pinned top-N value: ${Math.max(1, Math.round(parsed.scientificInputs.topN))}.`);
   }
+  if (parsed.scientificInputs.mutations?.length) {
+    const sites = parsed.scientificInputs.mutations.map((mutation) => {
+      const substitution = `${mutation.from ?? ""}${mutation.position}${mutation.to ?? ""}`;
+      return mutation.chain ? `${mutation.chain}:${substitution}` : substitution;
+    });
+    context.push(`Pinned variant sites: ${sites.join(", ")}.`);
+  }
+  if (parsed.scientificInputs.comparison) {
+    context.push(`Pinned local comparison structure: ${parsed.scientificInputs.comparison}.`);
+  }
+  if (parsed.scientificInputs.ligand) {
+    context.push(`Pinned ligand residue code: ${parsed.scientificInputs.ligand}.`);
+  }
+  if (typeof parsed.scientificInputs.neighborhoodAngstroms === "number" && Number.isFinite(parsed.scientificInputs.neighborhoodAngstroms)) {
+    context.push(`Pinned variant-neighborhood radius: ${parsed.scientificInputs.neighborhoodAngstroms} angstroms.`);
+  }
   if (parsed.scientificInputs.experimental && parsed.scientificInputs.model) {
     const experimentalName = path.basename(parsed.scientificInputs.experimental, path.extname(parsed.scientificInputs.experimental));
     const modelName = path.basename(parsed.scientificInputs.model, path.extname(parsed.scientificInputs.model)).replace(/[^A-Za-z0-9_]+/g, "_");
@@ -129,6 +149,17 @@ async function readManagedLaunchInstructionContext(target: "pymol" | "chimerax")
   }
   context.push("When the operator says local AlphaFold or local experimental model, prefer these pinned local inputs instead of web search.");
   return context.join(" ");
+}
+
+async function readManagedAgentState(): Promise<ManagedAgentState | null> {
+  const raw = await fs.readFile(managedAgentStatePath, "utf8").catch(() => null);
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as ManagedAgentState;
+    return parsed && (parsed.target === "pymol" || parsed.target === "chimerax") ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 function buildDefaultDemoAssetInstructionContext(target: "pymol" | "chimerax"): string {
@@ -413,6 +444,7 @@ const openAiKeyPresent = Boolean(process.env.OPENAI_API_KEY);
 const openAiSafetyIdentifier = sanitizeOpenAiSafetyIdentifier(process.env.OPENAI_SAFETY_IDENTIFIER);
 const usageKeyPresent = Boolean(usageApiKey);
 const expertCommandsGloballyEnabled = process.env.ENABLE_EXPERT_RAW_COMMANDS === "true";
+const captureUploadsEnabled = process.env.ALLOW_CAPTURE_UPLOADS === "true";
 const persistSessionEvents = process.env.PERSIST_SESSION_EVENT_LOGS === "true";
 const allowedBrowserOrigins = buildAllowedBrowserOrigins(port, publicBaseUrl);
 const realtimeCredentialStatus: {
@@ -461,6 +493,7 @@ const registry = new RealtimeSessionRegistry({
   transcriptionPromptHint: process.env.REALTIME_TRANSCRIPTION_PROMPT_HINT,
   debugRawEvents: process.env.REALTIME_DEBUG_RAW_EVENTS === "true",
   expertCommandsEnabled: expertCommandsGloballyEnabled,
+  captureUploadsEnabled,
   persistSessionEvents,
   pymol: {
     rpcUrl: process.env.PYMOL_RPC_URL,
@@ -640,6 +673,7 @@ app.get("/api/health", async (req, res) => {
     openAiSafetyIdentifierPresent: Boolean(openAiSafetyIdentifier),
     usageKeyPresent,
     expertCommandsGloballyEnabled,
+    captureUploadsEnabled,
     persistSessionEvents,
     allowRemoteClients,
     realtimeReady: openAiKeyPresent,
@@ -654,9 +688,87 @@ app.get("/api/health", async (req, res) => {
   });
 });
 
+app.get("/api/doctor", async (req, res) => {
+  const runtimeHealth = await registry.getRuntimeHealth();
+  const includeSensitiveRuntime = requestIsDirectLocal(req);
+  const requestedTarget = targetKindSchema.safeParse(req.query.target);
+  const selectedTarget = requestedTarget.success ? requestedTarget.data : defaultTarget;
+  const selectedTargetLabel = selectedTarget === "pymol" ? "PyMOL" : "ChimeraX";
+  const selectedTargetHealth = runtimeHealth.targets[selectedTarget];
+  const pymolUndo = registry.getUndoAvailability("pymol");
+  const chimeraxUndo = registry.getUndoAvailability("chimerax");
+  const checks = [
+    {
+      id: "local-service",
+      label: "BioVoice service",
+      status: "ready" as const,
+      detail: `Listening on ${publicBaseUrl}.`,
+    },
+    {
+      id: "realtime-key",
+      label: "Realtime credential",
+      status: !openAiKeyPresent || realtimeCredentialStatus.lastError
+        ? "blocked" as const
+        : realtimeCredentialStatus.validated
+          ? "ready" as const
+          : "warning" as const,
+      detail: !openAiKeyPresent
+        ? "Voice sessions need OPENAI_API_KEY; offline rehearsals still work without it."
+        : realtimeCredentialStatus.lastError
+          ? "The configured Realtime credential failed its most recent live check."
+          : realtimeCredentialStatus.validated
+            ? "The Realtime credential passed a live check."
+            : "A Realtime credential is configured but has not completed a live check yet.",
+      ...(!openAiKeyPresent
+        ? { action: "Add OPENAI_API_KEY to your untracked local .env, then restart BioVoice." }
+        : realtimeCredentialStatus.lastError
+          ? { action: "Check the local credential and restart BioVoice before another live session." }
+          : {}),
+    },
+    {
+      id: "selected-target",
+      label: `${selectedTargetLabel} controller`,
+      status: selectedTargetHealth.ready ? "ready" as const : "warning" as const,
+      detail: prepareTargetHealthDetail(
+        selectedTargetLabel,
+        selectedTargetHealth.ready,
+        selectedTargetHealth.detail,
+        includeSensitiveRuntime,
+      ),
+      ...(!selectedTargetHealth.ready
+        ? { action: `Launch the ${selectedTargetLabel} target or use npm run launch:${selectedTarget}.` }
+        : {}),
+    },
+    {
+      id: "capture-privacy",
+      label: "Viewport privacy",
+      status: "ready" as const,
+      detail: captureUploadsEnabled
+        ? "Conversation image upload is enabled, but each upload still requires a fresh single-use consent grant from the user."
+        : "Viewport captures stay on this machine by default.",
+    },
+  ];
+
+  res.json({
+    ok: checks.every((check) => check.status === "ready"),
+    checks,
+    targets: {
+      pymol: {
+        ready: runtimeHealth.targets.pymol.ready,
+        undoAvailable: pymolUndo.available,
+      },
+      chimerax: {
+        ready: runtimeHealth.targets.chimerax.ready,
+        undoAvailable: chimeraxUndo.available,
+      },
+    },
+  });
+});
+
 app.get("/api/config", async (req, res) => {
   const runtimeHealth = await registry.getRuntimeHealth();
   const includeSensitiveRuntime = requestIsDirectLocal(req);
+  const managedLaunch = includeSensitiveRuntime ? await readManagedAgentState() : null;
   res.json({
     appId,
     instanceId: serverInstanceId,
@@ -685,6 +797,7 @@ app.get("/api/config", async (req, res) => {
     openAiSafetyIdentifierPresent: Boolean(openAiSafetyIdentifier),
     usageKeyPresent,
     expertCommandsGloballyEnabled,
+    captureUploadsEnabled,
     persistSessionEvents,
     allowRemoteClients,
     realtimeReady: openAiKeyPresent,
@@ -701,6 +814,13 @@ app.get("/api/config", async (req, res) => {
     realtimeTracing: Boolean(realtimeTracing),
     realtimeTruncation,
     runtime: sanitizeRuntimeHealth(runtimeHealth, includeSensitiveRuntime),
+    ...(managedLaunch ? {
+      managedScientificLaunch: {
+        target: managedLaunch.target,
+        workflowId: managedLaunch.workflowId,
+        scientificInputs: managedLaunch.scientificInputs ?? {},
+      },
+    } : {}),
     scientificWorkflows: getScientificWorkflowCatalog(),
     examples: getExampleCatalog().map((recipe) => ({
       id: recipe.id,
@@ -767,7 +887,14 @@ app.post("/api/recipes/:recipeId/run", createRateLimit("recipes", 60, 60_000), a
 
 app.post("/api/capture", createRateLimit("capture", 60, 60_000), async (req, res) => {
   try {
-    const result = await registry.captureViewDirect(captureViewRequestSchema.parse(req.body));
+    const request = captureViewRequestSchema.parse(req.body);
+    if (request.attachToConversation) {
+      res.status(400).json({
+        error: "The direct capture route is local-only. Conversation attachment requires a live session and a fresh one-shot user consent grant.",
+      });
+      return;
+    }
+    const result = await registry.captureViewDirect(request);
     res.json(result);
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
@@ -786,6 +913,47 @@ app.get("/api/targets/:target/state", async (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : String(error) });
   }
+});
+
+async function handleUndoRequest(targetValue: unknown, res: Response): Promise<void> {
+  try {
+    const target = targetKindSchema.parse(targetValue);
+    const result = await registry.undoLastAction(target);
+    res.json({
+      ok: true,
+      target,
+      undoAvailable: registry.getUndoAvailability(target).available,
+      result,
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    res.status(/no .* checkpoint/i.test(message) ? 409 : 500).json({ error: message });
+  }
+}
+
+app.post("/api/targets/:target/undo", createRateLimit("undo", 60, 60_000), async (req, res) => {
+  await handleUndoRequest(String(req.params.target ?? ""), res);
+});
+
+app.post("/api/undo", createRateLimit("undo", 60, 60_000), async (req, res) => {
+  await handleUndoRequest(req.body?.target, res);
+});
+
+app.get("/api/receipts", async (req, res) => {
+  const requestedLimit = Number(req.query.limit ?? 20);
+  const limit = Number.isFinite(requestedLimit) ? Math.max(1, Math.min(100, Math.floor(requestedLimit))) : 20;
+  const receipts = await registry.listRunReceipts(limit);
+  const includeSensitive = requestIsDirectLocal(req);
+  res.json({ receipts: receipts.map((receipt) => prepareReceiptForApi(receipt, includeSensitive)) });
+});
+
+app.get("/api/receipts/:receiptId", async (req, res) => {
+  const receipt = await registry.getRunReceipt(String(req.params.receiptId ?? ""));
+  if (!receipt) {
+    res.status(404).json({ error: "Run receipt not found." });
+    return;
+  }
+  res.json({ receipt: prepareReceiptForApi(receipt, requestIsDirectLocal(req)) });
 });
 
 app.get("/api/artifacts", async (req, res) => {
@@ -983,6 +1151,31 @@ app.post("/api/sessions/:sessionId/recipe", requireSessionAccess, async (req, re
   }
 });
 
+app.post(
+  "/api/sessions/:sessionId/capture-upload-consent",
+  createRateLimit("capture-upload-consent", 12, 60_000),
+  requireSessionAccess,
+  (req, res) => {
+    try {
+      if (req.body?.confirmation !== "share_next_viewport_once") {
+        res.status(400).json({
+          error: "Explicit confirmation is required to share the next viewport once.",
+        });
+        return;
+      }
+      const sessionId = String(req.params.sessionId ?? "");
+      const grant = registry.grantCaptureUploadConsent(sessionId);
+      res.json({
+        ok: true,
+        scope: "next_viewport_only",
+        expiresAt: grant.expiresAt,
+      });
+    } catch (error) {
+      res.status(403).json({ error: error instanceof Error ? error.message : String(error) });
+    }
+  },
+);
+
 app.post("/api/sessions/:sessionId/disconnect", requireSessionAccess, async (req, res) => {
   try {
     const sessionId = String(req.params.sessionId ?? "");
@@ -1005,12 +1198,63 @@ if (builtAssetsAvailable && !devServerMode) {
   });
 }
 
-app.listen(port, listenHost, () => {
+const httpServer = app.listen(port, listenHost, () => {
   console.log(`BioVoice backend listening on ${publicBaseUrl} (bound to ${listenHost})`);
   if (allowRemoteClients) {
     console.log(`Remote browser access URL: ${publicBaseUrl}?access_token=${remoteAccessToken}`);
   }
 });
+
+let shutdownStarted = false;
+async function shutdown(signal: string): Promise<void> {
+  if (shutdownStarted) {
+    return;
+  }
+  shutdownStarted = true;
+  console.warn(`[shutdown] ${signal}: ending active Realtime calls before exit.`);
+  const serverClose = new Promise<void>((resolve) => {
+    let settled = false;
+    let forceCloseTimer: ReturnType<typeof setTimeout> | undefined;
+    let closeDeadlineTimer: ReturnType<typeof setTimeout> | undefined;
+    const finish = () => {
+      if (settled) return;
+      settled = true;
+      if (forceCloseTimer) clearTimeout(forceCloseTimer);
+      if (closeDeadlineTimer) clearTimeout(closeDeadlineTimer);
+      resolve();
+    };
+    httpServer.close(finish);
+    httpServer.closeIdleConnections();
+    forceCloseTimer = setTimeout(() => {
+      // SSE and other long-lived connections get a short drain, then are closed.
+      httpServer.closeAllConnections();
+    }, 750);
+    closeDeadlineTimer = setTimeout(() => {
+      httpServer.closeAllConnections();
+      finish();
+    }, 3_000);
+  });
+  const registryShutdown = registry.shutdown();
+  await Promise.all([
+    serverClose,
+    Promise.race([
+      registryShutdown,
+      new Promise<void>((resolve) => setTimeout(() => {
+        console.warn("[shutdown] Realtime cleanup exceeded the 7-second shutdown budget.");
+        resolve();
+      }, 7_000)),
+    ]),
+  ]);
+}
+
+for (const signal of ["SIGINT", "SIGTERM"] as const) {
+  process.once(signal, () => {
+    void shutdown(signal).then(() => process.exit(0)).catch((error) => {
+      console.error(`[shutdown-error] ${error instanceof Error ? error.message : String(error)}`);
+      process.exit(1);
+    });
+  });
+}
 
 function parseRealtimePromptConfig(options: {
   id?: string;

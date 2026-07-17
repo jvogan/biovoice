@@ -6464,12 +6464,14 @@
           {
             "type": "distance",
             "selection1": {
-              "reference": "scaffoldChainA",
+              "model": "#1",
+              "chain": "A",
               "residue": "136",
               "atom": "CA"
             },
             "selection2": {
-              "reference": "designChainA",
+              "model": "#2",
+              "chain": "A",
               "residue": "136",
               "atom": "CA"
             }

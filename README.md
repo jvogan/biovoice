@@ -26,8 +26,8 @@ BioVoice is useful to two different audiences in the same repository:
 
 **For developers and AI engineers**, BioVoice is a working reference for **OpenAI Realtime API tool calling applied to real scientific software** — not a toy. You get, in one readable TypeScript repo:
 
-- **9 Realtime function tools** across the catalog: `run_pymol_actions`, `run_chimerax_actions`, `resolve_structure_asset`, `run_scientific_workflow`, `get_target_state`, `run_recipe_step`, `export_artifact`, `capture_view`, `wait_for_user`. Each active WebRTC session exposes the matching target action tool plus the shared tools.
-- **9 task-level AlphaFold and Rosetta workflows** exposed behind a single `run_scientific_workflow` tool that compiles domain concepts ("prediction-vs-experiment overlay", "PAE-guided triage", "scaffold-versus-design review") into target-specific adapter calls — a realistic pattern for turning science vocabulary into structured function arguments.
+- **11 Realtime function tools** across the catalog: target action tools plus structure resolution, scientific workflows, state grounding, recipes, export, one-level undo, local-first viewport capture, quiet-turn handling, and response-language control. Each active WebRTC session exposes only its matching target action tool plus the shared tools.
+- **10 task-level AlphaFold, Rosetta, and variant workflows** exposed behind a single `run_scientific_workflow` tool that compiles domain concepts ("prediction-vs-experiment overlay", "PAE-guided triage", "scaffold-versus-design review", "variant environment review") into target-specific adapter calls.
 - **Database-backed structure resolution** for AlphaFold DB, RCSB PDB, EMDB, and UniProt through `resolve_structure_asset`, with host allowlists, byte caps, local cache manifests, and optional direct loading into PyMOL or ChimeraX.
 - **Production-grade JSON Schema selectors** — chain-aware residue ranges, ligand / cofactor handles, proximity selections (`around` + `withinAngstroms`), and semantic references like `predictedModel`, `scaffoldModel`, `binderChainA`, and `partnerB`. This is the kind of tool argument design you usually only see inside closed-source agents.
 - A **two-adapter pattern**: PyMOL over XML-RPC and ChimeraX over REST, both driven by the same typed action schema. Study either adapter to learn how to wrap a domain tool without reimplementing the schema layer.
@@ -61,7 +61,7 @@ If you are building a voice agent, a Realtime API integration, or any LLM tool-c
 | Voice transport | WebRTC from the browser |
 | Input modes | Push-to-talk and always-on |
 | Rehearsal mode | Yes, local and offline |
-| Scientific workflows | AlphaFold, Rosetta, cryo-EM, ligand pocket, comparison, assembly |
+| Scientific workflows | AlphaFold, Rosetta, variant review, cryo-EM, ligand pocket, comparison, assembly |
 
 BioVoice ships with conservative Realtime guardrails by default: idle disconnects, a session-duration cap, response and transcription caps, a billable-token cap that triggers warnings before the session is disconnected, and a small concurrent-session cap to stop runaway reconnect churn.
 
@@ -105,6 +105,7 @@ npm run quickstart:pymol -- --offline
 - **Start with AlphaFold**: [AlphaFold Tutorial](./docs/tutorial-alphafold.md)
 - **Start with Rosetta**: [Rosetta Tutorial](./docs/tutorial-rosetta.md)
 - **Study the tool-calling pattern**: [How Tool Calling Works](./docs/realtime-tool-calling.md)
+- **Automate a running local backend**: [Local Agent Contract](./docs/agent-contract.md)
 
 Additional guided docs:
 
@@ -142,7 +143,9 @@ BioVoice is designed so the molecular files stay local while live voice uses Ope
 | Tool-call text such as residue names, chain IDs, and file-path references | Yes, as part of the model conversation | Optionally, in local session logs |
 | Database IDs and search text such as PDB IDs, UniProt accessions, EMDB IDs, or protein-name queries | Yes, as part of the model conversation when spoken or tool-called | Optionally, in local session logs |
 | PDB / CIF / map file contents | No | Yes, on your machine only |
-| Captures and exports | No | Yes, under `.runtime/` or `output/` |
+| Viewport captures | No by default. Attachment requires `ALLOW_CAPTURE_UPLOADS=true` plus a fresh, single-use consent grant from the user in that live session | Yes, under `.runtime/exports` |
+| Session/model exports | No | Yes, under `.runtime/exports` or `output/` |
+| Run receipts and one-level undo checkpoints | No | Yes, under `.runtime/` and cleaned by the runtime retention policy |
 
 Normal local usage is expected to keep real credentials in `.env`. That file is ignored and stays local. The tracked file [`.env.example`](./.env.example) is a **safe template**, not a secret store.
 
@@ -192,7 +195,7 @@ Here is the real `run_scientific_workflow` tool definition from [`packages/runti
   type: "function",
   name: "run_scientific_workflow",
   description:
-    "Run a domain-level AlphaFold or Rosetta workflow and compile it into " +
+    "Run a domain-level AlphaFold, Rosetta, or variant workflow and compile it into " +
     "the existing PyMOL or ChimeraX action wrappers. Prefer this for task-level " +
     "requests such as AlphaFold confidence review, prediction-vs-experiment " +
     "overlay, multimer interface triage, PAE-guided uncertainty review, cryo " +
@@ -214,9 +217,10 @@ Here is the real `run_scientific_workflow` tool definition from [`packages/runti
           "rosetta_interface_packing_review",
           "rosetta_ligand_redesign_review",
           "rosetta_top_design_compare",
+          "variant_environment_review",
         ],
       },
-      inputs: { oneOf: [alphaFoldInputsSchema, rosettaInputsSchema] },
+      inputs: { oneOf: [alphaFoldInputsSchema, rosettaInputsSchema, variantInputsSchema] },
       presentationMode: { type: "string", enum: ["analysis", "demo", "publication"] },
       export: scientificWorkflowExportSchema,
       dryRun: { type: "boolean" },
@@ -229,7 +233,7 @@ Here is the real `run_scientific_workflow` tool definition from [`packages/runti
 }
 ```
 
-The model never types raw PyMOL or ChimeraX commands. It picks a workflow ID, the backend compiles it into structured per-target actions, and the adapters execute them. This keeps the conversation robust against command rot, hallucinated syntax, and app-version drift — the three biggest failure modes for naive tool calling against scientific software.
+In the default mode, the model never receives a raw PyMOL or ChimeraX command action. It picks a workflow ID, the backend compiles it into structured per-target actions, and the adapters execute them. Raw commands require both the server opt-in and the per-session expert switch.
 
 Read the full pattern in [How Tool Calling Works](./docs/realtime-tool-calling.md): tool registration, selector design, `get_target_state` grounding, dry-run mode, error handling, session policies, and how AlphaFold / Rosetta workflows compile down to adapter calls.
 
@@ -247,7 +251,7 @@ BioVoice may grow toward additional voice backends later, but that is an **archi
 - [Ligand Pocket Tutorial](./docs/tutorial-ligand-pocket.md): first polished presentation workflow
 - [Cryo-EM Tutorial](./docs/tutorial-cryo-em.md): map and model walkthrough
 - [Examples Library](./examples/README.md): generated recipe-by-recipe references
-- [Scientific Workflows Catalog](./examples/scientific-workflows/README.md): task-first AlphaFold and Rosetta launch guide
+- [Scientific Workflows Catalog](./examples/scientific-workflows/README.md): task-first AlphaFold, Rosetta, and variant launch guide
 - [Tool Playbooks](./examples/tool-playbooks/README.md): the atomic action surface the model can call
 
 ## Verification and Non-Voice Testing
@@ -259,6 +263,7 @@ npm run release:check
 npm run build
 npm run check
 npm run verify:examples
+npm run verify:voice-evals
 npm run verify:showcases
 ```
 

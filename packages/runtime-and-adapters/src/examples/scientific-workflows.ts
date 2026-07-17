@@ -1,4 +1,9 @@
-import { scientificWorkflowKinds, type ScientificWorkflowKind, type TargetKind } from "../schemas/index.js";
+import {
+  scientificWorkflowKinds,
+  type ScientificWorkflowKind,
+  type TargetKind,
+  type VariantSite,
+} from "../schemas/index.js";
 
 export interface ScientificLaunchInputs {
   uniprot?: string;
@@ -13,6 +18,10 @@ export interface ScientificLaunchInputs {
   bundle?: string;
   scorefile?: string;
   topN?: number;
+  mutations?: VariantSite[];
+  comparison?: string;
+  ligand?: string;
+  neighborhoodAngstroms?: number;
 }
 
 export interface ScientificWorkflowCandidate {
@@ -26,7 +35,7 @@ export interface ScientificWorkflowSpec {
   id: ScientificWorkflowKind;
   title: string;
   summary: string;
-  group: "AlphaFold" | "Rosetta";
+  group: "AlphaFold" | "Rosetta" | "Variant";
   intent: string;
   defaultTarget: TargetKind;
   launchNotes: string[];
@@ -60,7 +69,7 @@ const scientificWorkflowCatalog: ScientificWorkflowSpec[] = [
       "Use this when you want the first story beat to be confidence and flexibility.",
       "Best for a clean overview, a loop close-up, and a high-confidence export.",
     ],
-    inputHints: ["uniprot", "model", "pae"],
+    inputHints: ["local multimer model (required)", "pae (optional)"],
     voiceStarter: "Open the local AlphaFold model and color it by confidence.",
     candidates: [
       { target: "chimerax", recipeId: "chimerax-alphafold-confidence-review", score: 100, reason: "Best named-view confidence review and loop isolation." },
@@ -107,7 +116,7 @@ const scientificWorkflowCatalog: ScientificWorkflowSpec[] = [
   {
     id: "alphafold_pae_guided_triage",
     title: "AlphaFold PAE-Guided Triage",
-    summary: "Use optional PAE input to prioritize uncertain regions and turn them into a short, presentation-ready triage story.",
+    summary: "Use PAE input to prioritize uncertain regions and turn them into a short, presentation-ready triage story.",
     group: "AlphaFold",
     intent: "PAE triage",
     defaultTarget: "chimerax",
@@ -133,7 +142,7 @@ const scientificWorkflowCatalog: ScientificWorkflowSpec[] = [
       "Use this when the model needs to read against a density map or an assembly cutaway.",
       "Best for a dense but visually polished before/after handoff.",
     ],
-    inputHints: ["experimental", "map", "pae"],
+    inputHints: ["uniprot or model", "map or EMDB id"],
     voiceStarter: "Show the cryo map and keep the atomic model visible for the handoff.",
     candidates: [
       { target: "pymol", recipeId: "pymol-cryo-atomic-handoff", score: 100, reason: "Best cryo-plus-atomic hero story in PyMOL." },
@@ -188,7 +197,7 @@ const scientificWorkflowCatalog: ScientificWorkflowSpec[] = [
       "Use this when the design is centered on a binding site or catalytic pocket.",
       "Best for a pocket hero shot, interaction shell, and polished export.",
     ],
-    inputHints: ["model", "bundle", "scorefile"],
+    inputHints: ["bundle", "ligand, focus residue, or reference model"],
     voiceStarter: "Keep the ligand bright and show only the redesigned shell.",
     candidates: [
       { target: "pymol", recipeId: "pymol-binding-pocket-story", score: 100, reason: "Best pocket storytelling and ligand emphasis." },
@@ -215,17 +224,36 @@ const scientificWorkflowCatalog: ScientificWorkflowSpec[] = [
       { target: "pymol", recipeId: "pymol-two-structure-comparison", score: 84, reason: "Useful fallback for a plain structural compare when design metadata is limited." },
     ],
   },
+  {
+    id: "variant_environment_review",
+    title: "Variant Environment Review",
+    summary: "Locate annotated residue variants, inspect their local structural neighborhoods, and optionally add comparison-structure or ligand context.",
+    group: "Variant",
+    intent: "mutation environment",
+    defaultTarget: "pymol",
+    launchNotes: [
+      "Use this when the question starts with one or more known residue positions rather than a whole-model confidence review.",
+      "The workflow verifies residue identity when a from residue is provided and asks for a chain when numbering is ambiguous.",
+      "The result is a geometric environment review, not a prediction of pathogenicity, stability, affinity, or function.",
+    ],
+    inputHints: ["uniprot", "model", "mutations", "comparison", "ligand"],
+    voiceStarter: "Show these mutation sites and their local structural environments.",
+    candidates: [
+      { target: "pymol", recipeId: "pymol-binding-pocket-story", score: 92, reason: "Strong local-neighborhood and ligand presentation fallback in PyMOL." },
+      { target: "chimerax", recipeId: "chimerax-ligand-interaction-explainer", score: 90, reason: "Strong contact and local-environment fallback in ChimeraX." },
+    ],
+  },
 ];
 
 const workflowById = new Map(scientificWorkflowCatalog.map((workflow) => [workflow.id, workflow] as const));
-const workflowByRecipeId = new Map<string, ScientificWorkflowSpec>();
+const workflowsByRecipeId = new Map<string, ScientificWorkflowSpec[]>();
 for (const workflow of scientificWorkflowCatalog) {
   for (const candidate of workflow.candidates) {
-    workflowByRecipeId.set(candidate.recipeId, workflow);
+    workflowsByRecipeId.set(candidate.recipeId, [...(workflowsByRecipeId.get(candidate.recipeId) ?? []), workflow]);
   }
 }
 
-export function getScientificWorkflowCatalog(): ScientificWorkflowSpec[] {
+export function getScientificLaunchCatalog(): ScientificWorkflowSpec[] {
   return scientificWorkflowCatalog.slice();
 }
 
@@ -241,7 +269,8 @@ export function getScientificWorkflowForRecipe(recipeId: string | undefined | nu
   if (!recipeId) {
     return null;
   }
-  return workflowByRecipeId.get(recipeId) ?? null;
+  const matches = workflowsByRecipeId.get(recipeId) ?? [];
+  return matches.length === 1 ? matches[0] : null;
 }
 
 export function resolveScientificWorkflowRecipeId(
@@ -362,4 +391,58 @@ function appendScientificLaunchArgs(parts: string[], inputs?: ScientificLaunchIn
   if (inputs.bundle) parts.push("--bundle", inputs.bundle);
   if (inputs.scorefile) parts.push("--scorefile", inputs.scorefile);
   if (typeof inputs.topN === "number" && Number.isFinite(inputs.topN)) parts.push("--top-n", String(Math.max(1, Math.round(inputs.topN))));
+  for (const mutation of inputs.mutations ?? []) parts.push("--mutation", formatVariantMutationArgument(mutation));
+  if (inputs.comparison) parts.push("--comparison", inputs.comparison);
+  if (inputs.ligand) parts.push("--ligand", inputs.ligand);
+  if (typeof inputs.neighborhoodAngstroms === "number" && Number.isFinite(inputs.neighborhoodAngstroms)) {
+    parts.push("--neighborhood-angstroms", String(inputs.neighborhoodAngstroms));
+  }
+}
+
+export function parseVariantMutationArgument(value: string): VariantSite {
+  const chainMatch = /^(?:([A-Za-z0-9_.-]{1,12}):)?(.+)$/.exec(value);
+  if (!chainMatch) {
+    throw new Error("--mutation must look like 58, H58Y, A:58, A:H58Y, or A:@100A.");
+  }
+  const chain = chainMatch[1];
+  const mutation = chainMatch[2];
+  const explicit = /^(?:([A-Za-z]{1,3}))?@([1-9][0-9]{0,5}[A-Za-z]?)(?:>([A-Za-z]{1,3}))?$/.exec(mutation);
+  if (explicit) {
+    return {
+      ...(chain ? { chain } : {}),
+      ...(explicit[1] ? { from: explicit[1].toUpperCase() } : {}),
+      position: explicit[2].toUpperCase(),
+      ...(explicit[3] ? { to: explicit[3].toUpperCase() } : {}),
+    };
+  }
+
+  const siteOnly = /^([1-9][0-9]{0,5})$/.exec(mutation);
+  if (siteOnly) {
+    return { ...(chain ? { chain } : {}), position: siteOnly[1] };
+  }
+
+  const substitution = /^([A-Za-z]{1,3})([1-9][0-9]{0,5})([A-Za-z]{1,3})$/.exec(mutation);
+  if (substitution) {
+    return {
+      ...(chain ? { chain } : {}),
+      from: substitution[1].toUpperCase(),
+      position: substitution[2],
+      to: substitution[3].toUpperCase(),
+    };
+  }
+
+  throw new Error(
+    "--mutation must look like 58, H58Y, A:58, or A:H58Y. Use A:@100A for an insertion-code residue; @POSITION also disambiguates partial annotations.",
+  );
+}
+
+export function formatVariantMutationArgument(site: VariantSite): string {
+  const prefix = site.chain ? `${site.chain}:` : "";
+  if (/^[1-9][0-9]{0,5}$/.test(site.position) && (!site.from && !site.to)) {
+    return `${prefix}${site.position}`;
+  }
+  if (/^[1-9][0-9]{0,5}$/.test(site.position) && site.from && site.to) {
+    return `${prefix}${site.from}${site.position}${site.to}`;
+  }
+  return `${prefix}${site.from ?? ""}@${site.position}${site.to ? `>${site.to}` : ""}`;
 }

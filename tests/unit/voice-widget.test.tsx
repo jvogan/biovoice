@@ -13,6 +13,9 @@ function renderVoiceWidget(overrides: Partial<VoiceWidgetProps> = {}) {
   const props: VoiceWidgetProps = {
     target: "pymol",
     targetReady: true,
+    audioInputDevices: [{ deviceId: "default", label: "System Default", source: "default" }],
+    selectedAudioInputDeviceId: "default",
+    audioInputDisabled: false,
     voiceMode: "push_to_talk",
     overlayMode: false,
     phase: "idle",
@@ -36,6 +39,7 @@ function renderVoiceWidget(overrides: Partial<VoiceWidgetProps> = {}) {
     onDisconnect: () => {},
     onPauseToggle: () => {},
     onToggleOpenMic: () => {},
+    onAudioInputDeviceChange: () => {},
     onPushToTalkStart: () => {},
     onPushToTalkEnd: () => {},
     onToggleTarget: () => {},
@@ -49,10 +53,10 @@ describe("voice widget guardrail notices", () => {
   it("renders session notices in the compact widget path", () => {
     renderVoiceWidget({
       connectDisabled: true,
-      sessionNotice: "Realtime session limit reached.",
+      sessionNotice: "Local Realtime slots are full, not a length timer.",
     });
 
-    expect(screen.getByText("Realtime session limit reached.")).toBeTruthy();
+    expect(screen.getByText("Local Realtime slots are full, not a length timer.")).toBeTruthy();
   });
 });
 
@@ -126,5 +130,55 @@ describe("voice widget minimized overlay controls", () => {
 
     expect(onDisconnect).toHaveBeenCalledTimes(1);
     expect(onToggleOpenMic).not.toHaveBeenCalled();
+  });
+});
+
+describe("voice widget audio input selector", () => {
+  it("surfaces the selected audio input on the full overlay widget", () => {
+    renderVoiceWidget({
+      overlayMode: true,
+      audioInputDevices: [
+        { deviceId: "default", label: "System Default", source: "default" },
+        { deviceId: "headset", label: "Lab Headset", source: "microphone" },
+      ],
+      selectedAudioInputDeviceId: "headset",
+    });
+
+    expect(screen.getByRole("button", { name: "Audio input: Lab Headset. Open audio input menu" })).toBeTruthy();
+    expect(screen.getByText("Audio In")).toBeTruthy();
+    expect(screen.getByText("Lab Headset")).toBeTruthy();
+  });
+
+  it("routes overlay menu audio input changes", () => {
+    const onAudioInputDeviceChange = vi.fn();
+
+    renderVoiceWidget({
+      overlayMode: true,
+      audioInputDevices: [
+        { deviceId: "default", label: "System Default", source: "default" },
+        { deviceId: "headset", label: "Lab Headset", source: "microphone" },
+        { deviceId: "blackhole", label: "BlackHole 2ch", source: "system" },
+      ],
+      onAudioInputDeviceChange,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open widget menu" }));
+    fireEvent.change(screen.getByLabelText("Audio In"), { target: { value: "blackhole" } });
+
+    expect(onAudioInputDeviceChange).toHaveBeenCalledWith("blackhole");
+  });
+
+  it("exposes checkpoint-aware undo in the overlay menu", () => {
+    const onUndo = vi.fn();
+    renderVoiceWidget({
+      overlayMode: true,
+      undoAvailable: true,
+      onUndo,
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Open widget menu" }));
+    fireEvent.click(screen.getByRole("menuitem", { name: "Undo Last Turn" }));
+
+    expect(onUndo).toHaveBeenCalledTimes(1);
   });
 });

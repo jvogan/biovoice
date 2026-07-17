@@ -5,6 +5,7 @@ import {
   buildManualWorkflowSuccessLogEntry,
   chooseLatestArtifactPreview,
   findLatestStageArtifactPreview,
+  openMicConfirmationRequired,
 } from "../../apps/voice-console/src/App";
 import {
   isAssistantResponseEndEvent,
@@ -16,6 +17,12 @@ import {
 } from "../../apps/voice-console/src/hooks/useRealtimeConnection";
 
 describe("voice console manual workflow helpers", () => {
+  it("requires deliberate open-mic confirmation even when launch params preselect the mode", () => {
+    expect(openMicConfirmationRequired("push_to_talk", false)).toBe(true);
+    expect(openMicConfirmationRequired("open_mic", false)).toBe(true);
+    expect(openMicConfirmationRequired("open_mic", true)).toBe(false);
+  });
+
   it("keeps the artifact preview tied to the artifact-bearing event timestamp", () => {
     const events: SessionUiEvent[] = [
       {

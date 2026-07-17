@@ -1,4 +1,4 @@
-import { Activity, Loader2, Moon, Power, Settings, Sun } from "lucide-react";
+import { Activity, Loader2, Moon, Power, RotateCcw, Settings, Sun } from "lucide-react";
 import { StatusIndicator } from "./StatusIndicator";
 import type { ConnectionState, TargetKind } from "./types";
 
@@ -14,6 +14,10 @@ export interface HeaderProps {
   isDarkMode: boolean;
   onThemeToggle: () => void;
   onSettingsClick: () => void;
+  undoAvailable?: boolean;
+  undoBusy?: boolean;
+  undoDisabledReason?: string;
+  onUndo?: () => void;
 }
 
 const TARGETS: Array<{ id: TargetKind; label: string }> = [
@@ -34,6 +38,10 @@ export function Header(props: HeaderProps) {
     isDarkMode,
     onThemeToggle,
     onSettingsClick,
+    undoAvailable = false,
+    undoBusy = false,
+    undoDisabledReason,
+    onUndo,
   } = props;
 
   const isConnected = connectionState === "connected";
@@ -81,8 +89,20 @@ export function Header(props: HeaderProps) {
         <StatusIndicator state={connectionState} />
         <button
           type="button"
+          onClick={onUndo}
+          disabled={!undoAvailable || undoBusy || !onUndo}
+          aria-label={undoBusy ? "Undoing last turn" : "Undo last turn"}
+          title={undoBusy ? "Restoring the previous scene" : undoAvailable ? "Undo last turn" : undoDisabledReason ?? "Nothing to undo"}
+          className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium text-zinc-600 dark:text-zinc-300 hover:text-cyan-700 dark:hover:text-cyan-300 hover:bg-cyan-100/70 dark:hover:bg-cyan-400/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:bg-transparent"
+        >
+          <RotateCcw className={`w-4 h-4 ${undoBusy ? "animate-spin" : ""}`} />
+          <span>Undo</span>
+        </button>
+        <button
+          type="button"
           onClick={onPowerClick}
           disabled={powerDisabled || powerBusy}
+          aria-label={isConnected ? "Disconnect" : "Connect"}
           title={isConnected ? "Disconnect" : "Connect"}
           className={`p-2 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed ${
             isConnected
@@ -95,6 +115,7 @@ export function Header(props: HeaderProps) {
         <button
           type="button"
           onClick={onThemeToggle}
+          aria-label={isDarkMode ? "Switch to light theme" : "Switch to dark theme"}
           title={isDarkMode ? "Switch to light theme" : "Switch to dark theme"}
           className="p-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
         >
@@ -103,6 +124,7 @@ export function Header(props: HeaderProps) {
         <button
           type="button"
           onClick={onSettingsClick}
+          aria-label="Open settings"
           title="Settings"
           className="p-2 text-zinc-500 dark:text-zinc-400 hover:text-zinc-900 dark:hover:text-zinc-100 hover:bg-zinc-200 dark:hover:bg-zinc-800 rounded-lg transition-colors"
         >

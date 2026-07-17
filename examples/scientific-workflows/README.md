@@ -1,6 +1,6 @@
 # Scientific Workflows
 
-This catalog is the task-first launch layer for AlphaFold and Rosetta work.
+This catalog is the task-first launch layer for AlphaFold, Rosetta, and residue-variant environment review work.
 
 If you want a guided newcomer walkthrough first, start with:
 
@@ -8,11 +8,11 @@ If you want a guided newcomer walkthrough first, start with:
 - [`docs/tutorial-rosetta.md`](../../docs/tutorial-rosetta.md)
 - [`docs/tutorial-cryo-em.md`](../../docs/tutorial-cryo-em.md)
 
-Use it from the UI `Scientific Launch` rail, or pass the workflow explicitly to the agent start path.
+Use it from `Settings` → `Workflows` in the full console, or pass the workflow explicitly to the agent start path.
 
 ## Common Launch Pattern
 - `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [scientific inputs]`
-- Examples: `--uniprot`, `--model`, `--experimental`, `--pae`, `--map`, `--bundle`, `--scorefile`, `--top-n`
+- Examples: `--uniprot`, `--model`, `--experimental`, `--pae`, `--map`, `--bundle`, `--scorefile`, `--top-n`, `--mutation`, `--comparison`, `--ligand`
 - Keep `Push To Talk` as the default until the first clean live turn is complete.
 
 ## Validated Local Showcases
@@ -39,16 +39,15 @@ Start from a confidence-colored prediction, isolate uncertain loops, and keep th
 - Voice starter: Open the local AlphaFold model and color it by confidence.
 
 ### Input Hints
-- `uniprot`
-- `model`
-- `pae`
+- `local multimer model (required)`
+- `pae (optional)`
 
 ### Ranked Candidate Recipes
 - **chimerax**: `chimerax-alphafold-confidence-review` (100) - Best named-view confidence review and loop isolation.
 - **pymol**: `pymol-alphafold-confidence-sweep` (98) - Best putty-style confidence sweep and export.
 
 ### Launch Example
-- `npm run agent:start -- chimerax --workflow alphafold_confidence_review --uniprot P12345 --model ./model.pdb`
+- `npm run agent:start -- chimerax --workflow alphafold_confidence_review --uniprot P69905`
 
 ### Operator Notes
 - Use this when you want the first story beat to be confidence and flexibility.
@@ -71,7 +70,7 @@ Overlay a prediction against an experimental structure, preserve assembly contex
 - **pymol**: `pymol-alphafold-experimental-overlay` (99) - Best chain-level overlay and polished export.
 
 ### Launch Example
-- `npm run agent:start -- chimerax --workflow alphafold_vs_experiment_overlay --uniprot P12345 --model ./model.pdb`
+- `npm run agent:start -- chimerax --workflow alphafold_vs_experiment_overlay --uniprot P69905 --experimental-pdb-id 4HHB --structure-format pdb`
 
 ### Operator Notes
 - Use this when the demo needs a direct structural comparison, not just a confidence story.
@@ -95,14 +94,14 @@ Inspect a multimer interface, surface the contact shell, and keep the comparison
 - **pymol**: `pymol-crystal-packing-contacts` (72) - Useful if the comparison needs a PyMOL-style pocket or packing shell.
 
 ### Launch Example
-- `npm run agent:start -- chimerax --workflow alphafold_multimer_interface_review --uniprot P12345 --model ./model.pdb`
+- `npm run agent:start -- chimerax --workflow alphafold_multimer_interface_review --model ./multimer.cif`
 
 ### Operator Notes
 - Use this when the story is about contacts, clashes, or an interface shell inside a prediction.
 - The model should stay readable while only the interface becomes the focus.
 ## AlphaFold PAE-Guided Triage
 
-Use optional PAE input to prioritize uncertain regions and turn them into a short, presentation-ready triage story.
+Use PAE input to prioritize uncertain regions and turn them into a short, presentation-ready triage story.
 
 - Default target: `chimerax`
 - Intent: `PAE triage`
@@ -118,7 +117,7 @@ Use optional PAE input to prioritize uncertain regions and turn them into a shor
 - **pymol**: `pymol-alphafold-confidence-sweep` (96) - Best putty-based uncertain-region sweep.
 
 ### Launch Example
-- `npm run agent:start -- chimerax --workflow alphafold_pae_guided_triage --uniprot P12345 --model ./model.pdb`
+- `npm run agent:start -- chimerax --workflow alphafold_pae_guided_triage --uniprot P69905`
 
 ### Operator Notes
 - Use this when you want the workflow to surface uncertainty before moving into the overlay.
@@ -132,16 +131,15 @@ Move from prediction or confidence review into a cryo-plus-atomic presentation w
 - Voice starter: Show the cryo map and keep the atomic model visible for the handoff.
 
 ### Input Hints
-- `experimental`
-- `map`
-- `pae`
+- `uniprot or model`
+- `map or EMDB id`
 
 ### Ranked Candidate Recipes
 - **pymol**: `pymol-cryo-atomic-handoff` (100) - Best cryo-plus-atomic hero story in PyMOL.
 - **chimerax**: `chimerax-em-map-fit-demo` (96) - Best map-fit and cutaway handoff in ChimeraX.
 
 ### Launch Example
-- `npm run agent:start -- pymol --workflow alphafold_to_cryo_handoff --uniprot P12345 --model ./model.pdb`
+- `npm run agent:start -- pymol --workflow alphafold_to_cryo_handoff --uniprot P69905 --emdb-id EMD-37575`
 
 ### Operator Notes
 - Use this when the model needs to read against a density map or an assembly cutaway.
@@ -163,7 +161,7 @@ Compare a scaffold against a design candidate, keep the scaffold anchored, and e
 - **chimerax**: `chimerax-rosetta-style-design-review` (98) - Best semantic-handle design review in ChimeraX.
 
 ### Launch Example
-- `npm run agent:start -- pymol --workflow rosetta_scaffold_design_review --bundle ./bundle --scorefile ./score.sc --top-n 5`
+- `npm run agent:start -- pymol --workflow rosetta_scaffold_design_review --bundle ./design-bundle --model ./reference-scaffold.pdb`
 
 ### Operator Notes
 - Use this for scaffold-versus-design storytelling with strong semantic handles.
@@ -187,7 +185,7 @@ Focus on interface contacts, packing, clashes, and residue neighborhoods before 
 - **chimerax**: `chimerax-rosetta-style-design-review` (86) - Best if you want the interface review folded into the scaffold/design story.
 
 ### Launch Example
-- `npm run agent:start -- chimerax --workflow rosetta_interface_packing_review --bundle ./bundle --scorefile ./score.sc --top-n 5`
+- `npm run agent:start -- chimerax --workflow rosetta_interface_packing_review --bundle ./multichain-design-bundle`
 
 ### Operator Notes
 - Use this when the science story is about interaction quality, not just a static overlay.
@@ -201,9 +199,8 @@ Tell a ligand-pocket redesign story with the pocket bright, the scaffold subdued
 - Voice starter: Keep the ligand bright and show only the redesigned shell.
 
 ### Input Hints
-- `model`
 - `bundle`
-- `scorefile`
+- `ligand, focus residue, or reference model`
 
 ### Ranked Candidate Recipes
 - **pymol**: `pymol-binding-pocket-story` (100) - Best pocket storytelling and ligand emphasis.
@@ -211,7 +208,7 @@ Tell a ligand-pocket redesign story with the pocket bright, the scaffold subdued
 - **chimerax**: `chimerax-interface-contacts-analysis` (75) - Good contact cleanup when the ligand pocket is part of a larger interface.
 
 ### Launch Example
-- `npm run agent:start -- pymol --workflow rosetta_ligand_redesign_review --bundle ./bundle --scorefile ./score.sc --top-n 5`
+- `npm run agent:start -- pymol --workflow rosetta_ligand_redesign_review --bundle ./design-bundle --ligand HEM`
 
 ### Operator Notes
 - Use this when the design is centered on a binding site or catalytic pocket.
@@ -235,8 +232,34 @@ Rank the top designs, load the winners, and move between the overview and the be
 - **pymol**: `pymol-two-structure-comparison` (84) - Useful fallback for a plain structural compare when design metadata is limited.
 
 ### Launch Example
-- `npm run agent:start -- pymol --workflow rosetta_top_design_compare --bundle ./bundle --scorefile ./score.sc --top-n 5`
+- `npm run agent:start -- pymol --workflow rosetta_top_design_compare --bundle ./design-bundle --scorefile ./score.sc --top-n 5`
 
 ### Operator Notes
 - Use this when the input bundle already contains multiple candidates and the best one is not obvious.
 - Best for scorefile-driven review and side-by-side design comparison.
+## Variant Environment Review
+
+Locate annotated residue variants, inspect their local structural neighborhoods, and optionally add comparison-structure or ligand context.
+
+- Default target: `pymol`
+- Intent: `mutation environment`
+- Voice starter: Show these mutation sites and their local structural environments.
+
+### Input Hints
+- `uniprot`
+- `model`
+- `mutations`
+- `comparison`
+- `ligand`
+
+### Ranked Candidate Recipes
+- **pymol**: `pymol-binding-pocket-story` (92) - Strong local-neighborhood and ligand presentation fallback in PyMOL.
+- **chimerax**: `chimerax-ligand-interaction-explainer` (90) - Strong contact and local-environment fallback in ChimeraX.
+
+### Launch Example
+- `npm run agent:start -- pymol --workflow variant_environment_review --model ./model.pdb --mutation A:H58Y`
+
+### Operator Notes
+- Use this when the question starts with one or more known residue positions rather than a whole-model confidence review.
+- The workflow verifies residue identity when a from residue is provided and asks for a chain when numbering is ambiguous.
+- The result is a geometric environment review, not a prediction of pathogenicity, stability, affinity, or function.

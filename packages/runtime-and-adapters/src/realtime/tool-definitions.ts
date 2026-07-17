@@ -12,6 +12,7 @@ const sharedSelectorHints = [
 
 const selectorObjectSchema = {
   type: "object",
+  minProperties: 1,
   properties: {
     reference: { type: "string" },
     object: { type: "string" },
@@ -41,7 +42,7 @@ const selectorObjectSchema = {
     ligand: { type: "string", description: "Ligand or cofactor residue name, for example HEM. Prefer this for heme/cofactor requests." },
     entity: { type: "string", enum: ["protein", "nucleic", "polymer", "organic", "solvent", "ions", "backbone", "sidechain"] },
     around: { type: "string", description: "Selection to search around for proximity requests, for example '4hhb and resn HEM'. Pair with withinAngstroms." },
-    withinAngstroms: { type: "number", minimum: 0.5, maximum: 50 },
+    withinAngstroms: { type: "number", minimum: 0.5, maximum: 50, description: "Distance cutoff for around. Must be supplied together with around." },
     byResidue: { type: "boolean" },
   },
   additionalProperties: false,
@@ -154,6 +155,37 @@ const rosettaInputsSchema = {
     designLabel: { type: "string" },
     referenceLabel: { type: "string" },
   },
+  additionalProperties: false,
+} as const;
+
+const variantInputsSchema = {
+  type: "object",
+  properties: {
+    modelPath: { type: "string" },
+    uniprotId: { type: "string" },
+    mutations: {
+      type: "array",
+      minItems: 1,
+      maxItems: 12,
+      items: {
+        type: "object",
+        properties: {
+          position: { type: "string", description: "Residue number, including an optional insertion code, for example 58 or 100A." },
+          chain: { type: "string", description: "Chain identifier. Required when the residue number occurs in more than one chain." },
+          from: { type: "string", description: "Optional expected one- or three-letter residue code used to verify the loaded structure." },
+          to: { type: "string", description: "Optional annotated replacement residue; this workflow does not model the mutation." },
+        },
+        required: ["position"],
+        additionalProperties: false,
+      },
+    },
+    comparisonPath: { type: "string" },
+    ligandCode: { type: "string" },
+    neighborhoodAngstroms: { type: "number", minimum: 2, maximum: 12, default: 5 },
+    modelLabel: { type: "string" },
+    comparisonLabel: { type: "string" },
+  },
+  required: ["mutations"],
   additionalProperties: false,
 } as const;
 
@@ -368,7 +400,7 @@ const pymolActionSchemas = [
   variantSchema("raw_command", {
     command: { type: "string" },
     requiresConfirmation: { type: "boolean" },
-  }, ["command"]),
+  }, ["command", "requiresConfirmation"]),
 ] as const;
 
 const chimeraXActionSchemas = [
@@ -548,7 +580,7 @@ const chimeraXActionSchemas = [
   variantSchema("raw_command", {
     command: { type: "string" },
     requiresConfirmation: { type: "boolean" },
-  }, ["command"]),
+  }, ["command", "requiresConfirmation"]),
 ] as const;
 
 export function buildRealtimeTools(activeTarget: TargetKind, options: { advancedMode?: boolean } = {}) {
@@ -677,7 +709,7 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
     {
       type: "function",
       name: "run_scientific_workflow",
-      description: "Run a domain-level AlphaFold or Rosetta workflow and compile it into the existing PyMOL or ChimeraX action wrappers. Prefer this for task-level requests such as AlphaFold confidence review, prediction-vs-experiment overlay, multimer interface triage, PAE-guided uncertainty review, cryo handoff, Rosetta scaffold-versus-design review, scorefile-ranked top-design compare, interface packing review, or ligand redesign review. Use this instead of hand-building low-level actions when the user names AlphaFold, AFDB, UniProt, PAE, Rosetta, score.sc, scaffold, design candidate, interface packing, or ligand redesign as the main goal.",
+      description: "Run a domain-level AlphaFold, Rosetta, or variant-environment workflow and compile it into the existing PyMOL or ChimeraX action wrappers. Prefer this for task-level requests such as AlphaFold confidence review, prediction-vs-experiment overlay, multimer interface triage, PAE-guided uncertainty review, cryo handoff, Rosetta scaffold-versus-design review, scorefile-ranked top-design compare, interface packing review, ligand redesign review, or inspection of mutation sites and their local structural environment. Results identify their evidence level and scientific assumptions.",
       parameters: {
         type: "object",
         properties: {
@@ -694,6 +726,7 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
               "rosetta_interface_packing_review",
               "rosetta_ligand_redesign_review",
               "rosetta_top_design_compare",
+              "variant_environment_review",
             ],
           },
           summary: { type: "string" },
@@ -702,7 +735,7 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
           presentationMode: { type: "string", enum: ["analysis", "demo", "publication"] },
           export: scientificWorkflowExportSchema,
           inputs: {
-            oneOf: [alphaFoldInputsSchema, rosettaInputsSchema],
+            oneOf: [alphaFoldInputsSchema, rosettaInputsSchema, variantInputsSchema],
           },
         },
         required: ["target", "workflow", "inputs"],
@@ -742,8 +775,21 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
     },
     {
       type: "function",
+      name: "undo_last_action",
+      description: "Restore the target to the single most recent scene checkpoint. This is a one-level undo for the last completed user or voice action bundle; use it when the user says undo, revert that, or go back.",
+      parameters: {
+        type: "object",
+        properties: {
+          target: { type: "string", enum: ["pymol", "chimerax"] },
+        },
+        required: ["target"],
+        additionalProperties: false,
+      },
+    },
+    {
+      type: "function",
       name: "capture_view",
-      description: "Capture the current target viewport as a PNG for visual self-checking. Use this to inspect framing, label clutter, ligand visibility, contact overlays, clipping planes, surfaces, lighting, and export readiness before deciding what to do next.",
+      description: "Capture the current target viewport as a PNG for visual self-checking. Captures remain local by default. Conversation attachment is allowed only when an authenticated session control has just recorded the user's short-lived, one-shot sharing consent; attachToConversation alone cannot grant consent.",
       parameters: {
         type: "object",
         properties: {
@@ -752,7 +798,11 @@ export function buildRealtimeTools(activeTarget: TargetKind, options: { advanced
           width: { type: "number", minimum: 320, maximum: 4096 },
           height: { type: "number", minimum: 240, maximum: 4096 },
           inspectionPrompt: { type: "string" },
-          attachToConversation: { type: "boolean" },
+          attachToConversation: {
+            type: "boolean",
+            default: false,
+            description: "False keeps the capture local. True requests attachment but succeeds only when the backend already holds a fresh, single-use explicit user consent grant created by a user action.",
+          },
         },
         required: ["target"],
         additionalProperties: false,

@@ -12,6 +12,7 @@ import {
   resolveScientificWorkflowRecipeId,
   resolvePublicBaseUrlOrigin,
   resolveFromRoot,
+  parseVariantMutationArgument,
   scientificWorkflowRequestSchema,
   scientificWorkflowKinds,
   type ScientificLaunchInputs,
@@ -187,7 +188,7 @@ async function main(): Promise<void> {
       await stop();
       return;
     default:
-        throw new Error("Usage: tsx scripts/agent-runtime.ts <start|restart|status|stop> [pymol|chimera|chimerax] [--recipe <id>] [--workflow <id>] [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>] [--audience] [--open-mic] [--advanced] [--overlay] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
+        throw new Error("Usage: tsx scripts/agent-runtime.ts <start|restart|status|stop> [pymol|chimera|chimerax] [--recipe <id>] [--workflow <id>] [--uniprot <id>] [--experimental-pdb-id <id>] [--emdb-id <id>] [--structure-format <pdb|cif>] [--pdb-format <pdb|cif>] [--model <path>] [--experimental <path>] [--pae <path>] [--map <path>] [--bundle <path>] [--scorefile <path>] [--top-n <n>] [--mutation <A:H58Y>] [--comparison <path>] [--ligand <HEM>] [--neighborhood-angstroms <5>] [--audience] [--open-mic] [--advanced] [--overlay] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
   }
 }
 
@@ -510,6 +511,28 @@ function parseCliArgs(argv: string[]): {
     if (token === "--top-n") {
       const raw = Number(argv[index + 1]);
       scientificInputs = { ...scientificInputs, topN: Number.isFinite(raw) ? raw : undefined };
+      index += 1;
+      continue;
+    }
+    if (token === "--mutation") {
+      const mutation = parseVariantMutationArgument(argv[index + 1] ?? "");
+      scientificInputs = { ...scientificInputs, mutations: [...(scientificInputs.mutations ?? []), mutation] };
+      index += 1;
+      continue;
+    }
+    if (token === "--comparison") {
+      scientificInputs = { ...scientificInputs, comparison: argv[index + 1] };
+      index += 1;
+      continue;
+    }
+    if (token === "--ligand") {
+      scientificInputs = { ...scientificInputs, ligand: argv[index + 1] };
+      index += 1;
+      continue;
+    }
+    if (token === "--neighborhood-angstroms") {
+      const raw = Number(argv[index + 1]);
+      scientificInputs = { ...scientificInputs, neighborhoodAngstroms: Number.isFinite(raw) ? raw : undefined };
       index += 1;
       continue;
     }
@@ -1214,11 +1237,27 @@ function buildScientificWorkflowRequest(
         experimentalPdbFormat: inputs.pdbFormat ?? inputs.structureFormat,
         pdbFormat: inputs.pdbFormat,
         paePath: inputs.pae,
-        useAfdbPae: Boolean(inputs.uniprot && !inputs.pae),
+        useAfdbPae: workflowId === "alphafold_pae_guided_triage" && inputs.uniprot && !inputs.model && !inputs.pae
+          ? true
+          : undefined,
         cryoMapPath: inputs.map,
         emdbId: inputs.emdbId,
         cryoMapEmdbId: inputs.emdbId,
         structureFormat: inputs.structureFormat,
+      },
+    };
+  }
+
+  if (workflowId === "variant_environment_review") {
+    return {
+      ...common,
+      inputs: {
+        modelPath: inputs.model,
+        uniprotId: inputs.uniprot,
+        mutations: inputs.mutations,
+        comparisonPath: inputs.comparison,
+        ligandCode: inputs.ligand,
+        neighborhoodAngstroms: inputs.neighborhoodAngstroms,
       },
     };
   }

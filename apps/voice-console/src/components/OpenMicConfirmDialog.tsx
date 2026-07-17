@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import type { GuardrailsSnapshot } from "./types";
 
@@ -10,6 +11,42 @@ export interface OpenMicConfirmDialogProps {
 
 export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
   const { open, onCancel, onConfirm, guardrails } = props;
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement | null>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+  const onCancelRef = useRef(onCancel);
+  onCancelRef.current = onCancel;
+
+  useEffect(() => {
+    if (!open) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusFrame = window.requestAnimationFrame(() => cancelButtonRef.current?.focus());
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onCancelRef.current();
+        return;
+      }
+      if (event.key !== "Tab" || !dialogRef.current) return;
+      const focusable = Array.from(dialogRef.current.querySelectorAll<HTMLElement>("button:not([disabled]), a[href], [tabindex]:not([tabindex=\"-1\"])"));
+      if (focusable.length === 0) return;
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.cancelAnimationFrame(focusFrame);
+      window.removeEventListener("keydown", handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [open]);
 
   return (
     <AnimatePresence>
@@ -22,6 +59,7 @@ export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
             onClick={onCancel}
+            aria-hidden="true"
             className="fixed inset-0 bg-zinc-950/30 dark:bg-zinc-950/60 backdrop-blur-sm z-50"
           />
           <motion.div
@@ -32,15 +70,20 @@ export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
             transition={{ type: "spring", stiffness: 320, damping: 28 }}
             role="dialog"
             aria-modal="true"
-            aria-label="Confirm open mic"
+            aria-labelledby="open-mic-title"
+            aria-describedby="open-mic-description"
+            ref={dialogRef}
+            onMouseDown={(event) => {
+              if (event.target === event.currentTarget) onCancel();
+            }}
             className="fixed inset-0 z-[60] flex items-center justify-center p-6"
           >
             <div className="w-full max-w-xl rounded-3xl border border-amber-300/80 dark:border-amber-700/60 bg-zinc-50 dark:bg-zinc-950 shadow-2xl overflow-hidden">
               <div className="px-6 py-5 border-b border-zinc-300/80 dark:border-zinc-800/80">
-                <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
+                <h2 id="open-mic-title" className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
                   Open mic needs a deliberate opt-in
                 </h2>
-                <p className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
+                <p id="open-mic-description" className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">
                   Push-to-talk is the lowest-risk mode for accidental spend. Open mic can create extra turns more easily from ambient speech, so BioVoice caps each session and disconnects automatically if it reaches a limit.
                 </p>
               </div>
@@ -65,6 +108,7 @@ export function OpenMicConfirmDialog(props: OpenMicConfirmDialogProps) {
                 <button
                   type="button"
                   onClick={onCancel}
+                  ref={cancelButtonRef}
                   className="px-4 py-2 rounded-xl border border-zinc-300/80 dark:border-zinc-700/80 text-zinc-700 dark:text-zinc-200 hover:bg-zinc-100 dark:hover:bg-zinc-900 transition-colors"
                 >
                   Stay on Push-to-Talk

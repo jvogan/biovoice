@@ -54,6 +54,34 @@ export const selectorObjectSchema = z.object({
   around: buildSafeSelectionExpressionSchema(200, "selector around").optional(),
   withinAngstroms: z.number().min(0.5).max(50).optional(),
   byResidue: z.boolean().optional(),
+}).superRefine((value, ctx) => {
+  const hasSelectionTerm = Boolean(
+    value.reference
+    || value.object
+    || value.model
+    || value.chain
+    || value.chains?.length
+    || value.residue
+    || value.residues?.length
+    || value.residueName
+    || value.residueNames?.length
+    || value.atom
+    || value.ligand
+    || value.entity
+    || value.around,
+  );
+  if (!hasSelectionTerm) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Structured selectors require at least one selector term; omit selection for an intentional whole-scene action.",
+    });
+  }
+  if (Boolean(value.around) !== Boolean(value.withinAngstroms)) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "Selector around and withinAngstroms must be provided together.",
+    });
+  }
 });
 
 export type SelectorObject = z.infer<typeof selectorObjectSchema>;
@@ -138,7 +166,8 @@ export function compileChimeraXAtomspec(
   const base = prefix || "sel";
 
   if (resolved.around && resolved.withinAngstroms) {
-    return `${base} & zone ${resolved.around} range ${resolved.withinAngstroms}`;
+    const zoneOperator = resolved.byResidue ? ":<" : "@<";
+    return `((${resolved.around}) ${zoneOperator} ${resolved.withinAngstroms}) & (${base})`;
   }
 
   return base;
@@ -227,7 +256,9 @@ function resolveSelectorReference(
 
   const hint = referenceHints?.[selection.reference];
   if (!hint) {
-    return withoutReference(selection);
+    throw new Error(
+      `Unresolved selector reference "${selection.reference}" for ${target}. Fetch target state again or use a concrete selector.`,
+    );
   }
 
   const overlay = withoutReference(selection);
@@ -279,7 +310,8 @@ function compileSelectorOverlay(selection: SelectorObject, target: "pymol" | "ch
     }
     const scoped = prefix || "sel";
     if (selection.around && selection.withinAngstroms) {
-      return `${scoped} & zone ${selection.around} range ${selection.withinAngstroms}`;
+      const zoneOperator = selection.byResidue ? ":<" : "@<";
+      return `((${selection.around}) ${zoneOperator} ${selection.withinAngstroms}) & (${scoped})`;
     }
     return scoped;
   }
@@ -311,7 +343,8 @@ function compileSelectorOverlay(selection: SelectorObject, target: "pymol" | "ch
       return selection.byResidue ? `byres (${scoped} and ${shell})` : `${scoped} and ${shell}`;
     }
     const scoped = base || "sel";
-    return `${scoped} & zone ${selection.around} range ${selection.withinAngstroms}`;
+    const zoneOperator = selection.byResidue ? ":<" : "@<";
+    return `((${selection.around}) ${zoneOperator} ${selection.withinAngstroms}) & (${scoped})`;
   }
 
   return selection.byResidue && base ? `byres (${base})` : base;

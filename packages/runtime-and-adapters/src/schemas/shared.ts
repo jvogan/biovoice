@@ -23,7 +23,7 @@ export const selectionValueSchema = z.union([
   selectorObjectSchema,
 ]);
 
-const semanticRoleSchema = z.enum(["experimental", "predicted", "design", "scaffold", "binder", "receptor", "partner"]);
+const semanticRoleSchema = z.enum(["experimental", "predicted", "design", "scaffold", "binder", "receptor", "partner", "reference"]);
 const actionNameSchema = buildSafeIdentifierSchema(80, "action name");
 const shortActionNameSchema = buildSafeIdentifierSchema(40, "action name");
 const sceneKeySchema = buildSafeIdentifierSchema(20, "scene key");
@@ -52,6 +52,7 @@ export const captureViewRequestSchema = z.object({
   width: z.number().int().min(320).max(4096).optional(),
   height: z.number().int().min(240).max(4096).optional(),
   inspectionPrompt: z.string().min(1).max(240).optional(),
+  // Omitted means local-only. Session handling opts in only when this is explicitly true.
   attachToConversation: z.boolean().optional(),
 });
 

@@ -7,6 +7,8 @@ export interface RuntimeCleanupOptions {
   exportKeepLatest: number;
   exportMaxBytes: number;
   sessionRetentionMs: number;
+  receiptRetentionMs: number;
+  receiptKeepLatest: number;
   agentLogRetentionMs: number;
   agentLogKeepLatest: number;
   scientificCacheRetentionMs: number;
@@ -25,6 +27,8 @@ const DEFAULT_EXPORT_RETENTION_MS = 48 * 60 * 60 * 1000;
 const DEFAULT_EXPORT_KEEP_LATEST = 40;
 const DEFAULT_EXPORT_MAX_BYTES = 25 * 1024 * 1024;
 const DEFAULT_SESSION_RETENTION_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_RECEIPT_RETENTION_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_RECEIPT_KEEP_LATEST = 0;
 const DEFAULT_AGENT_LOG_RETENTION_MS = 72 * 60 * 60 * 1000;
 const DEFAULT_AGENT_LOG_KEEP_LATEST = 12;
 const DEFAULT_SCIENTIFIC_CACHE_RETENTION_MS = 72 * 60 * 60 * 1000;
@@ -38,6 +42,8 @@ export function getRuntimeCleanupOptions(): RuntimeCleanupOptions {
     exportKeepLatest: readCount("RUNTIME_EXPORT_KEEP_LATEST", DEFAULT_EXPORT_KEEP_LATEST),
     exportMaxBytes: readMegabytes("RUNTIME_EXPORT_MAX_MB", 25) * 1024 * 1024,
     sessionRetentionMs: readHours("RUNTIME_SESSION_RETENTION_HOURS", 24) * 60 * 60 * 1000,
+    receiptRetentionMs: readHours("RUNTIME_RECEIPT_RETENTION_HOURS", 24) * 60 * 60 * 1000,
+    receiptKeepLatest: readCount("RUNTIME_RECEIPT_KEEP_LATEST", DEFAULT_RECEIPT_KEEP_LATEST),
     agentLogRetentionMs: readHours("RUNTIME_AGENT_LOG_RETENTION_HOURS", 72) * 60 * 60 * 1000,
     agentLogKeepLatest: readCount("RUNTIME_AGENT_LOG_KEEP_LATEST", DEFAULT_AGENT_LOG_KEEP_LATEST),
     scientificCacheRetentionMs: readHours("RUNTIME_SCIENTIFIC_CACHE_RETENTION_HOURS", 72) * 60 * 60 * 1000,
@@ -55,6 +61,8 @@ export async function cleanupRuntimeArtifacts(
     exportKeepLatest: options.exportKeepLatest ?? DEFAULT_EXPORT_KEEP_LATEST,
     exportMaxBytes: options.exportMaxBytes ?? DEFAULT_EXPORT_MAX_BYTES,
     sessionRetentionMs: options.sessionRetentionMs ?? DEFAULT_SESSION_RETENTION_MS,
+    receiptRetentionMs: options.receiptRetentionMs ?? DEFAULT_RECEIPT_RETENTION_MS,
+    receiptKeepLatest: options.receiptKeepLatest ?? DEFAULT_RECEIPT_KEEP_LATEST,
     agentLogRetentionMs: options.agentLogRetentionMs ?? DEFAULT_AGENT_LOG_RETENTION_MS,
     agentLogKeepLatest: options.agentLogKeepLatest ?? DEFAULT_AGENT_LOG_KEEP_LATEST,
     scientificCacheRetentionMs: options.scientificCacheRetentionMs ?? DEFAULT_SCIENTIFIC_CACHE_RETENTION_MS,
@@ -81,6 +89,12 @@ export async function cleanupRuntimeArtifacts(
     keepLatest: 0,
     summary,
   });
+  await pruneManagedDirectory(path.join(runtimeDir, "receipts"), {
+    retentionMs: merged.receiptRetentionMs,
+    keepLatest: merged.receiptKeepLatest,
+    summary,
+    include: /\.json$/i,
+  });
   await pruneManagedDirectory(path.join(runtimeDir, "agent-runtime"), {
     retentionMs: merged.agentLogRetentionMs,
     keepLatest: merged.agentLogKeepLatest,
@@ -99,6 +113,8 @@ export async function cleanupRuntimeArtifacts(
     "pae",
     "rosetta",
     "manifests",
+    "emdb",
+    "uniprot",
   ].map((bucket) => pruneManagedDirectory(path.join(runtimeDir, "cache", "scientific", bucket), {
     retentionMs: merged.scientificCacheRetentionMs,
     keepLatest: merged.scientificCacheKeepLatest,

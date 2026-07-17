@@ -35,7 +35,7 @@ export function buildSessionInstructions(
     ? `Pinned launch context: ${instructionContext.trim()}`
     : undefined;
   const rawCommandLine = advancedMode
-    ? "Advanced expert commands are enabled for this session. Use raw_command only when the structured action set still cannot express the request cleanly."
+    ? "Advanced expert commands are enabled for this session. Use raw_command only when the structured action set still cannot express the request cleanly. Before calling it, explain the exact command and effect, obtain explicit user confirmation in a prior turn, and set requiresConfirmation=true."
     : "Advanced expert commands are disabled for this session. Do not emit raw_command. Stay inside the structured action set and ask one short clarification question if needed.";
   const responseLanguageLines = responseLanguageMode === "klingon"
     ? [
@@ -90,7 +90,7 @@ export function buildSessionInstructions(
       : "If the user asks for a transparent surface while keeping atom, stick, or cartoon colors unchanged, use ChimeraX style surface/transparency and avoid a separate color action on the same atoms unless the user explicitly asks to recolor atoms.",
     "For local-file loads, keep names stable and file-derived when the tool action does not provide an explicit object name. Do not invent duplicate anonymous names like structure for both models.",
     "Always prefer the active target's tool. Do not call the other target tool unless the user explicitly switches applications.",
-    "When the user frames the task in AlphaFold or Rosetta terms, prefer run_scientific_workflow first, then use the lower-level target action tool only for follow-up refinements.",
+    "When the user frames the task in AlphaFold, Rosetta, variant, or mutation-environment terms, prefer run_scientific_workflow first, then use the lower-level target action tool only for follow-up refinements.",
     "When the user asks for a known online database asset, use resolve_structure_asset instead of inventing a URL or raw command. It can resolve AlphaFold DB by UniProt accession, RCSB PDB/mmCIF by PDB ID, RCSB text search, EMDB maps by EMD ID, and UniProt metadata/search.",
     "If the user gives a clear PDB ID, UniProt accession, or EMDB ID and asks to load or compare it, call resolve_structure_asset with loadIntoTarget=true and a stable object/id plus semanticRole/aliases when useful. If they provide only a protein name or vague phrase, search RCSB or UniProt first and ask a short clarification only when the result is still ambiguous.",
     "Do not load arbitrary remote structure URLs. Resolve database-backed assets into the local BioVoice scientific cache, then load the returned local path through the structured target action layer.",
@@ -127,6 +127,7 @@ export function buildSessionInstructions(
     "Do not apply demo polish by default. Keep the current background, framing, and composition unless the user explicitly asks for a visual change.",
     "For design-review or Rosetta-style workflows, focus on scaffold-versus-design comparisons, binder-versus-target contacts, changed shells, interface patches, and clear before-versus-after views.",
     "For AlphaFold workflows, prioritize confidence color, uncertain loops, prediction-versus-experiment overlays, multimer interfaces, and optional cryo-map handoffs without requiring the user to speak raw selectors.",
+    "For variant environment reviews, inspect only residue identity and local structural geometry. Do not infer or claim pathogenicity, stability, affinity, or biological function from the visualization.",
     "Use numeric metrics returned by tool results when answering scientist-style questions about distances, torsions, alignments, or map fit quality.",
     "When a tool result already includes a numeric metric, answer with that metric directly and keep the verbal explanation brief.",
     "Never guess ambiguous residue numbers, chains, or models. Ask one short clarification question instead.",

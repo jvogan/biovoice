@@ -2,19 +2,26 @@ import { describe, expect, it } from "vitest";
 import {
   buildScientificLaunchCommand,
   buildScientificWorkflowUrl,
-  getScientificWorkflowCatalog,
+  formatVariantMutationArgument,
+  getScientificLaunchCatalog,
   getScientificWorkflowForRecipe,
+  parseVariantMutationArgument,
   rankScientificWorkflowCandidates,
   resolveScientificWorkflowRecipeId,
 } from "../../packages/runtime-and-adapters/src/index.js";
+import {
+  buildScientificWorkflowInputs,
+  buildScientificWorkflowLaunchCards,
+} from "../../apps/voice-console/src/lib/scientific-workflows.js";
 
 describe("scientific workflow helpers", () => {
   it("exposes a broad task-first workflow catalog", () => {
-    const catalog = getScientificWorkflowCatalog();
+    const catalog = getScientificLaunchCatalog();
 
-    expect(catalog).toHaveLength(9);
+    expect(catalog).toHaveLength(10);
     expect(catalog.map((workflow) => workflow.id)).toContain("alphafold_vs_experiment_overlay");
     expect(catalog.map((workflow) => workflow.id)).toContain("rosetta_top_design_compare");
+    expect(catalog.map((workflow) => workflow.id)).toContain("variant_environment_review");
   });
 
   it("maps workflow ids to the right target recipe and launch metadata", () => {
@@ -130,5 +137,40 @@ describe("scientific workflow helpers", () => {
     );
 
     expect(ranked.map((candidate) => candidate.recipeId)).toEqual(["pymol-alphafold-experimental-overlay"]);
+  });
+
+  it("disables workflows that the selected target does not support", () => {
+    const cards = buildScientificWorkflowLaunchCards({
+      target: "pymol",
+      baseUrl: "http://localhost:3000",
+      recipes: [],
+      scientificInputs: { model: "./multimer.cif" },
+    });
+    const multimer = cards.find((card) => card.id === "alphafold_multimer_interface_review");
+
+    expect(multimer?.inputsReady).toBe(false);
+    expect(multimer?.inputMessage).toMatch(/not available for PyMOL/i);
+  });
+
+  it("does not silently pair AFDB PAE with an unrelated local model", () => {
+    expect(buildScientificWorkflowInputs("alphafold_pae_guided_triage", {
+      uniprot: "P69905",
+    })).toMatchObject({ useAfdbPae: true });
+
+    expect(buildScientificWorkflowInputs("alphafold_pae_guided_triage", {
+      uniprot: "P69905",
+      model: "./local-model.cif",
+    })).not.toHaveProperty("useAfdbPae");
+  });
+
+  it("round-trips insertion-code mutation sites without ambiguous shorthand", () => {
+    const insertionSite = parseVariantMutationArgument("A:@100A");
+    expect(insertionSite).toEqual({ chain: "A", position: "100A" });
+    expect(formatVariantMutationArgument(insertionSite)).toBe("A:@100A");
+
+    const annotatedSite = parseVariantMutationArgument("A:H@100A>Y");
+    expect(annotatedSite).toEqual({ chain: "A", from: "H", position: "100A", to: "Y" });
+    expect(formatVariantMutationArgument(annotatedSite)).toBe("A:H@100A>Y");
+    expect(() => parseVariantMutationArgument("A:100A")).toThrow(/Use A:@100A/);
   });
 });

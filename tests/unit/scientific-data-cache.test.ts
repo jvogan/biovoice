@@ -341,6 +341,63 @@ describe("scientific data fetch cache", () => {
       "pdb",
       "../4HHB.pdb",
     )).rejects.toThrow(/filename is not allowed/i);
+    await expect(downloadScientificAsset(
+      "https://files.rcsb.org/download/4HHB.pdb",
+      "../private",
+      "4HHB.pdb",
+    )).rejects.toThrow(/cache bucket is not allowed/i);
+  });
+
+  it("validates every redirect before a scientific download is followed", async () => {
+    const destination = track(cachePath("pdb", "redirect-safety-test.pdb"));
+    await cleanupScientificCacheFiles(cleanupPaths);
+    const fetchMock = vi.fn(async () => new Response(null, {
+      status: 302,
+      headers: { location: "https://example.com/private-model.pdb" },
+    }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(downloadScientificAsset(
+      "https://files.rcsb.org/download/redirect-safety-test.pdb",
+      "pdb",
+      path.basename(destination),
+    )).rejects.toThrow(/host is not allowed/i);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("validates metadata redirects and byte bounds before reading JSON", async () => {
+    const redirectCache = track(cachePath("uniprot", "TSTREDIRECT.json"));
+    const oversizedCache = track(cachePath("uniprot", "TSTOVERSIZED.json"));
+    await cleanupScientificCacheFiles([redirectCache, oversizedCache]);
+    const fetchMock = vi.fn(async (input: Parameters<typeof fetch>[0]) => {
+      const url = requestUrl(input);
+      if (url.endsWith("/TSTREDIRECT.json")) {
+        return new Response(null, {
+          status: 302,
+          headers: { location: "https://example.com/private-metadata.json" },
+        });
+      }
+      if (url.endsWith("/TSTOVERSIZED.json")) {
+        return new Response("{}", {
+          status: 200,
+          headers: {
+            "content-length": String(100 * 1024 * 1024),
+            "content-type": "application/json",
+          },
+        });
+      }
+      throw new Error(`Unexpected fetch: ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(resolveScientificAsset({
+      source: "uniprot",
+      accession: "TSTREDIRECT",
+    })).rejects.toThrow(/host is not allowed/i);
+    await expect(resolveScientificAsset({
+      source: "uniprot",
+      accession: "TSTOVERSIZED",
+    })).rejects.toThrow(/byte metadata limit/i);
   });
 
   it("downloads AFDB and RCSB structures once and reuses cached assets on later workflow runs", async () => {
@@ -497,6 +554,7 @@ describe("scientific data fetch cache", () => {
     expect(manifestPath).toBeTruthy();
     track(manifestPath!);
     await writeJson(manifestPath!, {
+      parserVersion: 3,
       path: afdbModelPath,
       format: "pdb",
       chains: ["Z"],
@@ -510,6 +568,7 @@ describe("scientific data fetch cache", () => {
           meanConfidence: 12,
         },
       ],
+      nonPolymerResidueNames: [],
       lowConfidenceRanges: [
         {
           chain: "Z",

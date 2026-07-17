@@ -1,3 +1,6 @@
+import type { ScientificLaunchInputs } from "../../../../packages/runtime-and-adapters/src/examples/scientific-workflows.js";
+import type { ScientificWorkflowKind } from "../../../../packages/runtime-and-adapters/src/schemas/scientific.js";
+
 export interface RealtimeSessionGuardrails {
   maxSessionMinutes: number;
   maxResponsesPerSession: number;
@@ -50,6 +53,7 @@ export interface RuntimeHealthResponse {
   openAiSafetyIdentifierPresent: boolean;
   usageKeyPresent: boolean;
   expertCommandsGloballyEnabled: boolean;
+  captureUploadsEnabled: boolean;
   persistSessionEvents: boolean;
   realtimeReady: boolean;
   usageReady: boolean;
@@ -62,6 +66,7 @@ export interface RuntimeHealthResponse {
   runtime: {
     sessions: {
       total: number;
+      active: number;
       awaitingCall: number;
       connecting: number;
       connected: number;
@@ -95,6 +100,54 @@ export interface RuntimeHealthResponse {
   };
 }
 
+export type DoctorCheckStatus = "ready" | "warning" | "blocked";
+
+export interface DoctorCheck {
+  id: string;
+  label: string;
+  status: DoctorCheckStatus;
+  detail?: string;
+  action?: string;
+}
+
+export interface DoctorResponse {
+  ok: boolean;
+  checks: DoctorCheck[];
+  targets: {
+    pymol: {
+      ready: boolean;
+      undoAvailable: boolean;
+    };
+    chimerax: {
+      ready: boolean;
+      undoAvailable: boolean;
+    };
+  };
+}
+
+export interface RunReceiptArtifact {
+  kind?: string;
+  label?: string;
+  path?: string;
+  url?: string;
+  [key: string]: unknown;
+}
+
+export interface RunReceiptSummary {
+  id: string;
+  createdAt: string;
+  target: "pymol" | "chimerax";
+  summary: string;
+  evidenceLevel: string;
+  checkpointAvailable: boolean;
+  artifacts: RunReceiptArtifact[];
+  warnings: string[];
+}
+
+export interface RunReceiptDetails extends RunReceiptSummary {
+  [key: string]: unknown;
+}
+
 export interface AppConfigResponse {
   appId: string;
   instanceId: string;
@@ -117,6 +170,7 @@ export interface AppConfigResponse {
   openAiSafetyIdentifierPresent: boolean;
   usageKeyPresent: boolean;
   expertCommandsGloballyEnabled: boolean;
+  captureUploadsEnabled: boolean;
   persistSessionEvents: boolean;
   allowRemoteClients: boolean;
   realtimeReady: boolean;
@@ -128,6 +182,11 @@ export interface AppConfigResponse {
   usageScopeLastCheckedAt?: string;
   usageScopeLastError?: string;
   runtime: RuntimeHealthResponse["runtime"];
+  managedScientificLaunch?: {
+    target: "pymol" | "chimerax";
+    workflowId?: ScientificWorkflowKind;
+    scientificInputs: ScientificLaunchInputs;
+  };
   examples: Array<{
     id: string;
     title: string;
@@ -141,7 +200,9 @@ export interface AppConfigResponse {
     id: string;
     title: string;
     goal: string;
-    category: "alphafold" | "rosetta";
+    category: "alphafold" | "rosetta" | "variant";
+    evidenceLevel: "visualization" | "qualitative" | "quantitative";
+    assumptions: string[];
     apps: Array<"pymol" | "chimerax">;
     estimatedMinutes: number;
     starterPrompts: string[];
@@ -171,6 +232,24 @@ export async function fetchConfig(): Promise<AppConfigResponse> {
 
 export async function fetchHealth(): Promise<RuntimeHealthResponse> {
   return requestJson<RuntimeHealthResponse>("/api/health");
+}
+
+export async function fetchDoctor(target?: "pymol" | "chimerax"): Promise<DoctorResponse> {
+  return requestJson<DoctorResponse>(target ? `/api/doctor?target=${target}` : "/api/doctor");
+}
+
+export async function fetchRunReceipts(limit = 20): Promise<RunReceiptSummary[]> {
+  const payload = await requestJson<{ receipts: RunReceiptSummary[] }>(`/api/receipts?limit=${encodeURIComponent(String(limit))}`);
+  return payload.receipts;
+}
+
+export async function fetchRunReceipt(receiptId: string): Promise<RunReceiptDetails> {
+  const payload = await requestJson<{ receipt: RunReceiptDetails }>(buildRunReceiptUrl(receiptId));
+  return payload.receipt;
+}
+
+export function buildRunReceiptUrl(receiptId: string): string {
+  return `/api/receipts/${encodeURIComponent(receiptId)}`;
 }
 
 export async function fetchExamples<T>(): Promise<T> {
@@ -252,6 +331,20 @@ export async function runTargetActions(body: {
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
+}
+
+export async function undoLastTurn(target: "pymol" | "chimerax") {
+  const payload = await requestJson<{
+    ok: true;
+    target: "pymol" | "chimerax";
+    undoAvailable: boolean;
+    result: ManualActionResult;
+  }>("/api/undo", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ target }),
+  });
+  return payload.result;
 }
 
 export async function resolveStructureAsset(body: {
@@ -431,6 +524,17 @@ export async function runScientificWorkflow(body: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+export async function grantNextViewportShare(
+  sessionId: string,
+  sessionAccessToken: string,
+): Promise<{ ok: true; scope: "next_viewport_only"; expiresAt: string }> {
+  return requestJson(`/api/sessions/${sessionId}/capture-upload-consent`, {
+    method: "POST",
+    headers: withSessionHeaders(sessionAccessToken, { "Content-Type": "application/json" }),
+    body: JSON.stringify({ confirmation: "share_next_viewport_once" }),
   });
 }
 

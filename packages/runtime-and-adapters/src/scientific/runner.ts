@@ -15,6 +15,8 @@ import {
   type ScientificWorkflowRequest,
   type ScientificWorkflowResult,
   type TargetKind,
+  type VariantInputs,
+  type VariantSite,
 } from "../schemas/index.js";
 import { ensureAllowedStructureInputPath } from "../utils/path-policy.js";
 import { resolveFromRoot } from "../utils/paths.js";
@@ -61,10 +63,12 @@ type StructureResidue = {
 };
 
 type StructureAnalysis = {
+  parserVersion: 3;
   path: string;
   format: "pdb" | "cif" | "unknown";
   chains: string[];
   residues: StructureResidue[];
+  nonPolymerResidueNames: string[];
   lowConfidenceRanges: ResidueWindow[];
 };
 
@@ -133,6 +137,26 @@ type RosettaResolvedInputs = {
   focusResidues?: string[];
 };
 
+type ResolvedVariantSite = VariantSite & {
+  chain: string;
+  residueName: string;
+  label: string;
+};
+
+type VariantResolvedInputs = {
+  modelPath: string;
+  modelSource: "local" | "afdb";
+  uniprotId?: string;
+  comparisonPath?: string;
+  modelAnalysis: StructureAnalysis;
+  comparisonAnalysis?: StructureAnalysis;
+  mutations: ResolvedVariantSite[];
+  ligandCode?: string;
+  neighborhoodAngstroms: number;
+};
+
+type ScientificResolvedInputs = AlphaFoldResolvedInputs | RosettaResolvedInputs | VariantResolvedInputs;
+
 type AlphaFoldHandlePlan = {
   predicted: StructureHandle;
   experimental?: StructureHandle;
@@ -165,18 +189,30 @@ export async function runScientificWorkflow(
 
   if (isAlphaFoldWorkflow(parsed.workflow)) {
     const resolved = await resolveAlphaFoldInputs(parsed.inputs);
+    if (parsed.workflow === "alphafold_multimer_interface_review" && !resolved.interfaceChains) {
+      throw new Error("AlphaFold multimer interface review requires two polymer chains or explicit interfaceChains.");
+    }
     const phases = buildAlphaFoldWorkflowPhases(parsed.target, parsed.workflow, resolved, parsed.presentationMode);
     return executeWorkflowPlan(parsed, resolved, phases, runtime);
   }
 
+  if (parsed.workflow === "variant_environment_review") {
+    const resolved = await resolveVariantInputs(parsed.inputs);
+    const phases = buildVariantWorkflowPhases(parsed.target, resolved, parsed.presentationMode);
+    return executeWorkflowPlan(parsed, resolved, phases, runtime);
+  }
+
   const resolved = await resolveRosettaInputs(parsed.inputs);
+  if (parsed.workflow === "rosetta_interface_packing_review" && !resolved.interfaceChains) {
+    throw new Error("Rosetta interface packing review requires two polymer chains or explicit interfaceChains.");
+  }
   const phases = buildRosettaWorkflowPhases(parsed.target, parsed.workflow, resolved, parsed.presentationMode);
   return executeWorkflowPlan(parsed, resolved, phases, runtime);
 }
 
 async function executeWorkflowPlan(
   request: ScientificWorkflowRequest,
-  resolvedInputs: AlphaFoldResolvedInputs | RosettaResolvedInputs,
+  resolvedInputs: ScientificResolvedInputs,
   phases: WorkflowPhase[],
   runtime: ScientificWorkflowRuntime,
 ): Promise<ScientificWorkflowResult> {
@@ -244,6 +280,8 @@ async function executeWorkflowPlan(
   return scientificWorkflowResultSchema.parse({
     target: request.target,
     workflow: request.workflow,
+    evidenceLevel: getScientificWorkflow(request.workflow).evidenceLevel,
+    assumptions: buildWorkflowAssumptions(request.workflow, resolvedInputs),
     resolvedInputs: summarizeResolvedInputs(resolvedInputs),
     actionsExecuted: commandsExecuted.map((command) => summarizeCommand(command)),
     commandsExecuted,
@@ -263,7 +301,7 @@ async function executeWorkflowPlan(
 
 function buildWorkflowMetrics(
   workflow: ScientificWorkflowKind,
-  resolvedInputs: AlphaFoldResolvedInputs | RosettaResolvedInputs,
+  resolvedInputs: ScientificResolvedInputs,
   rankedCandidates: RankedRosettaCandidate[] | undefined,
 ): ActionResult["metrics"] {
   const metrics: ActionResult["metrics"] = [];
@@ -283,7 +321,7 @@ function buildWorkflowMetrics(
     if (resolvedInputs.paeAnalysis.uncertainInterface) {
       metrics.push({
         kind: "contacts",
-        label: "Uncertain interface PAE",
+        label: "Cross-chain PAE hotspot mean",
         value: roundMetric(resolvedInputs.paeAnalysis.uncertainInterface.meanPae),
         unit: "A",
         source: "computed",
@@ -308,12 +346,39 @@ function buildWorkflowMetrics(
   return metrics;
 }
 
+function buildWorkflowAssumptions(
+  workflow: ScientificWorkflowKind,
+  resolvedInputs: ScientificResolvedInputs,
+): string[] {
+  const assumptions = [...getScientificWorkflow(workflow).assumptions];
+  if (isAlphaFoldResolvedInputs(resolvedInputs) && resolvedInputs.paeAnalysis) {
+    assumptions.push(
+      "PAE rows and columns are assumed to follow the loaded model's polymer-residue order; matching dimensions alone do not prove construct identity.",
+    );
+  }
+  if (isVariantResolvedInputs(resolvedInputs) && resolvedInputs.ligandCode) {
+    assumptions.push(
+      `Ligand context uses non-polymer residues named ${resolvedInputs.ligandCode} in the primary structure; the chemical identity is not independently verified.`,
+    );
+  }
+  if (isVariantResolvedInputs(resolvedInputs) && resolvedInputs.comparisonPath) {
+    assumptions.push(
+      "The optional comparison structure is aligned as global visual context; residue numbering and local variant equivalence are not inferred across structures.",
+    );
+  }
+  return uniqueStrings(assumptions);
+}
+
 async function resolveAlphaFoldInputs(inputs: AlphaFoldInputs): Promise<AlphaFoldResolvedInputs> {
   await ensureScientificCacheDirs();
-  const afdbAsset = inputs.uniprotId
+  const shouldUseAfdbModel = !inputs.modelPath && Boolean(inputs.uniprotId);
+  const shouldUseAfdbPae = Boolean(inputs.uniprotId)
+    && !inputs.paePath
+    && (inputs.useAfdbPae === true || (shouldUseAfdbModel && inputs.useAfdbPae !== false));
+  const afdbAsset = inputs.uniprotId && (shouldUseAfdbModel || shouldUseAfdbPae)
     ? await resolveAlphaFoldAsset(inputs.uniprotId, {
       format: inputs.structureFormat,
-      includePae: inputs.useAfdbPae !== false,
+      includePae: shouldUseAfdbPae,
     })
     : undefined;
   const afdbRecord = afdbAsset?.record;
@@ -327,7 +392,7 @@ async function resolveAlphaFoldInputs(inputs: AlphaFoldInputs): Promise<AlphaFol
 
   const paePath = inputs.paePath
     ? ensureAllowedJsonInputPath(inputs.paePath, "PAE JSON")
-    : inputs.useAfdbPae !== false
+    : shouldUseAfdbPae
     ? afdbAsset?.paePath
     : undefined;
 
@@ -345,7 +410,9 @@ async function resolveAlphaFoldInputs(inputs: AlphaFoldInputs): Promise<AlphaFol
 
   const modelAnalysis = await analyzeStructureFileCached(modelPath);
   const experimentalAnalysis = experimentalPath ? await analyzeStructureFileCached(experimentalPath) : undefined;
-  const paeAnalysis = paePath ? await analyzePaeFileCached(paePath, modelAnalysis, inputs.interfaceChains) : undefined;
+  const interfaceChains = validateOrInferInterfaceChains(inputs.interfaceChains, modelAnalysis, "AlphaFold model");
+  validateFocusResidues(inputs.focusResidues, modelAnalysis, "AlphaFold model");
+  const paeAnalysis = paePath ? await analyzePaeFileCached(paePath, modelAnalysis, interfaceChains) : undefined;
 
   return {
     modelPath,
@@ -360,7 +427,7 @@ async function resolveAlphaFoldInputs(inputs: AlphaFoldInputs): Promise<AlphaFol
     modelAnalysis,
     experimentalAnalysis,
     paeAnalysis,
-    interfaceChains: inputs.interfaceChains ?? inferDefaultInterfaceChains(modelAnalysis?.chains ?? []),
+    interfaceChains,
     focusResidues: inputs.focusResidues,
   };
 }
@@ -395,6 +462,14 @@ async function resolveRosettaInputs(inputs: RosettaInputs): Promise<RosettaResol
       [primaryAnalysisCandidatePath].map(async (candidatePath) => [candidatePath, await analyzeStructureFileCached(candidatePath)] as const),
     ))
     : {};
+  const primaryAnalysis = primaryAnalysisCandidatePath
+    ? candidateAnalyses[primaryAnalysisCandidatePath]
+    : undefined;
+  const interfaceChains = validateOrInferInterfaceChains(inputs.interfaceChains, primaryAnalysis, "primary Rosetta design");
+  validateFocusResidues(inputs.focusResidues, primaryAnalysis, "primary Rosetta design");
+  if (inputs.ligandCode && !primaryAnalysis?.nonPolymerResidueNames.includes(inputs.ligandCode)) {
+    throw new Error(`Ligand ${inputs.ligandCode} is not present as a non-polymer residue in the primary Rosetta design.`);
+  }
 
   return {
     bundlePath,
@@ -407,8 +482,51 @@ async function resolveRosettaInputs(inputs: RosettaInputs): Promise<RosettaResol
     topCandidatePath: rankedCandidates.find((candidate) => candidate.path)?.path,
     topN: Math.max(1, Math.min(8, inputs.topN ?? 3)),
     ligandCode: inputs.ligandCode,
-    interfaceChains: inputs.interfaceChains,
+    interfaceChains,
     focusResidues: inputs.focusResidues,
+  };
+}
+
+async function resolveVariantInputs(inputs: VariantInputs): Promise<VariantResolvedInputs> {
+  await ensureScientificCacheDirs();
+  const afdbAsset = inputs.uniprotId && !inputs.modelPath
+    ? await resolveAlphaFoldAsset(inputs.uniprotId, { format: "pdb", includePae: false })
+    : undefined;
+  const modelPath = inputs.modelPath
+    ? ensureAllowedModelInputPath(inputs.modelPath, "Variant review model")
+    : afdbAsset?.modelPath;
+  if (!modelPath) {
+    throw new Error("Variant environment review requires a local modelPath or a UniProt id with an AFDB model.");
+  }
+
+  const modelAnalysis = await analyzeStructureFileCached(modelPath);
+  if (!modelAnalysis?.residues.length) {
+    throw new Error("Variant review model does not contain any polymer ATOM residues.");
+  }
+
+  const comparisonPath = inputs.comparisonPath
+    ? ensureAllowedModelInputPath(inputs.comparisonPath, "Variant comparison structure")
+    : undefined;
+  const comparisonAnalysis = comparisonPath
+    ? await analyzeStructureFileCached(comparisonPath)
+    : undefined;
+  if (comparisonPath && !comparisonAnalysis?.residues.length) {
+    throw new Error("Variant comparison structure does not contain any polymer ATOM residues.");
+  }
+  if (inputs.ligandCode && !modelAnalysis.nonPolymerResidueNames.includes(inputs.ligandCode)) {
+    throw new Error(`Ligand ${inputs.ligandCode} is not present as a non-polymer residue in the variant review model.`);
+  }
+
+  return {
+    modelPath,
+    modelSource: inputs.modelPath ? "local" : "afdb",
+    uniprotId: inputs.uniprotId,
+    comparisonPath,
+    modelAnalysis,
+    comparisonAnalysis,
+    mutations: resolveVariantSites(inputs.mutations, modelAnalysis),
+    ligandCode: inputs.ligandCode,
+    neighborhoodAngstroms: inputs.neighborhoodAngstroms,
   };
 }
 
@@ -454,6 +572,28 @@ function buildRosettaWorkflowPhases(
     actions: buildRosettaStageActions(target, workflow, presentationMode, resolved),
   } satisfies WorkflowPhase;
   return [loadPhase, stagePhase];
+}
+
+function buildVariantWorkflowPhases(
+  target: TargetKind,
+  resolved: VariantResolvedInputs,
+  presentationMode = "demo",
+): WorkflowPhase[] {
+  const refs = buildVariantReferenceHints(target, resolved);
+  return [
+    {
+      phaseLabel: "load",
+      actions: buildVariantLoadActions(target, resolved),
+    },
+    {
+      phaseLabel: "stage",
+      updateContext: {
+        referenceHints: refs,
+        workflowState: buildVariantWorkflowState(resolved, refs),
+      },
+      actions: buildVariantStageActions(target, resolved, presentationMode),
+    },
+  ];
 }
 
 function buildAlphaFoldLoadActions(target: TargetKind, resolved: AlphaFoldResolvedInputs): TargetAction[] {
@@ -594,6 +734,54 @@ function buildRosettaLoadActions(target: TargetKind, workflow: ScientificWorkflo
   return actions;
 }
 
+function buildVariantLoadActions(target: TargetKind, resolved: VariantResolvedInputs): TargetAction[] {
+  if (target === "pymol") {
+    const actions: PymolAction[] = [
+      { type: "reset_workspace" },
+      {
+        type: "load",
+        source: "local",
+        path: resolved.modelPath,
+        object: "variant_model",
+        semanticRole: resolved.modelSource === "afdb" ? "predicted" : "partner",
+        aliases: ["variant model", "review model", "primary structure"],
+      },
+    ];
+    if (resolved.comparisonPath) {
+      actions.push({
+        type: "load",
+        source: "local",
+        path: resolved.comparisonPath,
+        object: "comparison_model",
+        semanticRole: "reference",
+        aliases: ["comparison structure", "reference structure", "comparison model"],
+      });
+    }
+    return actions;
+  }
+
+  const actions: ChimeraXAction[] = [
+    { type: "reset_workspace" },
+    {
+      type: "open",
+      source: "local",
+      path: resolved.modelPath,
+      semanticRole: resolved.modelSource === "afdb" ? "predicted" : "partner",
+      aliases: ["variant model", "review model", "primary structure"],
+    },
+  ];
+  if (resolved.comparisonPath) {
+    actions.push({
+      type: "open",
+      source: "local",
+      path: resolved.comparisonPath,
+      semanticRole: "reference",
+      aliases: ["comparison structure", "reference structure", "comparison model"],
+    });
+  }
+  return actions;
+}
+
 function buildAlphaFoldStageActions(
   target: TargetKind,
   workflow: ScientificWorkflowKind,
@@ -663,7 +851,10 @@ function buildAlphaFoldStageActions(
     );
   }
 
-  if (workflow === "alphafold_multimer_interface_review" || workflow === "alphafold_pae_guided_triage") {
+  if (
+    workflow === "alphafold_multimer_interface_review"
+    || (workflow === "alphafold_pae_guided_triage" && resolved.interfaceChains)
+  ) {
     actions.push(
       { type: "contacts", mode: "hbonds", selection1: { reference: "predictedPartnerA" }, selection2: { reference: "predictedPartnerB" } },
       { type: "contacts", mode: "contacts", selection1: { reference: "predictedPartnerA" }, selection2: { reference: "predictedPartnerB" }, distance: 4.2 },
@@ -728,7 +919,7 @@ function buildRosettaStageActions(
         });
     }
 
-    if (hasRosettaFocusHandle(workflow)) {
+    if (hasRosettaFocusHandle(workflow, resolved)) {
       const focusHandle = pickRosettaFocusHandle(workflow, resolved);
       actions.push(
         { type: "show", representations: ["sticks"], selection: { reference: focusHandle } },
@@ -745,7 +936,7 @@ function buildRosettaStageActions(
     actions.push({
       type: "camera",
       action: workflow === "rosetta_ligand_redesign_review" ? "pocket_frame" : "comparison_frame",
-      selection: { reference: pickRosettaFocusHandle(workflow, resolved) },
+      selection: { reference: pickRosettaCameraHandle(workflow, resolved) },
       buffer: presentationMode === "publication" ? 10 : 8,
     });
 
@@ -776,7 +967,7 @@ function buildRosettaStageActions(
 
   if (workflow === "rosetta_top_design_compare") {
     actions.push({ type: "layout", mode: "tile" });
-  } else if (workflow !== "rosetta_interface_packing_review" && hasRosettaFocusHandle(workflow)) {
+  } else if (workflow !== "rosetta_interface_packing_review" && hasRosettaFocusHandle(workflow, resolved)) {
     actions.push(
       { type: "style", selection: { reference: pickRosettaFocusHandle(workflow, resolved) }, atoms: "stick" },
       { type: "color", color: "deeppink", selection: { reference: pickRosettaFocusHandle(workflow, resolved) } },
@@ -790,6 +981,81 @@ function buildRosettaStageActions(
     amount: presentationMode === "publication" ? 16 : 12,
   });
 
+  return actions;
+}
+
+function buildVariantStageActions(
+  target: TargetKind,
+  resolved: VariantResolvedInputs,
+  presentationMode: string,
+): TargetAction[] {
+  if (target === "pymol") {
+    const actions: PymolAction[] = [
+      { type: "hide", representations: ["everything"] },
+      { type: "show", representations: ["cartoon"], selection: { reference: "variantModel", entity: "protein" } },
+      { type: "preset", name: resolved.ligandCode ? "ligand_editorial" : "comparison_hero" },
+      { type: "color", color: "gray80", selection: { reference: "variantModel", entity: "protein" } },
+    ];
+    if (resolved.comparisonPath) {
+      actions.push(
+        { type: "show", representations: ["cartoon"], selection: { reference: "comparisonModel", entity: "protein" } },
+        { type: "color", color: "gray40", selection: { reference: "comparisonModel", entity: "protein" } },
+        { type: "align", method: "super", mobile: { reference: "variantModel", entity: "protein" }, target: { reference: "comparisonModel", entity: "protein" } },
+      );
+    }
+    actions.push(
+      { type: "show", representations: ["sticks"], selection: { reference: "variantNeighborhood" } },
+      { type: "color", color: "hotpink", selection: { reference: "variantNeighborhood" } },
+      { type: "show", representations: ["sticks", "spheres"], selection: { reference: "variantSites" } },
+      { type: "color", color: "tv_red", selection: { reference: "variantSites" } },
+      { type: "contacts", mode: "contacts", name: "variant_local_contacts", selection1: { reference: "variantSites" }, selection2: { reference: "variantNeighborhood" }, cutoff: 4.5 },
+    );
+    if (resolved.ligandCode) {
+      actions.push(
+        { type: "show", representations: ["sticks"], selection: { reference: "variantLigand" } },
+        { type: "color", color: "yellow", selection: { reference: "variantLigand" } },
+        { type: "contacts", mode: "polar_contacts", name: "variant_ligand_contacts", selection1: { reference: "variantNeighborhood" }, selection2: { reference: "variantLigand" }, cutoff: 4.0 },
+      );
+    }
+    actions.push(
+      { type: "camera", action: "pocket_frame", selection: { reference: "variantNeighborhood" }, buffer: presentationMode === "publication" ? 10 : 8 },
+      { type: "scene", action: "view_store", key: "variant_closeup", message: "Variant environment close-up" },
+    );
+    return actions;
+  }
+
+  const actions: ChimeraXAction[] = [
+    { type: "visibility", mode: "show", selection: { reference: "variantModel" } },
+    { type: "style", selection: { reference: "variantModel", entity: "protein" }, ribbon: true },
+    { type: "preset", name: resolved.ligandCode ? "ligand_editorial" : "comparison_hero" },
+    { type: "color", color: "gray80", selection: { reference: "variantModel", entity: "protein" } },
+  ];
+  if (resolved.comparisonPath) {
+    actions.push(
+      { type: "visibility", mode: "show", selection: { reference: "comparisonModel" } },
+      { type: "style", selection: { reference: "comparisonModel", entity: "protein" }, ribbon: true },
+      { type: "color", color: "gray40", selection: { reference: "comparisonModel", entity: "protein" } },
+      { type: "align", method: "matchmaker", mobile: { reference: "variantModel", entity: "protein" }, target: { reference: "comparisonModel", entity: "protein" } },
+    );
+  }
+  actions.push(
+    { type: "style", selection: { reference: "variantNeighborhood" }, atoms: "stick", ribbon: true },
+    { type: "color", color: "hotpink", selection: { reference: "variantNeighborhood" } },
+    { type: "style", selection: { reference: "variantSites" }, atoms: "sphere" },
+    { type: "color", color: "red", selection: { reference: "variantSites" } },
+    { type: "contacts", mode: "contacts", selection1: { reference: "variantSites" }, selection2: { reference: "variantNeighborhood" }, distance: 4.5 },
+  );
+  if (resolved.ligandCode) {
+    actions.push(
+      { type: "style", selection: { reference: "variantLigand" }, atoms: "stick" },
+      { type: "color", color: "yellow", selection: { reference: "variantLigand" } },
+      { type: "contacts", mode: "hbonds", selection1: { reference: "variantNeighborhood" }, selection2: { reference: "variantLigand" }, distance: 4.0 },
+    );
+  }
+  actions.push(
+    { type: "camera", action: "pocket_frame", selection: { reference: "variantNeighborhood" }, amount: presentationMode === "publication" ? 16 : 12 },
+    { type: "view", action: "save", name: "variant_closeup" },
+  );
   return actions;
 }
 
@@ -816,7 +1082,7 @@ function buildAlphaFoldReferenceHints(
 
   const interfaceSummary = resolved.paeAnalysis?.uncertainInterface;
   if (interfaceSummary) {
-    refs.uncertainInterface = createInterfaceReference(target, interfaceSummary, "Uncertain interface");
+    refs.uncertainInterface = createInterfaceReference(target, interfaceSummary, "Cross-chain PAE hotspots");
   }
 
   if (resolved.interfaceChains?.[0]) {
@@ -845,9 +1111,18 @@ function buildRosettaReferenceHints(
   if (mutationWindow) {
     refs.mutatedShell = createRegionReference(handlePlan.topDesign, mutationWindow, "Mutated shell");
     refs.interfacePatch = refs.mutatedShell;
-    refs.ligandRedesignShell = resolved.ligandCode
-      ? createLigandShellReference(target, handlePlan.topDesign, resolved.ligandCode)
-      : refs.mutatedShell;
+    refs.ligandRedesignShell = refs.mutatedShell;
+  }
+
+  if (resolved.interfaceChains) {
+    refs.interfacePatch = createGeometricInterfaceReference(
+      target,
+      handlePlan.topDesign,
+      resolved.interfaceChains,
+    );
+  }
+  if (resolved.ligandCode) {
+    refs.ligandRedesignShell = createLigandShellReference(target, handlePlan.topDesign, resolved.ligandCode);
   }
 
   if (resolved.interfaceChains?.[0]) {
@@ -855,6 +1130,62 @@ function buildRosettaReferenceHints(
   }
   if (resolved.interfaceChains?.[1]) {
     refs.partnerB = createChainReference(handlePlan.topDesign, resolved.interfaceChains[1], "Design partner B");
+  }
+
+  return refs;
+}
+
+function buildVariantReferenceHints(
+  target: TargetKind,
+  resolved: VariantResolvedInputs,
+): Record<string, ReferenceHint> {
+  const variantHandle: StructureHandle = target === "pymol"
+    ? { object: "variant_model" }
+    : { model: "#1" };
+  const siteSelector = buildVariantSiteSelector(target, resolved.mutations, variantHandle);
+  const refs: Record<string, ReferenceHint> = {
+    variantModel: {
+      label: "Variant review model",
+      selector: variantHandle,
+      aliases: ["variant model", "review model", "primary structure"],
+    },
+    variantSites: {
+      label: "Variant sites",
+      selector: siteSelector,
+      reason: `Resolved ${resolved.mutations.length} annotated residue site(s) in the loaded polymer model.`,
+      aliases: ["variant sites", "mutations", "changed residues"],
+    },
+    variantNeighborhood: {
+      label: "Variant neighborhood",
+      selector: buildVariantNeighborhoodSelector(
+        target,
+        siteSelector,
+        variantHandle,
+        resolved.neighborhoodAngstroms,
+      ),
+      reason: `Polymer residues within ${resolved.neighborhoodAngstroms} A of the annotated sites.`,
+      aliases: ["variant neighborhood", "mutation environment", "local environment"],
+    },
+  };
+
+  if (resolved.comparisonPath) {
+    refs.comparisonModel = {
+      label: "Comparison structure",
+      selector: target === "pymol" ? { object: "comparison_model" } : { model: "#2" },
+      aliases: ["comparison structure", "reference structure", "comparison model"],
+    };
+    refs.referenceModel = refs.comparisonModel;
+  }
+  if (resolved.ligandCode) {
+    refs.variantLigand = {
+      label: `Ligand ${resolved.ligandCode}`,
+      selector: "object" in variantHandle
+        ? { object: variantHandle.object, ligand: resolved.ligandCode }
+        : { model: variantHandle.model, ligand: resolved.ligandCode },
+      reason: "Ligand identity is selected by residue code in the primary structure.",
+      aliases: ["variant ligand", "nearby ligand", resolved.ligandCode],
+    };
+    refs.ligandContext = refs.variantLigand;
   }
 
   return refs;
@@ -903,6 +1234,24 @@ function buildRosettaWorkflowState(
     mutatedShell: refs.mutatedShell,
     interfacePatch: refs.interfacePatch,
     rankedCandidates: resolved.rankedCandidates,
+  };
+}
+
+function buildVariantWorkflowState(
+  resolved: VariantResolvedInputs,
+  refs: Record<string, ReferenceHint>,
+): Record<string, unknown> {
+  return {
+    workflow: "variant_environment_review",
+    modelSource: resolved.modelSource,
+    uniprotId: resolved.uniprotId,
+    modelPath: resolved.modelPath,
+    comparisonPath: resolved.comparisonPath,
+    mutations: resolved.mutations,
+    ligandCode: resolved.ligandCode,
+    neighborhoodAngstroms: resolved.neighborhoodAngstroms,
+    variantSites: refs.variantSites,
+    variantNeighborhood: refs.variantNeighborhood,
   };
 }
 
@@ -1083,9 +1432,15 @@ function pickAlphaFoldFocusHandle(workflow: ScientificWorkflowKind, resolved: Al
     return "cryoFitRegion";
   }
   if (workflow === "alphafold_vs_experiment_overlay") {
-    return "experimentalOverlayRegion";
+    return hasReferenceHandle("lowConfidenceRegion", resolved, workflow)
+      ? "experimentalOverlayRegion"
+      : resolved.experimentalPath
+      ? "experimentalModel"
+      : "predictedModel";
   }
-  return "lowConfidenceRegion";
+  return hasReferenceHandle("lowConfidenceRegion", resolved, workflow)
+    ? "lowConfidenceRegion"
+    : "predictedModel";
 }
 
 function hasReferenceHandle(name: string, resolved: AlphaFoldResolvedInputs, workflow: ScientificWorkflowKind): boolean {
@@ -1110,13 +1465,152 @@ function pickRosettaFocusHandle(workflow: ScientificWorkflowKind, resolved: Rose
 
 function pickRosettaCameraHandle(workflow: ScientificWorkflowKind, resolved: RosettaResolvedInputs): string {
   if (workflow === "rosetta_interface_packing_review") {
-    return resolved.interfaceChains?.[0] ? "partnerA" : "topDesign";
+    return "topDesign";
   }
-  return pickRosettaFocusHandle(workflow, resolved);
+  return hasRosettaFocusHandle(workflow, resolved)
+    ? pickRosettaFocusHandle(workflow, resolved)
+    : "topDesign";
 }
 
-function hasRosettaFocusHandle(workflow: ScientificWorkflowKind): boolean {
-  return workflow.length > 0;
+function hasRosettaFocusHandle(workflow: ScientificWorkflowKind, resolved: RosettaResolvedInputs): boolean {
+  if (workflow === "rosetta_top_design_compare") {
+    return true;
+  }
+  if (workflow === "rosetta_interface_packing_review") {
+    return Boolean(resolved.interfaceChains);
+  }
+  if (workflow === "rosetta_ligand_redesign_review" && resolved.ligandCode) {
+    return true;
+  }
+  const topCandidatePath = getRosettaLoadedCandidatePaths(workflow, resolved)[0];
+  const topAnalysis = topCandidatePath ? resolved.candidateAnalyses[topCandidatePath] : undefined;
+  return Boolean(
+    resolved.focusResidues?.length
+    || buildMutationWindow(resolved.referenceAnalysis, topAnalysis),
+  );
+}
+
+function resolveVariantSites(
+  sites: VariantSite[],
+  structure: StructureAnalysis,
+): ResolvedVariantSite[] {
+  const resolved: ResolvedVariantSite[] = [];
+  const seen = new Set<string>();
+
+  for (const site of sites) {
+    const matches = structure.residues.filter((residue) => (
+      residue.residue === site.position
+      && (!site.chain || residue.chain === site.chain)
+    ));
+    if (!matches.length) {
+      const scope = site.chain ? `${site.chain}:` : "";
+      throw new Error(`Variant site ${scope}${site.position} was not found among polymer residues in the review model.`);
+    }
+
+    const matchingChains = [...new Set(matches.map((residue) => residue.chain))];
+    if (!site.chain && matchingChains.length > 1) {
+      throw new Error(
+        `Variant residue ${site.position} is ambiguous across chains ${matchingChains.map((chain) => chain || "unlabeled").join(", ")}; provide a chain identifier.`,
+      );
+    }
+
+    const match = matches[0];
+    const key = `${match.chain}:${match.residue}`;
+    if (seen.has(key)) {
+      throw new Error(`Variant site ${key} was provided more than once.`);
+    }
+    seen.add(key);
+
+    if (site.from && normalizeAminoAcidCode(site.from) !== normalizeAminoAcidCode(match.residueName)) {
+      throw new Error(
+        `Variant site ${key} expected ${site.from}, but the loaded model contains ${match.residueName}.`,
+      );
+    }
+
+    resolved.push({
+      ...site,
+      chain: match.chain,
+      residueName: match.residueName,
+      label: `${site.from ?? match.residueName}${site.position}${site.to ?? ""}`,
+    });
+  }
+
+  return resolved;
+}
+
+function buildVariantSiteSelector(
+  target: TargetKind,
+  sites: ResolvedVariantSite[],
+  model: StructureHandle,
+): string {
+  const byChain = groupBy(sites, (site) => site.chain);
+  const selector = target === "pymol"
+    ? Object.entries(byChain)
+      .map(([chain, chainSites]) => {
+        const residues = uniqueStrings(chainSites.map((site) => site.position)).join("+");
+        const object = "object" in model ? model.object : "variant_model";
+        return chain
+          ? `(${object} and chain ${chain} and resi ${residues})`
+          : `(${object} and resi ${residues})`;
+      })
+      .join(" or ")
+    : Object.entries(byChain)
+      .map(([chain, chainSites]) => {
+        const residues = uniqueStrings(chainSites.map((site) => site.position)).join(",");
+        const modelId = "model" in model ? model.model : "#1";
+        return chain ? `(${modelId}/${chain}:${residues})` : `(${modelId}:${residues})`;
+      })
+      .join("|");
+
+  if (!selector || selector.length > 400) {
+    throw new Error("The combined variant-site selector is too large; split the sites into smaller reviews.");
+  }
+  return selector;
+}
+
+function buildVariantNeighborhoodSelector(
+  target: TargetKind,
+  sites: string,
+  model: StructureHandle,
+  distance: number,
+): string {
+  const selector = target === "pymol"
+    ? `byres (${"object" in model ? model.object : "variant_model"} and polymer.protein and ((${sites}) around ${distance}))`
+    : `((${sites}) :< ${distance}) & ${"model" in model ? model.model : "#1"} & protein & ~(${sites})`;
+  if (selector.length > 400) {
+    throw new Error("The combined variant-neighborhood selector is too large; split the sites into smaller reviews.");
+  }
+  return selector;
+}
+
+const aminoAcidThreeLetterCodes: Record<string, string> = {
+  A: "ALA",
+  R: "ARG",
+  N: "ASN",
+  D: "ASP",
+  C: "CYS",
+  Q: "GLN",
+  E: "GLU",
+  G: "GLY",
+  H: "HIS",
+  I: "ILE",
+  L: "LEU",
+  K: "LYS",
+  M: "MET",
+  F: "PHE",
+  P: "PRO",
+  S: "SER",
+  T: "THR",
+  W: "TRP",
+  Y: "TYR",
+  V: "VAL",
+  U: "SEC",
+  O: "PYL",
+};
+
+function normalizeAminoAcidCode(value: string): string {
+  const normalized = value.trim().toUpperCase();
+  return aminoAcidThreeLetterCodes[normalized] ?? normalized;
 }
 
 function createChainReference(
@@ -1139,10 +1633,10 @@ function createRegionReference(
   return {
     label,
     selector: "object" in base
-      ? { object: base.object, chain: window.chain, residues: window.residueLabels }
-      : { model: base.model, chain: window.chain, residues: window.residueLabels },
-    reason: `${label} spans ${window.chain}:${window.startResidue}-${window.endResidue}.`,
-    aliases: [label.toLowerCase(), `${label.toLowerCase()} ${window.chain} ${window.startResidue}-${window.endResidue}`],
+      ? { object: base.object, ...(window.chain ? { chain: window.chain } : {}), residues: window.residueLabels }
+      : { model: base.model, ...(window.chain ? { chain: window.chain } : {}), residues: window.residueLabels },
+    reason: `${label} spans ${window.chain ? `${window.chain}:` : "unlabeled chain "}${window.startResidue}-${window.endResidue}.`,
+    aliases: [label.toLowerCase(), `${label.toLowerCase()} ${window.chain ? `${window.chain} ` : ""}${window.startResidue}-${window.endResidue}`],
   };
 }
 
@@ -1153,9 +1647,10 @@ function createOverlayRegionReference(
   label: string,
 ): ReferenceHint {
   if (target === "pymol") {
+    const chainClause = window.chain ? ` and chain ${window.chain}` : "";
     return {
       label,
-      selector: `(experimental_model and chain ${window.chain} and resi ${window.residueLabels.join("+")}) or (af_prediction and chain ${window.chain} and resi ${window.residueLabels.join("+")})`,
+      selector: `(experimental_model${chainClause} and resi ${window.residueLabels.join("+")}) or (af_prediction${chainClause} and resi ${window.residueLabels.join("+")})`,
     };
   }
 
@@ -1163,7 +1658,9 @@ function createOverlayRegionReference(
   const experimentalModel = handlePlan.experimental && "model" in handlePlan.experimental ? handlePlan.experimental.model : "#2";
   return {
     label,
-    selector: `(${predictedModel}/${window.chain}:${window.startResidue}-${window.endResidue})|(${experimentalModel}/${window.chain}:${window.startResidue}-${window.endResidue})`,
+    selector: window.chain
+      ? `(${predictedModel}/${window.chain}:${window.startResidue}-${window.endResidue})|(${experimentalModel}/${window.chain}:${window.startResidue}-${window.endResidue})`
+      : `(${predictedModel}:${window.startResidue}-${window.endResidue})|(${experimentalModel}:${window.startResidue}-${window.endResidue})`,
   };
 }
 
@@ -1176,6 +1673,7 @@ function createInterfaceReference(
     return {
       label,
       selector: `(af_prediction and chain ${input.chains[0]} and resi ${input.chainAResidues.join("+")}) or (af_prediction and chain ${input.chains[1]} and resi ${input.chainBResidues.join("+")})`,
+      reason: "Top residues by mean cross-chain PAE; this is an uncertainty hotspot view, not a geometric interface assignment.",
     };
   }
 
@@ -1184,6 +1682,31 @@ function createInterfaceReference(
   return {
     label,
     selector: `(#1/${input.chains[0]}:${rangeA})|(#1/${input.chains[1]}:${rangeB})`,
+    reason: "Top residues by mean cross-chain PAE; this is an uncertainty hotspot view, not a geometric interface assignment.",
+  };
+}
+
+function createGeometricInterfaceReference(
+  target: TargetKind,
+  designHandle: StructureHandle,
+  chains: [string, string],
+): ReferenceHint {
+  if (target === "pymol") {
+    const objectName = "object" in designHandle ? designHandle.object : "rosetta_top_design";
+    return {
+      label: "Geometric interface patch",
+      selector: `byres ((((${objectName} and chain ${chains[0]}) within 5 of (${objectName} and chain ${chains[1]}))) or (((${objectName} and chain ${chains[1]}) within 5 of (${objectName} and chain ${chains[0]}))))`,
+      reason: `Polymer residues within 5 A across chains ${chains[0]} and ${chains[1]}.`,
+      aliases: ["interface patch", "designed interface", "packing shell"],
+    };
+  }
+
+  const model = "model" in designHandle ? designHandle.model : "#1";
+  return {
+    label: "Geometric interface patch",
+    selector: `(((${model}/${chains[1]}) :< 5) & ${model}/${chains[0]} & protein)|(((${model}/${chains[0]}) :< 5) & ${model}/${chains[1]} & protein)`,
+    reason: `Polymer residues within 5 A across chains ${chains[0]} and ${chains[1]}.`,
+    aliases: ["interface patch", "designed interface", "packing shell"],
   };
 }
 
@@ -1199,11 +1722,11 @@ function createLigandShellReference(target: TargetKind, designHandle: StructureH
   const model = "model" in designHandle ? designHandle.model : "#1";
   return {
     label: "Ligand redesign shell",
-    selector: `${model} & zone :${ligandCode} range 5`,
+    selector: `((${model}:${ligandCode}) :< 5) & ${model} & protein`,
   };
 }
 
-function summarizeResolvedInputs(input: AlphaFoldResolvedInputs | RosettaResolvedInputs): Record<string, unknown> {
+function summarizeResolvedInputs(input: ScientificResolvedInputs): Record<string, unknown> {
   if (isAlphaFoldResolvedInputs(input)) {
     return {
       modelPath: input.modelPath,
@@ -1223,6 +1746,19 @@ function summarizeResolvedInputs(input: AlphaFoldResolvedInputs | RosettaResolve
             uncertainInterface: input.paeAnalysis.uncertainInterface ?? null,
           }
         : undefined,
+    };
+  }
+
+  if (isVariantResolvedInputs(input)) {
+    return {
+      modelPath: input.modelPath,
+      modelSource: input.modelSource,
+      uniprotId: input.uniprotId,
+      comparisonPath: input.comparisonPath,
+      mutations: input.mutations,
+      ligandCode: input.ligandCode,
+      neighborhoodAngstroms: input.neighborhoodAngstroms,
+      chains: input.modelAnalysis.chains,
     };
   }
 
@@ -1249,7 +1785,7 @@ async function analyzeStructureFileCached(filePath: string): Promise<StructureAn
   const cacheKey = buildPathCacheKey(filePath, stat);
   const cachePath = path.join(scientificCacheDir, "manifests", `${cacheKey}.structure.json`);
   const cached = await readJsonFile(cachePath).catch(() => null);
-  if (cached) {
+  if (cached && (cached as Partial<StructureAnalysis>).parserVersion === 3) {
     return cached as StructureAnalysis;
   }
   const analysis = await analyzeStructureFile(filePath);
@@ -1268,7 +1804,15 @@ async function analyzePaeFileCached(
   if (!stat) {
     return undefined;
   }
-  const cacheKey = buildPathCacheKey(filePath, stat);
+  const structureFingerprint = structureAnalysis
+    ? structureAnalysis.residues.map((residue) => `${residue.chain}:${residue.residue}:${residue.residueName}`).join("|")
+    : "missing-structure";
+  const cacheKey = crypto.createHash("sha1").update(JSON.stringify({
+    version: 2,
+    pae: buildPathCacheKey(filePath, stat),
+    structureFingerprint,
+    interfaceChains,
+  })).digest("hex");
   const cachePath = path.join(scientificCacheDir, "pae", `${cacheKey}.json`);
   const cached = await readJsonFile(cachePath).catch(() => null);
   if (cached) {
@@ -1295,13 +1839,21 @@ async function analyzeStructureFile(filePath: string): Promise<StructureAnalysis
 
 function parsePdbStructure(filePath: string, content: string): StructureAnalysis {
   const residueAccumulator = new Map<string, { chain: string; residue: string; residueNumber: number | null; residueName: string; scores: number[] }>();
+  const nonPolymerResidueNames = new Set<string>();
   for (const line of content.split(/\r?\n/)) {
-    if (!/^ATOM|^HETATM/.test(line)) {
+    if (line.startsWith("HETATM")) {
+      const residueName = line.slice(17, 20).trim().toUpperCase();
+      if (residueName) nonPolymerResidueNames.add(residueName);
       continue;
     }
-    const chain = line.slice(21, 22).trim() || "?";
-    const residue = line.slice(22, 26).trim();
-    const residueNumber = Number.parseInt(residue, 10);
+    if (!line.startsWith("ATOM  ")) {
+      continue;
+    }
+    const chain = line.slice(21, 22).trim();
+    const sequenceNumber = line.slice(22, 26).trim();
+    const insertionCode = normalizeStructureToken(line.slice(26, 27));
+    const residue = `${sequenceNumber}${insertionCode ?? ""}`;
+    const residueNumber = Number.parseInt(sequenceNumber, 10);
     const residueName = line.slice(17, 20).trim() || "UNK";
     const bFactor = Number.parseFloat(line.slice(60, 66).trim());
     const key = `${chain}:${residue}`;
@@ -1330,29 +1882,35 @@ function parsePdbStructure(filePath: string, content: string): StructureAnalysis
   }));
 
   return {
+    parserVersion: 3,
     path: filePath,
     format: "pdb",
     chains: uniqueStrings(residues.map((residue) => residue.chain)),
     residues,
+    nonPolymerResidueNames: [...nonPolymerResidueNames].sort(),
     lowConfidenceRanges: detectLowConfidenceRanges(residues),
   };
 }
 
 function parseCifStructure(filePath: string, content: string): StructureAnalysis {
   const residueAccumulator = new Map<string, { chain: string; residue: string; residueNumber: number | null; residueName: string; scores: number[] }>();
-  for (const line of content.split(/\r?\n/)) {
-    if (!/^ATOM|^HETATM/.test(line)) {
+  const nonPolymerResidueNames = new Set<string>();
+  for (const row of parseCifAtomSiteRows(content)) {
+    const group = (getCifValue(row, ["_atom_site.group_pdb"]) ?? "").toUpperCase();
+    const residueName = (getCifValue(row, ["_atom_site.auth_comp_id", "_atom_site.label_comp_id"]) ?? "UNK").toUpperCase();
+    if (group === "HETATM") {
+      nonPolymerResidueNames.add(residueName);
       continue;
     }
-    const tokens = line.trim().split(/\s+/);
-    if (tokens.length < 15) {
+    if (group !== "ATOM") {
       continue;
     }
-    const residueName = tokens[5] || tokens[17] || "UNK";
-    const chain = tokens[6] || tokens[18] || "?";
-    const residue = tokens[8] || tokens[16] || "?";
-    const residueNumber = Number.parseInt(residue, 10);
-    const bFactor = Number.parseFloat(tokens[14] ?? "");
+    const chain = getCifValue(row, ["_atom_site.auth_asym_id", "_atom_site.label_asym_id"]) ?? "";
+    const sequenceNumber = getCifValue(row, ["_atom_site.auth_seq_id", "_atom_site.label_seq_id"]) ?? "?";
+    const insertionCode = getCifValue(row, ["_atom_site.pdbx_pdb_ins_code"]);
+    const residue = `${sequenceNumber}${insertionCode ?? ""}`;
+    const residueNumber = Number.parseInt(sequenceNumber, 10);
+    const bFactor = Number.parseFloat(getCifValue(row, ["_atom_site.b_iso_or_equiv"]) ?? "");
     const key = `${chain}:${residue}`;
     const current = residueAccumulator.get(key) ?? {
       chain,
@@ -1377,12 +1935,106 @@ function parseCifStructure(filePath: string, content: string): StructureAnalysis
       : undefined,
   }));
   return {
+    parserVersion: 3,
     path: filePath,
     format: "cif",
     chains: uniqueStrings(residues.map((residue) => residue.chain)),
     residues,
+    nonPolymerResidueNames: [...nonPolymerResidueNames].sort(),
     lowConfidenceRanges: detectLowConfidenceRanges(residues),
   };
+}
+
+function parseCifAtomSiteRows(content: string): Array<Record<string, string>> {
+  const lines = content.split(/\r?\n/);
+  const rows: Array<Record<string, string>> = [];
+
+  for (let lineIndex = 0; lineIndex < lines.length; lineIndex += 1) {
+    if (lines[lineIndex].trim().toLowerCase() !== "loop_") {
+      continue;
+    }
+
+    const headers: string[] = [];
+    let cursor = lineIndex + 1;
+    while (cursor < lines.length && lines[cursor].trim().startsWith("_")) {
+      headers.push(lines[cursor].trim().split(/\s+/, 1)[0].toLowerCase());
+      cursor += 1;
+    }
+    if (!headers.some((header) => header.startsWith("_atom_site."))) {
+      lineIndex = cursor - 1;
+      continue;
+    }
+
+    const bufferedTokens: string[] = [];
+    for (; cursor < lines.length; cursor += 1) {
+      const trimmed = lines[cursor].trim();
+      const lower = trimmed.toLowerCase();
+      if (!trimmed || trimmed === "#") {
+        if (trimmed === "#") {
+          break;
+        }
+        continue;
+      }
+      if (lower === "loop_" || lower === "stop_" || lower.startsWith("data_") || lower.startsWith("save_") || trimmed.startsWith("_")) {
+        break;
+      }
+
+      bufferedTokens.push(...tokenizeCifDataLine(lines[cursor]));
+      while (bufferedTokens.length >= headers.length) {
+        const values = bufferedTokens.splice(0, headers.length);
+        rows.push(Object.fromEntries(headers.map((header, index) => [header, values[index] ?? "?"])));
+      }
+    }
+    if (bufferedTokens.length) {
+      throw new Error("mmCIF atom_site loop ended with an incomplete row.");
+    }
+    lineIndex = cursor - 1;
+  }
+
+  return rows;
+}
+
+function tokenizeCifDataLine(line: string): string[] {
+  const tokens: string[] = [];
+  let index = 0;
+  while (index < line.length) {
+    while (index < line.length && /\s/.test(line[index])) index += 1;
+    if (index >= line.length || line[index] === "#") break;
+
+    const quote = line[index] === "'" || line[index] === '"' ? line[index] : null;
+    if (quote) {
+      index += 1;
+      const start = index;
+      while (index < line.length && line[index] !== quote) index += 1;
+      if (index >= line.length) {
+        throw new Error("mmCIF atom_site row contains an unterminated quoted value.");
+      }
+      tokens.push(line.slice(start, index));
+      index += 1;
+      continue;
+    }
+
+    const start = index;
+    while (index < line.length && !/\s/.test(line[index]) && line[index] !== "#") index += 1;
+    tokens.push(line.slice(start, index));
+    if (line[index] === "#") break;
+  }
+  return tokens;
+}
+
+function getCifValue(row: Record<string, string>, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = normalizeStructureToken(row[key]);
+    if (value !== undefined) {
+      return value;
+    }
+  }
+  return undefined;
+}
+
+function normalizeStructureToken(value: string | undefined): string | undefined {
+  const normalized = value?.trim();
+  return !normalized || normalized === "." || normalized === "?" ? undefined : normalized;
 }
 
 async function analyzePaeFile(
@@ -1392,31 +2044,56 @@ async function analyzePaeFile(
 ): Promise<PAEAnalysis | undefined> {
   const payload = await readJsonFile(filePath);
   const record = Array.isArray(payload) ? payload[0] : payload;
-  const matrix = Array.isArray(record?.predicted_aligned_error)
-    ? record.predicted_aligned_error as number[][]
-    : null;
-  if (!matrix?.length) {
-    return undefined;
+  const matrix = record && typeof record === "object"
+    ? (record as Record<string, unknown>).predicted_aligned_error ?? (record as Record<string, unknown>).pae
+    : undefined;
+  if (!structureAnalysis?.residues.length) {
+    throw new Error("PAE mapping requires a parsed structure with polymer ATOM residues.");
   }
+  const validatedMatrix = validatePaeMatrix(matrix, structureAnalysis);
 
-  const rowMeans = matrix.map((row) => row.reduce((sum, value) => sum + value, 0) / Math.max(1, row.length));
-  const flatValues = matrix.flat();
+  const rowMeans = validatedMatrix.map((row) => row.reduce((sum, value) => sum + value, 0) / row.length);
+  const flatValues = validatedMatrix.flat();
   const meanPae = flatValues.reduce((sum, value) => sum + value, 0) / Math.max(1, flatValues.length);
   const maxPae = flatValues.reduce((max, value) => Math.max(max, value), 0);
-  const worstWindow = structureAnalysis
-    ? buildWorstPaeWindow(rowMeans, structureAnalysis)
-    : undefined;
-  const uncertainInterface = structureAnalysis
-    ? buildUncertainInterface(matrix, structureAnalysis, interfaceChains)
-    : undefined;
+  const worstWindow = buildWorstPaeWindow(rowMeans, structureAnalysis);
+  const uncertainInterface = buildUncertainInterface(validatedMatrix, structureAnalysis, interfaceChains);
 
   return {
-    residueCount: matrix.length,
+    residueCount: validatedMatrix.length,
     meanPae,
     maxPae,
     worstWindow,
     uncertainInterface,
   };
+}
+
+function validatePaeMatrix(
+  value: unknown,
+  structureAnalysis: StructureAnalysis,
+): number[][] {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error("PAE JSON must contain a non-empty predicted_aligned_error matrix.");
+  }
+  const size = value.length;
+  const matrix = value.map((row, rowIndex) => {
+    if (!Array.isArray(row) || row.length !== size) {
+      throw new Error(`PAE matrix must be square; row ${rowIndex + 1} has ${Array.isArray(row) ? row.length : 0} values for a ${size}-row matrix.`);
+    }
+    return row.map((entry, columnIndex) => {
+      if (typeof entry !== "number" || !Number.isFinite(entry) || entry < 0) {
+        throw new Error(`PAE matrix entry ${rowIndex + 1},${columnIndex + 1} must be a finite non-negative number.`);
+      }
+      return entry;
+    });
+  });
+
+  if (size !== structureAnalysis.residues.length) {
+    throw new Error(
+      `PAE matrix residue count (${size}) does not match polymer residue count (${structureAnalysis.residues.length}) in the loaded structure.`,
+    );
+  }
+  return matrix;
 }
 
 async function collectRosettaCandidatePaths(bundlePath: string | undefined, candidatePaths: string[] | undefined): Promise<string[]> {
@@ -1527,21 +2204,28 @@ function buildWorstPaeWindow(rowMeans: number[], structureAnalysis: StructureAna
     return undefined;
   }
   const windowSize = Math.min(10, Math.max(4, Math.floor(rowMeans.length / 12)));
-  let bestStart = 0;
+  let bestResidues: StructureResidue[] = [];
   let bestMean = -1;
-  for (let index = 0; index <= rowMeans.length - windowSize; index += 1) {
-    const slice = rowMeans.slice(index, index + windowSize);
-    const mean = slice.reduce((sum, value) => sum + value, 0) / slice.length;
-    if (mean > bestMean) {
-      bestMean = mean;
-      bestStart = index;
+  const residuesByChain = groupBy(structureAnalysis.residues, (residue) => residue.chain);
+  for (const chainResidues of Object.values(residuesByChain)) {
+    const chainWindowSize = Math.min(windowSize, chainResidues.length);
+    for (let index = 0; index <= chainResidues.length - chainWindowSize; index += 1) {
+      const residues = chainResidues.slice(index, index + chainWindowSize);
+      const values = residues.map((residue) => rowMeans[residue.index]).filter((value) => Number.isFinite(value));
+      if (values.length !== residues.length) {
+        continue;
+      }
+      const mean = average(values);
+      if (mean > bestMean) {
+        bestMean = mean;
+        bestResidues = residues;
+      }
     }
   }
-  const residues = structureAnalysis.residues.slice(bestStart, bestStart + windowSize);
-  if (!residues.length) {
+  if (!bestResidues.length) {
     return undefined;
   }
-  return residuesToWindow(residues[0].chain, residues, "Worst PAE window", bestMean);
+  return residuesToWindow(bestResidues[0].chain, bestResidues, "Worst PAE window", bestMean);
 }
 
 function buildUncertainInterface(
@@ -1562,12 +2246,12 @@ function buildUncertainInterface(
 
   const chainAMeans = chainA.map((residue) => ({
     residue,
-    value: average(matrix[residue.index]?.slice(chainB[0].index, chainB[chainB.length - 1].index + 1) ?? []),
+    value: average(chainB.map((partner) => matrix[residue.index]?.[partner.index]).filter((value) => Number.isFinite(value))),
   })).sort((left, right) => right.value - left.value).slice(0, 6);
 
   const chainBMeans = chainB.map((residue) => ({
     residue,
-    value: average(matrix[residue.index]?.slice(chainA[0].index, chainA[chainA.length - 1].index + 1) ?? []),
+    value: average(chainA.map((partner) => matrix[residue.index]?.[partner.index]).filter((value) => Number.isFinite(value))),
   })).sort((left, right) => right.value - left.value).slice(0, 6);
 
   return {
@@ -1692,6 +2376,50 @@ function inferDefaultInterfaceChains(chains: string[]): [string, string] | undef
   return chains.length >= 2 ? [chains[0], chains[1]] : undefined;
 }
 
+function validateOrInferInterfaceChains(
+  requested: [string, string] | undefined,
+  analysis: StructureAnalysis | undefined,
+  label: string,
+): [string, string] | undefined {
+  if (!requested) return inferDefaultInterfaceChains(analysis?.chains ?? []);
+  if (requested[0] === requested[1]) {
+    throw new Error(`${label} interfaceChains must name two distinct polymer chains.`);
+  }
+  if (!analysis) {
+    throw new Error(`${label} could not be parsed, so explicit interfaceChains cannot be validated.`);
+  }
+  const missing = requested.filter((chain) => !analysis.chains.includes(chain));
+  if (missing.length) {
+    throw new Error(`${label} does not contain requested interface chain${missing.length === 1 ? "" : "s"} ${missing.join(", ")}.`);
+  }
+  return requested;
+}
+
+function validateFocusResidues(
+  hints: string[] | undefined,
+  analysis: StructureAnalysis | undefined,
+  label: string,
+): void {
+  if (!hints?.length) return;
+  if (!analysis) {
+    throw new Error(`${label} could not be parsed, so focusResidues cannot be validated.`);
+  }
+  const matched = new Set<string>();
+  const residues = analysis.residues.filter((residue) => hints.some((hint) => {
+    const isMatch = hint === residue.residue || hint === `${residue.chain}:${residue.residue}`;
+    if (isMatch) matched.add(hint);
+    return isMatch;
+  }));
+  const missing = hints.filter((hint) => !matched.has(hint));
+  if (missing.length) {
+    throw new Error(`${label} does not contain requested focus residue${missing.length === 1 ? "" : "s"} ${missing.join(", ")}.`);
+  }
+  const chains = [...new Set(residues.map((residue) => residue.chain))];
+  if (chains.length > 1) {
+    throw new Error(`${label} focusResidues must resolve to one chain per workflow run; split cross-chain focuses into separate runs.`);
+  }
+}
+
 async function readUtf8FileWithinLimit(filePath: string, label: string, maxBytes: number): Promise<string> {
   const stat = await fs.stat(filePath);
   if (stat.size > maxBytes) {
@@ -1745,28 +2473,39 @@ function summarizeCommand(command: string): string {
 }
 
 function compactResidueLabels(values: string[]): string {
-  const numbers = values
-    .map((value) => Number.parseInt(value, 10))
-    .filter((value) => Number.isFinite(value))
-    .sort((left, right) => left - right);
-  if (!numbers.length) {
-    return values.join(",");
-  }
-  const ranges: string[] = [];
-  let start = numbers[0];
-  let previous = numbers[0];
-  for (let index = 1; index < numbers.length; index += 1) {
-    const current = numbers[index];
-    if (current === previous + 1) {
+  const labels = uniqueStrings(values);
+  const compacted: string[] = [];
+  let start: number | undefined;
+  let previous: number | undefined;
+  const flushRange = () => {
+    if (start === undefined || previous === undefined) return;
+    compacted.push(start === previous ? `${start}` : `${start}-${previous}`);
+    start = undefined;
+    previous = undefined;
+  };
+
+  for (const label of labels) {
+    if (!/^[+-]?\d+$/.test(label)) {
+      flushRange();
+      compacted.push(label);
+      continue;
+    }
+    const current = Number(label);
+    if (start === undefined) {
+      start = current;
       previous = current;
       continue;
     }
-    ranges.push(start === previous ? `${start}` : `${start}-${previous}`);
+    if (current === (previous as number) + 1) {
+      previous = current;
+      continue;
+    }
+    flushRange();
     start = current;
     previous = current;
   }
-  ranges.push(start === previous ? `${start}` : `${start}-${previous}`);
-  return ranges.join(",");
+  flushRange();
+  return compacted.join(",");
 }
 
 function roundMetric(value: number): number {
@@ -1777,10 +2516,14 @@ function isAlphaFoldWorkflow(workflow: ScientificWorkflowKind): workflow is type
   return workflow.startsWith("alphafold_");
 }
 
-function isAlphaFoldResolvedInputs(value: AlphaFoldResolvedInputs | RosettaResolvedInputs): value is AlphaFoldResolvedInputs {
-  return "modelPath" in value;
+function isAlphaFoldResolvedInputs(value: ScientificResolvedInputs): value is AlphaFoldResolvedInputs {
+  return !("candidatePaths" in value) && !("mutations" in value);
 }
 
-function isRosettaResolvedInputs(value: AlphaFoldResolvedInputs | RosettaResolvedInputs): value is RosettaResolvedInputs {
+function isRosettaResolvedInputs(value: ScientificResolvedInputs): value is RosettaResolvedInputs {
   return "candidatePaths" in value;
+}
+
+function isVariantResolvedInputs(value: ScientificResolvedInputs): value is VariantResolvedInputs {
+  return "mutations" in value;
 }

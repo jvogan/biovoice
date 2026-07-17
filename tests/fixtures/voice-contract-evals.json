@@ -1,0 +1,522 @@
+{
+  "version": 1,
+  "description": "Synthetic structural-biology voice requests for checking intent, target, workflow, risk, and entity extraction.",
+  "cases": [
+    {
+      "id": "state_pymol_whole_complex",
+      "condition": "clean",
+      "utterance": "What structures and named views are currently open in PyMOL?",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "get_state",
+        "risk": "read_only",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "state_chimerax_map",
+      "condition": "clean",
+      "utterance": "In ChimeraX, tell me whether the density map is loaded and visible.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "get_state",
+        "risk": "read_only",
+        "entityHints": { "references": ["map"] }
+      }
+    },
+    {
+      "id": "capture_pymol_ligand",
+      "condition": "clean",
+      "utterance": "Capture the current PyMOL ligand view so I can check whether the labels are crowded.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "capture_view",
+        "risk": "read_only",
+        "entityHints": { "references": ["ligandContext"] }
+      }
+    },
+    {
+      "id": "capture_chimerax_interface",
+      "condition": "background_speech",
+      "utterance": "Take a ChimeraX viewport capture of the interface between partner A and partner B.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "capture_view",
+        "risk": "read_only",
+        "entityHints": { "references": ["partnerA", "partnerB"] }
+      }
+    },
+    {
+      "id": "undo_pymol_last_turn",
+      "condition": "clean",
+      "utterance": "Undo that last change in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "undo",
+        "risk": "reversible",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "undo_chimerax_last_turn",
+      "condition": "correction",
+      "utterance": "Keep that view—actually, undo the last ChimeraX change.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "undo",
+        "risk": "reversible",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "camera_zoom_prediction",
+      "condition": "clean",
+      "utterance": "In PyMOL, zoom to the predicted model but leave the experiment visible.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "camera",
+        "risk": "reversible",
+        "entityHints": { "references": ["predictedModel", "experimentalModel"] }
+      }
+    },
+    {
+      "id": "camera_rotate_complex",
+      "condition": "clean",
+      "utterance": "Rotate the ChimeraX camera around the whole complex by thirty degrees.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "camera",
+        "risk": "reversible",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "style_prediction_confidence",
+      "condition": "clean",
+      "utterance": "Color the PyMOL prediction by confidence and keep the experimental model gray.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "style",
+        "risk": "reversible",
+        "entityHints": { "references": ["predictedModel", "experimentalModel"] }
+      }
+    },
+    {
+      "id": "style_experiment_ribbon",
+      "condition": "background_speech",
+      "utterance": "Show the experimental model as a quiet ribbon in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "style",
+        "risk": "reversible",
+        "entityHints": { "references": ["experimentalModel"] }
+      }
+    },
+    {
+      "id": "show_ligand_sticks",
+      "condition": "clean",
+      "utterance": "Show ligand ATP as sticks in PyMOL and hide the surrounding solvent.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "visibility",
+        "risk": "reversible",
+        "entityHints": { "ligands": ["ATP"], "references": ["ligandContext"] }
+      }
+    },
+    {
+      "id": "measure_residue_distance",
+      "condition": "identifier_spelling",
+      "utterance": "Measure the PyMOL distance from chain A residue 42 to chain B residue 117.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "measure",
+        "risk": "reversible",
+        "entityHints": { "chains": ["A", "B"], "residues": ["A:42", "B:117"] }
+      }
+    },
+    {
+      "id": "measure_interface_contacts",
+      "condition": "clean",
+      "utterance": "Report contacts between partner A and partner B in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "measure",
+        "risk": "reversible",
+        "entityHints": { "references": ["partnerA", "partnerB"] }
+      }
+    },
+    {
+      "id": "clear_labels_pymol",
+      "condition": "clean",
+      "utterance": "Clear the residue labels in PyMOL but keep the measurements.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "style",
+        "risk": "reversible",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "confirm_reset_workspace",
+      "condition": "clean",
+      "utterance": "Reset the entire ChimeraX workspace.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "reset",
+        "risk": "confirmation_required",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "confirm_close_prediction",
+      "condition": "clean",
+      "utterance": "Close the predicted model in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "close_model",
+        "risk": "confirmation_required",
+        "entityHints": { "references": ["predictedModel"] }
+      }
+    },
+    {
+      "id": "confirm_overwrite_export",
+      "condition": "clean",
+      "utterance": "Overwrite the existing ChimeraX publication image with this view.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "export",
+        "risk": "confirmation_required",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "confirm_translate_binder",
+      "condition": "clean",
+      "utterance": "Move only the binder coordinates twenty angstroms to the right in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "transform",
+        "risk": "confirmation_required",
+        "entityHints": { "references": ["binderModel"] }
+      }
+    },
+    {
+      "id": "confirm_rotate_partner",
+      "condition": "clean",
+      "utterance": "Rotate partner B away from partner A in ChimeraX without moving the camera.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "transform",
+        "risk": "confirmation_required",
+        "entityHints": { "references": ["partnerA", "partnerB"] }
+      }
+    },
+    {
+      "id": "confirm_expert_command",
+      "condition": "clean",
+      "utterance": "Use an expert PyMOL command to change the loaded structure.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "raw_command",
+        "risk": "confirmation_required",
+        "entityHints": { "references": ["wholeComplex"] }
+      }
+    },
+    {
+      "id": "clarify_ambiguous_chain",
+      "condition": "ambiguous",
+      "utterance": "Hide chain A in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "clarify_entity",
+        "risk": "confirmation_required",
+        "entityHints": { "chains": ["A"] }
+      }
+    },
+    {
+      "id": "correction_chain_b_to_c",
+      "condition": "correction",
+      "utterance": "Show the interface around chain B—sorry, chain C—in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "visibility",
+        "risk": "reversible",
+        "entityHints": { "chains": ["C"] }
+      }
+    },
+    {
+      "id": "correction_residue_152_to_153",
+      "condition": "correction",
+      "utterance": "Zoom to residue 152, correction, residue 153 on chain A in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": null,
+        "intent": "camera",
+        "risk": "reversible",
+        "entityHints": { "chains": ["A"], "residues": ["A:153"] }
+      }
+    },
+    {
+      "id": "background_ligand_style",
+      "condition": "background_speech",
+      "utterance": "In PyMOL, keep ligand HEM bright and make the surrounding protein transparent.",
+      "expected": {
+        "target": "pymol",
+        "workflow": null,
+        "intent": "style",
+        "risk": "reversible",
+        "entityHints": { "ligands": ["HEM"], "references": ["ligandContext"] }
+      }
+    },
+    {
+      "id": "af_confidence_p69905_pymol",
+      "condition": "identifier_spelling",
+      "utterance": "Open UniProt P69905 in PyMOL and run an AlphaFold confidence review.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "alphafold_confidence_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P69905"], "references": ["predictedModel"] }
+      }
+    },
+    {
+      "id": "af_confidence_q9y2t1_chimerax",
+      "condition": "background_speech",
+      "utterance": "In ChimeraX, review AlphaFold confidence for UniProt Q9Y2T1 and find the weakest region.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "alphafold_confidence_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["Q9Y2T1"], "references": ["lowConfidenceRegion"] }
+      }
+    },
+    {
+      "id": "af_overlay_4hhb_pymol",
+      "condition": "identifier_spelling",
+      "utterance": "Compare AlphaFold UniProt P69905 with experimental PDB 4HHB in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "alphafold_vs_experiment_overlay",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P69905"], "pdbIds": ["4HHB"], "references": ["predictedModel", "experimentalModel"] }
+      }
+    },
+    {
+      "id": "af_overlay_1ubq_chimerax",
+      "condition": "clean",
+      "utterance": "Overlay UniProt P0CG47 with PDB 1UBQ in ChimeraX and focus on disagreement.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "alphafold_vs_experiment_overlay",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P0CG47"], "pdbIds": ["1UBQ"], "references": ["experimentalOverlayRegion"] }
+      }
+    },
+    {
+      "id": "af_multimer_interface_ab",
+      "condition": "clean",
+      "utterance": "Review the AlphaFold multimer interface between chains A and B for UniProt P0DTC2 in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "alphafold_multimer_interface_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P0DTC2"], "chains": ["A", "B"], "references": ["partnerA", "partnerB"] }
+      }
+    },
+    {
+      "id": "af_pae_p38398_pymol",
+      "condition": "identifier_spelling",
+      "utterance": "Use AlphaFold PAE to triage UniProt P38398 in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "alphafold_pae_guided_triage",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P38398"], "references": ["uncertainInterface"] }
+      }
+    },
+    {
+      "id": "af_pae_p69905_chimerax",
+      "condition": "background_speech",
+      "utterance": "In ChimeraX, run PAE-guided triage on AlphaFold UniProt P69905.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "alphafold_pae_guided_triage",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P69905"], "references": ["lowConfidenceRegion"] }
+      }
+    },
+    {
+      "id": "af_cryo_emd11638_chimerax",
+      "condition": "identifier_spelling",
+      "utterance": "Stage AlphaFold UniProt P0DTC2 against EMDB EMD-11638 in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "alphafold_to_cryo_handoff",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P0DTC2"], "emdbIds": ["EMD-11638"], "references": ["predictedModel", "map"] }
+      }
+    },
+    {
+      "id": "af_cryo_emd11638_pymol",
+      "condition": "correction",
+      "utterance": "Open EMD-11638 with UniProt P0DTC2 in ChimeraX—correction, use PyMOL—and prepare the cryo handoff.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "alphafold_to_cryo_handoff",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P0DTC2"], "emdbIds": ["EMD-11638"], "references": ["cryoFitRegion"] }
+      }
+    },
+    {
+      "id": "variant_h58y_p69905_pymol",
+      "condition": "identifier_spelling",
+      "utterance": "In PyMOL, inspect variant H58Y on chain A for UniProt P69905 and show its local environment.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "variant_environment_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "uniprotIds": ["P69905"], "chains": ["A"], "residues": ["A:58"], "references": ["variantSites", "variantNeighborhood"] }
+      }
+    },
+    {
+      "id": "variant_ligand_context_chimerax",
+      "condition": "correction",
+      "utterance": "Review residue 91 on chain B—correction, chain C—in ChimeraX and keep ligand HEM visible nearby.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "variant_environment_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "chains": ["C"], "residues": ["C:91"], "ligands": ["HEM"], "references": ["variantNeighborhood", "ligandContext"] }
+      }
+    },
+    {
+      "id": "rosetta_scaffold_pymol",
+      "condition": "clean",
+      "utterance": "In PyMOL, compare the loaded Rosetta design with its starting scaffold and highlight the changed shell.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "rosetta_scaffold_design_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "references": ["scaffoldModel", "designModel", "changedShell"] }
+      }
+    },
+    {
+      "id": "rosetta_scaffold_chimerax_correction",
+      "condition": "correction",
+      "utterance": "Review the top Rosetta ranks—actually, compare the loaded scaffold and design in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "rosetta_scaffold_design_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "references": ["scaffoldModel", "designModel"] }
+      }
+    },
+    {
+      "id": "rosetta_interface_ab_chimerax",
+      "condition": "clean",
+      "utterance": "Run a Rosetta interface packing review for chains A and B in ChimeraX.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "rosetta_interface_packing_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "chains": ["A", "B"], "references": ["binderModel", "receptorModel"] }
+      }
+    },
+    {
+      "id": "rosetta_interface_binder_pymol",
+      "condition": "background_speech",
+      "utterance": "In PyMOL, inspect the Rosetta binder against the receptor and report interface contacts.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "rosetta_interface_packing_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "references": ["binderModel", "receptorModel"] }
+      }
+    },
+    {
+      "id": "rosetta_ligand_lig_pymol",
+      "condition": "clean",
+      "utterance": "Review the loaded Rosetta ligand redesign around LIG in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "rosetta_ligand_redesign_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "ligands": ["LIG"], "references": ["ligandContext", "changedShell"] }
+      }
+    },
+    {
+      "id": "rosetta_ligand_nad_chimerax",
+      "condition": "identifier_spelling",
+      "utterance": "In ChimeraX, compare the Rosetta redesign around ligand NAD with the scaffold.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "rosetta_ligand_redesign_review",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "ligands": ["NAD"], "references": ["scaffoldModel", "designModel"] }
+      }
+    },
+    {
+      "id": "rosetta_top_three_pymol",
+      "condition": "clean",
+      "utterance": "Rank the loaded Rosetta scorefile and compare the top three designs in PyMOL.",
+      "expected": {
+        "target": "pymol",
+        "workflow": "rosetta_top_design_compare",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "references": ["scaffoldModel", "designPanel"] }
+      }
+    },
+    {
+      "id": "rosetta_top_two_chimerax",
+      "condition": "background_speech",
+      "utterance": "Use ChimeraX to show the top two Rosetta designs from the loaded scorefile.",
+      "expected": {
+        "target": "chimerax",
+        "workflow": "rosetta_top_design_compare",
+        "intent": "run_workflow",
+        "risk": "reversible",
+        "entityHints": { "references": ["topDesign", "designPanel"] }
+      }
+    }
+  ]
+}

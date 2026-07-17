@@ -35,6 +35,7 @@ This launches PyMOL, starts the local BioVoice backend, and opens the compact fl
 
 - PyMOL opens to a clean presentation baseline
 - The floating widget loads with PyMOL selected
+- Use **Audio In** to choose AirPods, a headset mic, or a virtual input. To feed Mac system audio into Realtime, route that audio through a virtual input such as BlackHole or Loopback and select it there.
 - After you click **Connect Voice Session**, the `Data`, `Controller`, and `Event Stream` indicators turn green
 - Use `Open Full Console` if you want to stage a guided recipe before freestyle voice
 
@@ -65,7 +66,7 @@ That is the best fallback if you want to validate the exact same ligand-pocket s
 - **No microphone prompt appears**: check microphone permissions and reload the widget or console
 - **`Data`, `Controller`, or `Event Stream` never turns green**: disconnect, reconnect, and confirm your API key is present in local `.env`
 - **Ambient room noise triggers turns**: stay in push-to-talk and do not switch to always-on yet
-- **PyMOL looks stale or cluttered**: use `Reset Target` before reconnecting voice
+- **PyMOL looks stale or cluttered**: disconnect, then rerun `npm run quickstart:pymol -- --clean-target`
 - **You want a safer first run**: go back to [Getting Started](./getting-started.md) and use the offline path first
 
 ## Where To Go Next

@@ -75,8 +75,8 @@ Checkpoints:
 - alpha-exploded is stored as a named view.
 
 Direct command equivalents:
-- `move x 18 atoms sel`
-- `turn y 24 center sel atoms sel`
+- `move x 18 models #2`
+- `turn y 24 center #2 models #2`
 - `view #1/A | #2 | #1 & ligand orient`
 - `turn y 10`
 - `turn x 5`

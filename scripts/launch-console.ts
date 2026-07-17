@@ -4,7 +4,9 @@ import { fileURLToPath } from "node:url";
 import { promisify } from "node:util";
 import {
   buildScientificWorkflowUrl,
+  formatVariantMutationArgument,
   getScientificWorkflowSpec,
+  parseVariantMutationArgument,
   resolvePublicBaseUrlOrigin,
   resolveScientificWorkflowRecipeId,
   scientificWorkflowKinds,
@@ -26,7 +28,7 @@ async function main() {
   const [targetArg, ...rest] = process.argv.slice(2);
   const target = normalizeTarget(targetArg);
   if (!target) {
-    throw new Error("Usage: tsx scripts/launch-console.ts <pymol|chimera|chimerax> [recipeId|workflowId] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n N] [--audience] [--open-mic] [--browser] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
+    throw new Error("Usage: tsx scripts/launch-console.ts <pymol|chimera|chimerax> [recipeId|workflowId] [--workflow workflowId] [--uniprot id] [--experimental-pdb-id id] [--emdb-id id] [--structure-format pdb|cif] [--pdb-format pdb|cif] [--model path] [--experimental path] [--pae path] [--map path] [--bundle path] [--scorefile path] [--top-n N] [--mutation A:H58Y] [--comparison path] [--ligand HEM] [--neighborhood-angstroms 5] [--audience] [--open-mic] [--browser] [--offline] [--skip-build] [--skip-preflight] [--reuse-dev] [--clean-target]");
   }
   const launchId = rest[0] && !rest[0].startsWith("--") ? rest[0] : undefined;
   const flags = launchId ? rest.slice(1) : rest;
@@ -168,6 +170,8 @@ function parseLaunchFlags(flags: string[]): {
   const workflowId = readFlagValue(flags, "--workflow");
   const recipeId = readFlagValue(flags, "--recipe");
   const topNRaw = readFlagValue(flags, "--top-n");
+  const neighborhoodRaw = readFlagValue(flags, "--neighborhood-angstroms");
+  const mutationValues = readFlagValues(flags, "--mutation");
   const scientificInputs: ScientificLaunchInputs = {
     uniprot: readFlagValue(flags, "--uniprot"),
     experimentalPdbId: readFlagValue(flags, "--experimental-pdb-id"),
@@ -181,6 +185,10 @@ function parseLaunchFlags(flags: string[]): {
     bundle: readFlagValue(flags, "--bundle"),
     scorefile: readFlagValue(flags, "--scorefile"),
     topN: topNRaw ? Number(topNRaw) : undefined,
+    mutations: mutationValues.length ? mutationValues.map(parseVariantMutationArgument) : undefined,
+    comparison: readFlagValue(flags, "--comparison"),
+    ligand: readFlagValue(flags, "--ligand"),
+    neighborhoodAngstroms: neighborhoodRaw ? Number(neighborhoodRaw) : undefined,
   };
 
   return {
@@ -216,6 +224,12 @@ function appendScientificFlags(args: string[], inputs: ScientificLaunchInputs): 
   if (typeof inputs.topN === "number" && Number.isFinite(inputs.topN)) {
     args.push("--top-n", String(Math.max(1, Math.round(inputs.topN))));
   }
+  for (const mutation of inputs.mutations ?? []) args.push("--mutation", formatVariantMutationArgument(mutation));
+  if (inputs.comparison) args.push("--comparison", inputs.comparison);
+  if (inputs.ligand) args.push("--ligand", inputs.ligand);
+  if (typeof inputs.neighborhoodAngstroms === "number" && Number.isFinite(inputs.neighborhoodAngstroms)) {
+    args.push("--neighborhood-angstroms", String(inputs.neighborhoodAngstroms));
+  }
 }
 
 function isScientificWorkflowId(value: string): value is ScientificWorkflowKind {
@@ -228,6 +242,14 @@ function readFlagValue(flags: string[], name: string): string | undefined {
     return undefined;
   }
   return flags[index + 1];
+}
+
+function readFlagValues(flags: string[], name: string): string[] {
+  const values: string[] = [];
+  for (let index = 0; index < flags.length; index += 1) {
+    if (flags[index] === name && flags[index + 1]) values.push(flags[index + 1]);
+  }
+  return values;
 }
 
 void main();

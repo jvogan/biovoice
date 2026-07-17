@@ -8,8 +8,8 @@ Everything here is real and lives in the repo. File paths are linkable. The tool
 
 BioVoice is a working reference for the full loop of Realtime API tool calling against non-trivial external software:
 
-- **9 total Realtime function tools** across the catalog; each live session exposes the active target action tool plus shared tools
-- **9 task-level AlphaFold and Rosetta workflows** exposed behind a single domain tool
+- **11 Realtime function tools** across the catalog; each live session exposes 10 because only its active target action tool is included
+- **10 task-level AlphaFold, Rosetta, and variant workflows** exposed behind a single domain tool
 - **Rich JSON Schema selectors** — chain IDs, residue ranges, ligand handles, proximity queries, semantic references
 - **Two adapter layers** for PyMOL (XML-RPC) and ChimeraX (REST) driven by the same typed action schema
 - **State grounding** — the model can fetch the current scene before deciding what to do next
@@ -31,7 +31,7 @@ flowchart LR
 
 The browser owns the WebRTC session to OpenAI Realtime. The model emits tool calls in the session; the browser relays them to the local backend over HTTP / SSE; the backend validates, executes, and returns a structured result; the browser plays the result back into the live session as a tool response. The model then picks the next action. Nothing in PyMOL or ChimeraX is driven by free text from the model — every action goes through a validated schema.
 
-## The Nine Registered Tools
+## The Registered Tools
 
 The registrar is [`buildRealtimeTools()`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts). It returns a filtered list based on the active target, so the model never sees a PyMOL tool when ChimeraX is active, never sees a ChimeraX tool when PyMOL is active, and never sees the raw-command action when expert mode is off.
 
@@ -41,25 +41,28 @@ The registrar is [`buildRealtimeTools()`](../packages/runtime-and-adapters/src/r
 | `run_chimerax_actions` | Same shape for ChimeraX (open, visibility, style, contacts, matchmaker, volume, view, graphics, ...) |
 | `get_target_state` | Fetch the current target's objects, active selections, and semantic reference hints before deciding on an action |
 | `resolve_structure_asset` | Resolve/search/cache AlphaFold DB, RCSB, EMDB, and UniProt assets through allowlisted database APIs; optionally load the resolved local file into the active target |
-| `run_scientific_workflow` | Run a domain-level AlphaFold or Rosetta workflow that compiles down to target-specific actions |
+| `run_scientific_workflow` | Run a domain-level AlphaFold, Rosetta, or variant workflow that compiles down to target-specific actions |
 | `run_recipe_step` | Execute a named step from the built-in demo library (storyboard-style workflows) |
 | `export_artifact` | Save a presentation-ready PNG or session file |
-| `capture_view` | Capture the current viewport as a PNG for the model to self-inspect framing, labels, clipping, and exportability |
+| `undo_last_action` | Restore the target's single most recent local scene checkpoint |
+| `capture_view` | Capture the current viewport locally; attach it to the model only after explicit consent and server opt-in |
 | `wait_for_user` | End a silence, background-noise, or side-conversation turn quietly without a spoken reply |
+| `set_response_language_mode` | Switch the user-facing response-language mode without changing tool JSON or scientific identifiers |
 
-Each tool's full JSON Schema is defined in [`tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts). Here is the scientific-workflow tool — the one that turns AlphaFold and Rosetta vocabulary into structured arguments the model can reliably fill in:
+Each tool's full JSON Schema is defined in [`tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts). Here is the scientific-workflow tool — the one that turns AlphaFold, Rosetta, and residue-variant vocabulary into structured arguments the model can reliably fill in:
 
 ```ts
 {
   type: "function",
   name: "run_scientific_workflow",
   description:
-    "Run a domain-level AlphaFold or Rosetta workflow and compile it into " +
+    "Run a domain-level AlphaFold, Rosetta, or residue-variant workflow and compile it into " +
     "the existing PyMOL or ChimeraX action wrappers. Prefer this for task-level " +
     "requests such as AlphaFold confidence review, prediction-vs-experiment " +
     "overlay, multimer interface triage, PAE-guided uncertainty review, cryo " +
     "handoff, Rosetta scaffold-versus-design review, scorefile-ranked " +
-    "top-design compare, interface packing review, or ligand redesign review.",
+    "top-design compare, interface packing review, ligand redesign review, " +
+    "or variant environment review.",
   parameters: {
     type: "object",
     properties: {
@@ -76,9 +79,10 @@ Each tool's full JSON Schema is defined in [`tool-definitions.ts`](../packages/r
           "rosetta_interface_packing_review",
           "rosetta_ligand_redesign_review",
           "rosetta_top_design_compare",
+          "variant_environment_review",
         ],
       },
-      inputs: { oneOf: [alphaFoldInputsSchema, rosettaInputsSchema] },
+      inputs: { oneOf: [alphaFoldInputsSchema, rosettaInputsSchema, variantInputsSchema] },
       presentationMode: { type: "string", enum: ["analysis", "demo", "publication"] },
       export: scientificWorkflowExportSchema,
       dryRun: { type: "boolean" },
@@ -204,11 +208,14 @@ Because the Realtime API keeps an open mic, cost and blast-radius control matter
 - **Hosted prompt hook**: `REALTIME_PROMPT_ID`, `REALTIME_PROMPT_VERSION`, and `REALTIME_PROMPT_VARIABLES_JSON` can attach an OpenAI-hosted Realtime prompt while BioVoice still sends local target tools, instructions, and guardrails as direct session fields.
 - **Safety identifier propagation**: `OPENAI_SAFETY_IDENTIFIER` is forwarded as an OpenAI safety identifier during Realtime setup. Use a hashed or synthetic stable identifier, never a raw name, email, API key, or private subject identifier.
 - **Raw-command gate**: `raw_command` actions are filtered out of the tool schema unless `ENABLE_EXPERT_RAW_COMMANDS=true` and the client connected in advanced mode. The model literally cannot call raw commands in a default session.
+- **Local-first capture gate**: `capture_view` writes locally by default. Conversation attachment also requires `ALLOW_CAPTURE_UPLOADS=true` and a fresh, short-lived, single-use consent grant created by an authenticated user action in the same live session. Setting `attachToConversation` cannot grant consent.
+- **One-level undo**: mutating action bundles capture a local PyMOL or ChimeraX session checkpoint before execution. Complete recipes and scientific workflows keep one checkpoint from before the whole run, so one undo restores the scene that existed before any internal step or phase.
+- **Run receipts**: completed actions, workflows, exports, and captures produce local receipts with evidence level, artifacts, warnings, and checkpoint availability.
 - **Ordered visual actions**: parallel tool calls are disabled for Realtime 2 sessions so molecular scene edits stay serialized through the local backend.
 - **Rate-limit visibility**: sideband `rate_limits.updated` events are summarized into the operator event stream so live demos can see remaining request/token budget without enabling raw Realtime event spam.
 - **Long-session context pruning**: `REALTIME_CONTEXT_PRUNING=true` tracks Realtime conversation item IDs and sends `conversation.item.delete` for old user, assistant, and tool-result items after `REALTIME_CONTEXT_MAX_ITEMS`, retaining the most recent `REALTIME_CONTEXT_RETAIN_ITEMS`.
 - **Idle disconnect** and a **session duration cap** prevent forgotten open mics.
-- **Response, transcription, and billable-token caps** emit warnings and then end the session before it runs away.
+- **Response, transcription, and billable-token caps** emit warnings and then invoke the Realtime call hangup endpoint before the session can run away.
 - **Concurrent-session cap** prevents reconnect churn from stacking.
 - **Per-tool validation with Zod** before the action ever reaches an adapter — the model cannot send anything the schema doesn't allow.
 

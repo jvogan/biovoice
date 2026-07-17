@@ -25,6 +25,7 @@ import { computeIdleGuardState } from "../lib/session-guard";
 
 type TargetKind = "pymol" | "chimerax";
 type VoiceMode = "push_to_talk" | "open_mic";
+type AudioInputSourceKind = "default" | "microphone" | "system";
 
 type ConnectionPhase =
   | "idle"
@@ -85,6 +86,8 @@ interface HookOptions {
   recipeId?: string;
   instructionContext?: string;
   muted: boolean;
+  audioInputDeviceId?: string | null;
+  audioInputSource?: AudioInputSourceKind;
   openMicArmed: boolean;
   captureRawEvents?: boolean;
   idleDisconnectSeconds: number;
@@ -547,11 +550,7 @@ export function useRealtimeConnection(options: HookOptions) {
     let createdSessionAccessToken: string | null = null;
     try {
       const localStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          channelCount: 1,
-        },
+        audio: buildAudioInputConstraints(options.audioInputDeviceId, options.audioInputSource),
       });
       localStreamRef.current = localStream;
 
@@ -883,4 +882,23 @@ export function useRealtimeConnection(options: HookOptions) {
     resumeSession,
     refreshIdleGuard,
   };
+}
+
+function buildAudioInputConstraints(
+  deviceId: string | null | undefined,
+  source: AudioInputSourceKind | undefined,
+): MediaTrackConstraints {
+  const rawSystemAudio = source === "system";
+  const constraints: MediaTrackConstraints = {
+    echoCancellation: !rawSystemAudio,
+    noiseSuppression: !rawSystemAudio,
+    autoGainControl: !rawSystemAudio,
+    channelCount: 1,
+  };
+
+  if (deviceId) {
+    constraints.deviceId = { exact: deviceId };
+  }
+
+  return constraints;
 }

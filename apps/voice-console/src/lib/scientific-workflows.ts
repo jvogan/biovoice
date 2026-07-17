@@ -1,7 +1,8 @@
 import {
   buildScientificLaunchCommand,
   buildScientificWorkflowUrl,
-  getScientificWorkflowCatalog,
+  formatVariantMutationArgument,
+  getScientificLaunchCatalog,
   getScientificWorkflowForRecipe,
   rankScientificWorkflowCandidates,
   resolveScientificWorkflowRecipeId,
@@ -9,9 +10,11 @@ import {
   type ScientificWorkflowCandidate,
 } from "../../../../packages/runtime-and-adapters/src/examples/scientific-workflows.js";
 import {
+  scientificWorkflowRequestSchema,
   scientificWorkflowKinds,
   type ScientificWorkflowKind,
 } from "../../../../packages/runtime-and-adapters/src/schemas/scientific.js";
+import { getScientificWorkflow } from "../../../../packages/runtime-and-adapters/src/scientific/catalog.js";
 
 type RecipeManifest = {
   id: string;
@@ -22,13 +25,17 @@ export interface ScientificWorkflowLaunchCard {
   id: ScientificWorkflowKind;
   title: string;
   summary: string;
-  group: "AlphaFold" | "Rosetta";
+  group: "AlphaFold" | "Rosetta" | "Variant";
   intent: string;
   defaultTarget: "pymol" | "chimerax";
   bestRecipeId: string;
   candidateRecipes: ScientificWorkflowCandidate[];
   inputHints: string[];
   voiceStarter: string;
+  evidenceLevel: "visualization" | "qualitative" | "quantitative";
+  assumptions: string[];
+  inputsReady: boolean;
+  inputMessage?: string;
   launchUrl: string;
   agentCommand: string;
   rehearsalCommand: string;
@@ -54,9 +61,58 @@ export function readScientificWorkflowQueryState(): ScientificWorkflowQueryState
     workflowId: workflow,
     scientificInputs: {
       uniprot: readParam(params, "uniprot"),
+      experimentalPdbId: readParam(params, "experimental_pdb_id"),
+      emdbId: readParam(params, "emdb_id"),
+      structureFormat: readParam(params, "structure_format"),
+      pdbFormat: readParam(params, "pdb_format"),
       topN: parseTopN(readParam(params, "top_n")),
     },
   };
+}
+
+export function buildScientificWorkflowInputs(
+  workflowId: ScientificWorkflowKind,
+  inputs: ScientificLaunchInputs,
+): Record<string, unknown> {
+  if (workflowId.startsWith("alphafold_")) {
+    return compactInputs({
+      modelPath: inputs.model,
+      uniprotId: inputs.uniprot,
+      experimentalPath: inputs.experimental,
+      experimentalPdbId: inputs.experimentalPdbId,
+      experimentalPdbFormat: inputs.pdbFormat ?? inputs.structureFormat,
+      pdbFormat: inputs.pdbFormat,
+      paePath: inputs.pae,
+      useAfdbPae: workflowId === "alphafold_pae_guided_triage" && inputs.uniprot && !inputs.model && !inputs.pae
+        ? true
+        : undefined,
+      cryoMapPath: inputs.map,
+      emdbId: inputs.emdbId,
+      cryoMapEmdbId: inputs.emdbId,
+      structureFormat: inputs.structureFormat,
+    });
+  }
+  if (workflowId === "variant_environment_review") {
+    return compactInputs({
+      modelPath: inputs.model,
+      uniprotId: inputs.uniprot,
+      mutations: inputs.mutations,
+      comparisonPath: inputs.comparison,
+      ligandCode: inputs.ligand,
+      neighborhoodAngstroms: inputs.neighborhoodAngstroms,
+    });
+  }
+  return compactInputs({
+    bundlePath: inputs.bundle,
+    scorefilePath: inputs.scorefile,
+    referencePath: inputs.model,
+    structureFormat: inputs.structureFormat,
+    topN: inputs.topN,
+  });
+}
+
+function compactInputs(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(Object.entries(value).filter(([, entry]) => entry !== undefined));
 }
 
 export function buildScientificWorkflowLaunchCards(input: {
@@ -67,7 +123,15 @@ export function buildScientificWorkflowLaunchCards(input: {
   scientificInputs?: ScientificLaunchInputs;
 }): ScientificWorkflowLaunchCard[] {
   const availableRecipeIds = new Set(input.recipes.map((recipe) => recipe.id));
-  return getScientificWorkflowCatalog().map((workflow) => {
+  return getScientificLaunchCatalog().map((workflow) => {
+    const manifest = getScientificWorkflow(workflow.id);
+    const targetSupported = manifest.apps.includes(input.target);
+    const requestCheck = scientificWorkflowRequestSchema.safeParse({
+      target: input.target,
+      workflow: workflow.id,
+      dryRun: true,
+      inputs: buildScientificWorkflowInputs(workflow.id, input.scientificInputs ?? {}),
+    });
     const targetCandidate = rankScientificWorkflowCandidates(workflow.id, input.target, availableRecipeIds)[0] ?? workflow.candidates.find((candidate) => candidate.target === input.target) ?? workflow.candidates[0];
     const recipeId = input.workflowId === workflow.id
       ? resolveScientificWorkflowRecipeId(workflow.id, input.target) ?? targetCandidate.recipeId
@@ -98,6 +162,14 @@ export function buildScientificWorkflowLaunchCards(input: {
       candidateRecipes: rankScientificWorkflowCandidates(workflow.id, input.target, availableRecipeIds),
       inputHints: workflow.inputHints,
       voiceStarter: workflow.voiceStarter,
+      evidenceLevel: manifest.evidenceLevel,
+      assumptions: manifest.assumptions,
+      inputsReady: targetSupported && requestCheck.success,
+      ...(!targetSupported || !requestCheck.success ? {
+        inputMessage: !targetSupported
+          ? `${workflow.title} is not available for ${input.target === "pymol" ? "PyMOL" : "ChimeraX"}.`
+          : requestCheck.error?.issues[0]?.message ?? "Required scientific inputs are missing.",
+      } : {}),
       launchUrl,
       agentCommand,
       rehearsalCommand: `npm run rehearse:workflow -- ${workflow.id} --target ${input.target} --capture${formatScientificInputArgs(input.scientificInputs)}`,
@@ -123,6 +195,9 @@ export function formatScientificInputSummary(inputs?: ScientificLaunchInputs): s
   if (inputs.bundle) summary.push(`Bundle ${shortenPath(inputs.bundle)}`);
   if (inputs.scorefile) summary.push(`Scorefile ${shortenPath(inputs.scorefile)}`);
   if (typeof inputs.topN === "number" && Number.isFinite(inputs.topN)) summary.push(`Top ${Math.max(1, Math.round(inputs.topN))}`);
+  if (inputs.mutations?.length) summary.push(`${inputs.mutations.length} variant site${inputs.mutations.length === 1 ? "" : "s"}`);
+  if (inputs.comparison) summary.push(`Comparison ${shortenPath(inputs.comparison)}`);
+  if (inputs.ligand) summary.push(`Ligand ${inputs.ligand}`);
   return summary.length ? summary.join(" · ") : "No scientific inputs pinned.";
 }
 
@@ -153,6 +228,12 @@ function formatScientificInputArgs(inputs?: ScientificLaunchInputs): string {
   if (inputs.bundle) parts.push("--bundle", inputs.bundle);
   if (inputs.scorefile) parts.push("--scorefile", inputs.scorefile);
   if (typeof inputs.topN === "number" && Number.isFinite(inputs.topN)) parts.push("--top-n", String(Math.max(1, Math.round(inputs.topN))));
+  for (const mutation of inputs.mutations ?? []) parts.push("--mutation", formatVariantMutationArgument(mutation));
+  if (inputs.comparison) parts.push("--comparison", inputs.comparison);
+  if (inputs.ligand) parts.push("--ligand", inputs.ligand);
+  if (typeof inputs.neighborhoodAngstroms === "number" && Number.isFinite(inputs.neighborhoodAngstroms)) {
+    parts.push("--neighborhood-angstroms", String(inputs.neighborhoodAngstroms));
+  }
   return parts.length ? ` ${parts.join(" ")}` : "";
 }
 

@@ -28,7 +28,14 @@ import {
 } from "../schemas/index.js";
 import { getRecipe, getRecipeStep } from "../examples/index.js";
 import { buildPinnedRecipeSummary, buildSessionInstructions } from "../prompts/index.js";
-import { TranscriptStore } from "../store/index.js";
+import {
+  RunReceiptStore,
+  TranscriptStore,
+  type CreateRunReceiptInput,
+  type RunReceipt,
+  type RunReceiptSummary,
+} from "../store/index.js";
+import { defaultExportPath } from "../utils/path-policy.js";
 import { buildRealtimeTools } from "./tool-definitions.js";
 import { sessionStatusSchema, sessionUiEventSchema, type SessionStatus, type SessionUiEvent } from "./session-events.js";
 import {
@@ -70,6 +77,7 @@ export interface RealtimeRegistryOptions {
   transcriptionPromptHint?: string;
   debugRawEvents?: boolean;
   expertCommandsEnabled?: boolean;
+  captureUploadsEnabled?: boolean;
   persistSessionEvents?: boolean;
   pymol: PymolAdapterOptions;
   chimerax: ChimeraXAdapterOptions;
@@ -126,6 +134,7 @@ export interface TargetRuntimeAvailability {
 export interface RealtimeRuntimeHealth {
   sessions: {
     total: number;
+    active: number;
     awaitingCall: number;
     connecting: number;
     connected: number;
@@ -136,6 +145,13 @@ export interface RealtimeRuntimeHealth {
     pymol: TargetRuntimeAvailability;
     chimerax: TargetRuntimeAvailability;
   };
+}
+
+export interface TargetUndoAvailability {
+  target: TargetKind;
+  available: boolean;
+  createdAt?: string;
+  summary?: string;
 }
 
 export class RealtimeSessionCapacityError extends Error {
@@ -167,6 +183,7 @@ interface SessionRecord {
   reconnectAttempts: number;
   reconnectTimer: NodeJS.Timeout | null;
   sidebandGeneration: number;
+  captureUploadConsent: CaptureUploadConsentGrant | null;
 }
 
 interface TrackedConversationItem {
@@ -184,6 +201,29 @@ interface BufferedSessionEvent {
   event: SessionUiEvent;
 }
 
+interface TargetCheckpoint {
+  path: string;
+  createdAt: string;
+  summary: string;
+}
+
+interface TargetCheckpointScope {
+  target: TargetKind;
+  summary: string;
+  checkpointClaimed: boolean;
+  checkpointCreated: boolean;
+  checkpointPath?: string;
+}
+
+interface CaptureUploadConsentGrant {
+  expiresAtMs: number;
+}
+
+interface CaptureConversationAttachment {
+  item: Record<string, unknown> | null;
+  warning?: string;
+}
+
 const SESSION_EVENT_HISTORY_LIMIT = 250;
 const SESSION_HEARTBEAT_INTERVAL_MS = 15_000;
 const SIDEBAND_PING_INTERVAL_MS = 20_000;
@@ -197,6 +237,8 @@ const MAX_CONNECTED_SIDEBAND_RECONNECT_ATTEMPTS = 20;
 const MAX_SIDEBAND_RECONNECT_DELAY_MS = 15_000;
 const REALTIME_CLIENT_SECRET_TTL_SECONDS = 600;
 const MAX_TOOL_ARGUMENTS_JSON_BYTES = 48_000;
+const CAPTURE_UPLOAD_CONSENT_TTL_MS = 60_000;
+const MAX_CAPTURE_CONVERSATION_IMAGE_BYTES = 10 * 1024 * 1024;
 const DEFAULT_CONTEXT_PRUNING: RealtimeContextPruningOptions = {
   enabled: true,
   maxItems: 96,
@@ -224,13 +266,18 @@ export class RealtimeSessionRegistry {
   private readonly transcriptionPromptHint?: string;
   private readonly debugRawEvents: boolean;
   private readonly expertCommandsEnabled: boolean;
+  private readonly captureUploadsEnabled: boolean;
   private readonly persistSessionEvents: boolean;
   private readonly transcriptStore = new TranscriptStore();
+  private readonly receiptStore = new RunReceiptStore();
+  private readonly lastCheckpoints = new Map<TargetKind, TargetCheckpoint>();
+  private readonly targetExecutionQueues = new Map<TargetKind, Promise<void>>();
   private readonly sessions = new Map<string, SessionRecord>();
   private readonly pymolAdapter: PymolAdapter;
   private readonly chimeraXAdapter: ChimeraXAdapter;
   private readonly handledCalls = new Map<string, Set<string>>();
   private readonly cleanupTimer: NodeJS.Timeout;
+  private readonly receiptStateReady: Promise<void>;
 
   constructor(options: RealtimeRegistryOptions) {
     this.openAiApiKey = options.openAiApiKey;
@@ -250,9 +297,16 @@ export class RealtimeSessionRegistry {
     this.transcriptionPromptHint = options.transcriptionPromptHint;
     this.debugRawEvents = options.debugRawEvents ?? false;
     this.expertCommandsEnabled = options.expertCommandsEnabled ?? false;
+    this.captureUploadsEnabled = options.captureUploadsEnabled ?? false;
     this.persistSessionEvents = options.persistSessionEvents ?? false;
     this.pymolAdapter = new PymolAdapter(options.pymol);
     this.chimeraXAdapter = new ChimeraXAdapter(options.chimerax);
+    this.receiptStateReady = Promise.all([
+      this.receiptStore.clearCheckpointAvailability("pymol"),
+      this.receiptStore.clearCheckpointAvailability("chimerax"),
+    ]).then(() => undefined).catch((error) => {
+      console.warn(`[run-receipt-startup-warning] ${error instanceof Error ? error.message : String(error)}`);
+    });
     this.cleanupTimer = setInterval(() => {
       this.pruneSessions();
     }, SESSION_PRUNE_INTERVAL_MS);
@@ -385,7 +439,7 @@ export class RealtimeSessionRegistry {
     }
 
     throw new RealtimeSessionCapacityError(
-      `Refusing to start another Realtime session because ${activeSessions} active session${activeSessions === 1 ? " is" : "s are"} already open. Disconnect an existing session or wait for a stale setup attempt to expire before starting a new call.`,
+      `Local Realtime slots are full because ${activeSessions} active session${activeSessions === 1 ? " is" : "s are"} already open. End another session or wait for stale setup cleanup before starting a new call.`,
     );
   }
 
@@ -528,6 +582,7 @@ export class RealtimeSessionRegistry {
       reconnectAttempts: 0,
       reconnectTimer: null,
       sidebandGeneration: 0,
+      captureUploadConsent: null,
     };
   }
 
@@ -536,6 +591,18 @@ export class RealtimeSessionRegistry {
     if (!accessToken || accessToken !== record.accessToken) {
       throw new Error("Invalid realtime session access token.");
     }
+  }
+
+  grantCaptureUploadConsent(sessionId: string): { expiresAt: string } {
+    if (!this.captureUploadsEnabled) {
+      throw new Error(
+        "Viewport upload is disabled. Set ALLOW_CAPTURE_UPLOADS=true before a user can grant one-shot sharing consent.",
+      );
+    }
+    const record = this.requireSession(sessionId);
+    const expiresAtMs = Date.now() + CAPTURE_UPLOAD_CONSENT_TTL_MS;
+    record.captureUploadConsent = { expiresAtMs };
+    return { expiresAt: new Date(expiresAtMs).toISOString() };
   }
 
   async updateTarget(sessionId: string, target: TargetKind): Promise<SessionStatus> {
@@ -627,8 +694,11 @@ export class RealtimeSessionRegistry {
   }
 
   async getRuntimeHealth(): Promise<RealtimeRuntimeHealth> {
+    this.pruneSessions();
+    const now = Date.now();
     const sessionCounts: RealtimeRuntimeHealth["sessions"] = {
       total: this.sessions.size,
+      active: 0,
       awaitingCall: 0,
       connecting: 0,
       connected: 0,
@@ -637,6 +707,9 @@ export class RealtimeSessionRegistry {
     };
 
     for (const record of this.sessions.values()) {
+      if (this.isSessionActive(record, now)) {
+        sessionCounts.active += 1;
+      }
       switch (record.status.status) {
         case "awaiting_call":
           sessionCounts.awaitingCall += 1;
@@ -727,7 +800,12 @@ export class RealtimeSessionRegistry {
 
   async disconnect(sessionId: string): Promise<void> {
     const record = this.requireSession(sessionId);
+    if (record.disconnectRequested && record.status.status === "disconnected") {
+      return;
+    }
+    const callId = record.callId;
     record.disconnectRequested = true;
+    record.captureUploadConsent = null;
     if (record.sessionDeadlineTimer) {
       clearTimeout(record.sessionDeadlineTimer);
       record.sessionDeadlineTimer = null;
@@ -755,6 +833,68 @@ export class RealtimeSessionRegistry {
     // Revoke the bearer so copied SSE/status URLs stop working after disconnect.
     record.accessToken = crypto.randomUUID();
     record.lastActivityAt = 0;
+    if (callId) {
+      try {
+        await this.hangupRealtimeCall(callId);
+      } catch (error) {
+        console.warn(
+          `[realtime-hangup-warning] callId=${callId} ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
+    }
+  }
+
+  async shutdown(): Promise<void> {
+    clearInterval(this.cleanupTimer);
+    const sessionIds = [...this.sessions.keys()];
+    await Promise.all(sessionIds.map(async (sessionId) => {
+      await this.disconnect(sessionId).catch(() => {});
+      this.disposeSession(sessionId);
+    }));
+  }
+
+  getUndoAvailability(target: TargetKind): TargetUndoAvailability {
+    const checkpoint = this.lastCheckpoints.get(target);
+    return {
+      target,
+      available: Boolean(checkpoint),
+      ...(checkpoint ? { createdAt: checkpoint.createdAt, summary: checkpoint.summary } : {}),
+    };
+  }
+
+  async undoLastAction(target: TargetKind): Promise<ActionResult> {
+    return this.withTargetExecutionLock(target, async () => {
+      const checkpoint = this.lastCheckpoints.get(target);
+      if (!checkpoint) {
+        throw new Error(`No ${target === "pymol" ? "PyMOL" : "ChimeraX"} checkpoint is available to undo.`);
+      }
+
+      const result = target === "pymol"
+        ? await this.pymolAdapter.restoreCheckpoint(checkpoint.path)
+        : await this.chimeraXAdapter.restoreCheckpoint(checkpoint.path);
+      this.lastCheckpoints.delete(target);
+      await this.receiptStore.clearCheckpointAvailability(target).catch(() => {});
+      await fs.rm(checkpoint.path, { force: true }).catch(() => {});
+      await this.writeRunReceipt({
+        target,
+        summary: `Undid: ${checkpoint.summary}`,
+        source: "undo",
+        evidenceLevel: "restored",
+        checkpointAvailable: false,
+        result,
+      });
+      return result;
+    });
+  }
+
+  async listRunReceipts(limit = 20): Promise<RunReceiptSummary[]> {
+    await this.receiptStateReady;
+    return this.receiptStore.list(limit);
+  }
+
+  async getRunReceipt(id: string): Promise<RunReceipt | null> {
+    await this.receiptStateReady;
+    return this.receiptStore.get(id);
   }
 
   async getTargetState(target: TargetKind): Promise<unknown> {
@@ -766,7 +906,15 @@ export class RealtimeSessionRegistry {
 
   async runActionEnvelope(envelope: ActionEnvelope): Promise<ActionResult> {
     const parsed = actionEnvelopeSchema.parse(envelope);
-    return this.executeTargetActions(parsed.target, parsed.actions as never, parsed.dryRun, this.expertCommandsEnabled);
+    return this.executeTargetActionsWithReceipt({
+      target: parsed.target,
+      actions: parsed.actions as Array<Record<string, unknown>>,
+      dryRun: parsed.dryRun ?? false,
+      allowRawCommands: false,
+      summary: parsed.summary ?? summarizeActions(parsed.actions),
+      source: "actions",
+      request: parsed,
+    });
   }
 
   async runRecipeStepDirect(
@@ -776,7 +924,15 @@ export class RealtimeSessionRegistry {
     dryRun = false,
   ): Promise<ActionResult> {
     const step = getRecipeStep(recipeId, stepId, target);
-    return this.executeTargetActions(target, step.actions as never, dryRun, this.expertCommandsEnabled);
+    return this.executeTargetActionsWithReceipt({
+      target,
+      actions: step.actions as Array<Record<string, unknown>>,
+      dryRun,
+      allowRawCommands: false,
+      summary: `${step.title} (${recipeId})`,
+      source: "recipe-step",
+      request: { recipeId, stepId, target, dryRun },
+    });
   }
 
   async runRecipeDirect(
@@ -799,64 +955,115 @@ export class RealtimeSessionRegistry {
       throw new Error(`Recipe ${recipeId} is not available for ${target}.`);
     }
 
-    const stepResults: Array<{
-      stepId: string;
-      title: string;
-      summary: string;
-      result: ActionResult;
-    }> = [];
+    return this.withTargetExecutionLock(target, async () => {
+      const checkpointScope = this.createTargetCheckpointScope(target, recipe.title);
+      const stepResults: Array<{
+        stepId: string;
+        title: string;
+        summary: string;
+        result: ActionResult;
+      }> = [];
+      let checkpointAvailable = false;
 
-    for (const [index, step] of recipe.steps.entries()) {
-      let result: ActionResult;
       try {
-        result = await this.executeTargetActions(target, step.actions as never, dryRun, this.expertCommandsEnabled);
-      } catch (error) {
-        throw new Error(
-          `Recipe ${recipeId} failed at step ${step.id} (${step.title}): ${error instanceof Error ? error.message : String(error)}`,
-        );
-      }
-      if (!dryRun && target === "pymol" && index < recipe.steps.length - 1) {
-        try {
-          await this.pymolAdapter.waitUntilCommandReady(30_000);
-        } catch (error) {
-          result.warnings = [
-            ...result.warnings,
-            `PyMOL was slow to stabilize after step ${step.id} (${step.title}): ${error instanceof Error ? error.message : String(error)}`,
-          ];
+        for (const [index, step] of recipe.steps.entries()) {
+          let result: ActionResult;
+          try {
+            result = await this.executeTargetActions(
+              target,
+              step.actions as never,
+              dryRun,
+              false,
+              checkpointScope,
+              true,
+            );
+          } catch (error) {
+            throw new Error(
+              `Recipe ${recipeId} failed at step ${step.id} (${step.title}): ${error instanceof Error ? error.message : String(error)}`,
+            );
+          }
+          if (!dryRun && target === "pymol" && index < recipe.steps.length - 1) {
+            try {
+              await this.pymolAdapter.waitUntilCommandReady(30_000);
+            } catch (error) {
+              result.warnings = [
+                ...result.warnings,
+                `PyMOL was slow to stabilize after step ${step.id} (${step.title}): ${error instanceof Error ? error.message : String(error)}`,
+              ];
+            }
+          }
+
+          stepResults.push({
+            stepId: step.id,
+            title: step.title,
+            summary: step.summary,
+            result,
+          });
         }
+      } finally {
+        checkpointAvailable = await this.finalizeTargetCheckpointScope(checkpointScope);
       }
 
-      stepResults.push({
-        stepId: step.id,
-        title: step.title,
-        summary: step.summary,
-        result,
+      const runResult = {
+        recipeId,
+        target,
+        dryRun,
+        stepResults,
+      };
+      await this.writeRunReceipt({
+        target,
+        summary: recipe.title,
+        source: "recipe",
+        evidenceLevel: dryRun ? "planned" : undefined,
+        checkpointAvailable,
+        request: { recipeId, target, dryRun },
+        result: runResult,
       });
-    }
-
-    return {
-      recipeId,
-      target,
-      dryRun,
-      stepResults,
-    };
+      return runResult;
+    });
   }
 
   async runScientificWorkflowDirect(request: ScientificWorkflowRequest): Promise<ScientificWorkflowResult> {
     const parsed = scientificWorkflowRequestSchema.parse(request);
-    const allowRawCommands = this.expertCommandsEnabled;
-    return runScientificWorkflow(parsed, {
-      clearWorkflowContext: (target) => {
-        this.clearTargetWorkflowContext(target);
-      },
-      setWorkflowContext: (target, context) => {
-        this.setTargetWorkflowContext(target, context);
-      },
-      executeActions: async (target, actions, dryRun) => this.executeTargetActions(target, actions as never, dryRun, allowRawCommands),
-      getTargetState: async (target) => {
-        const state = await this.getTargetState(target);
-        return state && typeof state === "object" ? state as Record<string, unknown> : {};
-      },
+    const summary = parsed.summary ?? `Scientific workflow: ${parsed.workflow}`;
+    return this.withTargetExecutionLock(parsed.target, async () => {
+      const checkpointScope = this.createTargetCheckpointScope(parsed.target, summary);
+      let checkpointAvailable = false;
+      let result: ScientificWorkflowResult;
+      try {
+        result = await runScientificWorkflow(parsed, {
+          clearWorkflowContext: (target) => {
+            this.clearTargetWorkflowContext(target);
+          },
+          setWorkflowContext: (target, context) => {
+            this.setTargetWorkflowContext(target, context);
+          },
+          executeActions: async (target, actions, dryRun) => this.executeTargetActions(
+            target,
+            actions as never,
+            dryRun,
+            false,
+            checkpointScope,
+            true,
+          ),
+          getTargetState: async (target) => {
+            const state = await this.getTargetState(target);
+            return state && typeof state === "object" ? state as Record<string, unknown> : {};
+          },
+        });
+      } finally {
+        checkpointAvailable = await this.finalizeTargetCheckpointScope(checkpointScope);
+      }
+      await this.writeRunReceipt({
+        target: parsed.target,
+        summary,
+        source: "scientific-workflow",
+        evidenceLevel: parsed.dryRun ? "planned" : result.evidenceLevel,
+        checkpointAvailable,
+        request: parsed,
+        result,
+      });
+      return result;
     });
   }
 
@@ -869,27 +1076,7 @@ export class RealtimeSessionRegistry {
     const parsed = resolveScientificAssetRequestSchema.parse(request);
     const resolution = await resolveScientificAsset(parsed);
     const warnings = [...resolution.warnings];
-    let loadResult: ActionResult | undefined;
-
-    if (parsed.loadIntoTarget) {
-      if (!parsed.target) {
-        warnings.push("target is required when loadIntoTarget is true.");
-      } else {
-        const file = this.pickLoadableResolvedAssetFile(resolution);
-        if (!file) {
-          warnings.push("No loadable model or map file was produced by this resolver request.");
-        } else {
-          loadResult = await this.executeTargetActions(
-            parsed.target,
-            this.buildResolvedAssetLoadActions(parsed, resolution, file) as never,
-            false,
-            this.expertCommandsEnabled,
-          );
-        }
-      }
-    }
-
-    return this.removeUndefined({
+    const buildResult = (loadResult?: ActionResult) => this.removeUndefined({
       resolution: {
         ...resolution,
         warnings,
@@ -903,11 +1090,66 @@ export class RealtimeSessionRegistry {
       loadResult?: ActionResult;
       warnings: string[];
     };
+
+    if (!parsed.loadIntoTarget) {
+      return buildResult();
+    }
+    const target = parsed.target;
+    if (!target) {
+      warnings.push("target is required when loadIntoTarget is true.");
+      return buildResult();
+    }
+
+    return this.withTargetExecutionLock(target, async () => {
+      const summary = `Resolved and loaded ${resolution.source} asset ${resolution.id}`;
+      const checkpointScope = this.createTargetCheckpointScope(target, summary);
+      let checkpointAvailable = false;
+      let loadResult: ActionResult | undefined;
+      try {
+        const file = this.pickLoadableResolvedAssetFile(resolution);
+        if (!file) {
+          warnings.push("No loadable model or map file was produced by this resolver request.");
+        } else {
+          loadResult = await this.executeTargetActions(
+            target,
+            this.buildResolvedAssetLoadActions(parsed, resolution, file) as never,
+            false,
+            false,
+            checkpointScope,
+            true,
+          );
+        }
+      } finally {
+        checkpointAvailable = await this.finalizeTargetCheckpointScope(checkpointScope);
+      }
+      const result = buildResult(loadResult);
+      await this.writeRunReceipt({
+        target,
+        summary,
+        source: "asset-resolution",
+        checkpointAvailable,
+        request: parsed,
+        result,
+      });
+      return result;
+    });
   }
 
   async captureViewDirect(request: CaptureViewRequest): Promise<ActionResult> {
     const parsed = captureViewRequestSchema.parse(request);
-    return this.captureTargetView(parsed);
+    return this.withTargetExecutionLock(parsed.target, async () => {
+      const result = await this.captureTargetView(parsed);
+      await this.writeRunReceipt({
+        target: parsed.target,
+        summary: "Captured the current molecular viewport",
+        source: "capture",
+        evidenceLevel: "visual",
+        checkpointAvailable: false,
+        request: { ...parsed, attachToConversation: undefined },
+        result,
+      });
+      return result;
+    });
   }
 
   private pickLoadableResolvedAssetFile(resolution: ScientificAssetResolution): ScientificAssetFile | undefined {
@@ -1033,19 +1275,145 @@ export class RealtimeSessionRegistry {
     ], false);
   }
 
+  private async executeTargetActionsWithReceipt(input: {
+    target: TargetKind;
+    actions: Array<Record<string, unknown>>;
+    dryRun: boolean;
+    allowRawCommands: boolean;
+    summary: string;
+    source: string;
+    request?: unknown;
+    evidenceLevel?: string;
+  }): Promise<ActionResult> {
+    return this.withTargetExecutionLock(input.target, async () => {
+      const checkpointScope = this.createTargetCheckpointScope(input.target, input.summary);
+      let checkpointAvailable = false;
+      let result: ActionResult;
+      try {
+        result = await this.executeTargetActions(
+          input.target,
+          input.actions,
+          input.dryRun,
+          input.allowRawCommands,
+          checkpointScope,
+          true,
+        );
+      } finally {
+        checkpointAvailable = await this.finalizeTargetCheckpointScope(checkpointScope);
+      }
+      await this.writeRunReceipt({
+        target: input.target,
+        summary: input.summary,
+        source: input.source,
+        evidenceLevel: input.dryRun ? "planned" : input.evidenceLevel,
+        checkpointAvailable,
+        request: input.request,
+        result,
+      });
+      return result;
+    });
+  }
+
   private async executeTargetActions(
     target: TargetKind,
     actions: Array<Record<string, unknown>>,
     dryRun = false,
     allowRawCommands = false,
+    checkpointScope?: TargetCheckpointScope,
+    lockAlreadyHeld = false,
   ): Promise<ActionResult> {
-    const rawCommandsAllowed = allowRawCommands || this.expertCommandsEnabled;
-    assertToolActionsAllowed(actions, rawCommandsAllowed);
-    if (target === "pymol") {
-      return this.pymolAdapter.execute(actions as never, dryRun, rawCommandsAllowed);
-    }
+    const execute = async (): Promise<ActionResult> => {
+      if (checkpointScope && checkpointScope.target !== target) {
+        throw new Error(`Checkpoint scope for ${checkpointScope.target} cannot execute ${target} actions.`);
+      }
+      const rawCommandsAllowed = allowRawCommands && this.expertCommandsEnabled;
+      assertToolActionsAllowed(actions, rawCommandsAllowed);
+      const shouldCheckpoint = !dryRun && shouldCheckpointActions(actions);
+      let checkpointPath: string | undefined;
+      if (shouldCheckpoint && checkpointScope) {
+        if (!checkpointScope.checkpointClaimed) {
+          checkpointScope.checkpointClaimed = true;
+          checkpointScope.checkpointPath = defaultExportPath(target, target === "pymol" ? "pse" : "cxs");
+          checkpointPath = checkpointScope.checkpointPath;
+        }
+      } else if (shouldCheckpoint) {
+        checkpointPath = defaultExportPath(target, target === "pymol" ? "pse" : "cxs");
+      }
+      const summary = summarizeActions(actions);
+      try {
+        if (target === "pymol") {
+          return await this.pymolAdapter.execute(actions as never, dryRun, rawCommandsAllowed, checkpointPath);
+        }
 
-    return this.chimeraXAdapter.execute(actions as never, dryRun, rawCommandsAllowed);
+        return await this.chimeraXAdapter.execute(actions as never, dryRun, rawCommandsAllowed, checkpointPath);
+      } finally {
+        if (checkpointPath && await fs.access(checkpointPath).then(() => true).catch(() => false)) {
+          if (checkpointScope) {
+            checkpointScope.checkpointCreated = true;
+          } else {
+            await this.publishTargetCheckpoint(target, checkpointPath, summary);
+          }
+        }
+      }
+    };
+
+    if (lockAlreadyHeld) {
+      return execute();
+    }
+    return this.withTargetExecutionLock(target, execute);
+  }
+
+  private createTargetCheckpointScope(target: TargetKind, summary: string): TargetCheckpointScope {
+    return {
+      target,
+      summary,
+      checkpointClaimed: false,
+      checkpointCreated: false,
+    };
+  }
+
+  private async finalizeTargetCheckpointScope(scope: TargetCheckpointScope): Promise<boolean> {
+    if (!scope.checkpointCreated || !scope.checkpointPath) {
+      return false;
+    }
+    const exists = await fs.access(scope.checkpointPath).then(() => true).catch(() => false);
+    if (!exists) {
+      return false;
+    }
+    await this.publishTargetCheckpoint(scope.target, scope.checkpointPath, scope.summary);
+    return true;
+  }
+
+  private async publishTargetCheckpoint(target: TargetKind, checkpointPath: string, summary: string): Promise<void> {
+    await this.receiptStateReady;
+    const previous = this.lastCheckpoints.get(target);
+    this.lastCheckpoints.set(target, {
+      path: checkpointPath,
+      createdAt: new Date().toISOString(),
+      summary,
+    });
+    await this.receiptStore.clearCheckpointAvailability(target).catch(() => {});
+    if (previous && previous.path !== checkpointPath) {
+      await fs.rm(previous.path, { force: true }).catch(() => {});
+    }
+  }
+
+  private async withTargetExecutionLock<T>(target: TargetKind, operation: () => Promise<T>): Promise<T> {
+    const previous = this.targetExecutionQueues.get(target) ?? Promise.resolve();
+    let release!: () => void;
+    const current = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    this.targetExecutionQueues.set(target, current);
+    await previous.catch(() => {});
+    try {
+      return await operation();
+    } finally {
+      release();
+      if (this.targetExecutionQueues.get(target) === current) {
+        this.targetExecutionQueues.delete(target);
+      }
+    }
   }
 
   private setTargetWorkflowContext(
@@ -1598,6 +1966,7 @@ export class RealtimeSessionRegistry {
     let nextTargetState: Record<string, unknown> | undefined;
     let captureInspectionPrompt: string | undefined;
     let attachCaptureToConversation = false;
+    let captureConversationItem: Record<string, unknown> | null = null;
     let createFollowUpResponse = true;
     const allowSessionRawCommands = record.status.advancedMode && this.expertCommandsEnabled;
 
@@ -1628,13 +1997,29 @@ export class RealtimeSessionRegistry {
         }
         case "run_pymol_actions": {
           const parsed = pymolEnvelopeSchema.parse(JSON.parse(argumentsJson));
-          result = await this.executeTargetActions(parsed.target, parsed.actions as never, parsed.dryRun, allowSessionRawCommands);
+          result = await this.executeTargetActionsWithReceipt({
+            target: parsed.target,
+            actions: parsed.actions as Array<Record<string, unknown>>,
+            dryRun: parsed.dryRun ?? false,
+            allowRawCommands: allowSessionRawCommands,
+            summary: parsed.summary ?? summarizeActions(parsed.actions),
+            source: "voice-actions",
+            request: parsed,
+          });
           nextTargetState = (result as ActionResult).state;
           break;
         }
         case "run_chimerax_actions": {
           const parsed = chimeraXEnvelopeSchema.parse(JSON.parse(argumentsJson));
-          result = await this.executeTargetActions(parsed.target, parsed.actions as never, parsed.dryRun, allowSessionRawCommands);
+          result = await this.executeTargetActionsWithReceipt({
+            target: parsed.target,
+            actions: parsed.actions as Array<Record<string, unknown>>,
+            dryRun: parsed.dryRun ?? false,
+            allowRawCommands: allowSessionRawCommands,
+            summary: parsed.summary ?? summarizeActions(parsed.actions),
+            source: "voice-actions",
+            request: parsed,
+          });
           nextTargetState = (result as ActionResult).state;
           break;
         }
@@ -1643,6 +2028,12 @@ export class RealtimeSessionRegistry {
           const state = await this.getTargetState(parsed);
           nextTargetState = state as Record<string, unknown>;
           result = { target: parsed, state };
+          break;
+        }
+        case "undo_last_action": {
+          const parsed = targetKindSchema.parse(JSON.parse(argumentsJson).target);
+          result = await this.undoLastAction(parsed);
+          nextTargetState = (result as ActionResult).state;
           break;
         }
         case "run_recipe_step": {
@@ -1672,19 +2063,40 @@ export class RealtimeSessionRegistry {
           const payload = JSON.parse(argumentsJson) as { target: TargetKind; format: string; path?: string; width?: number; height?: number; rayTrace?: boolean };
           if (payload.target === "pymol") {
             const exportAction = { type: "export", export: pymolExportSchema.parse(payload) } as never;
-            result = await this.executeTargetActions("pymol", [exportAction] as never, false, allowSessionRawCommands);
+            result = await this.executeTargetActionsWithReceipt({
+              target: "pymol",
+              actions: [exportAction],
+              dryRun: false,
+              allowRawCommands: allowSessionRawCommands,
+              summary: `Exported a ${payload.format} artifact`,
+              source: "export",
+              request: payload,
+              evidenceLevel: "artifact",
+            });
           } else {
             const exportAction = { type: "export", export: chimeraXExportSchema.parse(payload) } as never;
-            result = await this.executeTargetActions("chimerax", [exportAction] as never, false, allowSessionRawCommands);
+            result = await this.executeTargetActionsWithReceipt({
+              target: "chimerax",
+              actions: [exportAction],
+              dryRun: false,
+              allowRawCommands: allowSessionRawCommands,
+              summary: `Exported a ${payload.format} artifact`,
+              source: "export",
+              request: payload,
+              evidenceLevel: "artifact",
+            });
           }
           nextTargetState = (result as ActionResult).state;
           break;
         }
         case "capture_view": {
           const payload = captureViewRequestSchema.parse(JSON.parse(argumentsJson));
+          if (payload.attachToConversation) {
+            this.consumeCaptureUploadConsent(sessionId);
+          }
           result = await this.captureViewDirect(payload);
           captureInspectionPrompt = payload.inspectionPrompt;
-          attachCaptureToConversation = payload.attachToConversation !== false;
+          attachCaptureToConversation = payload.attachToConversation === true;
           nextTargetState = (result as ActionResult).state;
           break;
         }
@@ -1726,6 +2138,33 @@ export class RealtimeSessionRegistry {
       }
     }
 
+    if (toolName === "capture_view" && attachCaptureToConversation && isActionResultPayload(result)) {
+      const captureArtifact = result.artifacts.find((artifact) => artifact.kind === "image");
+      const attachment = captureArtifact
+        ? await this.buildCaptureConversationItem(
+          record.status.target,
+          captureArtifact.path,
+          captureInspectionPrompt,
+        )
+        : {
+          item: null,
+          warning: "Viewport attachment was requested, but no image artifact was produced. Nothing was sent to the model conversation.",
+        } satisfies CaptureConversationAttachment;
+      captureConversationItem = attachment.item;
+      if (attachment.warning) {
+        result = {
+          ...result,
+          warnings: [attachment.warning, ...result.warnings],
+        };
+        resultLevel = "warn";
+        this.broadcast(sessionId, {
+          kind: "log",
+          level: "warn",
+          text: attachment.warning,
+        });
+      }
+    }
+
     if (!this.hasSession(sessionId)) {
       return;
     }
@@ -1763,21 +2202,11 @@ export class RealtimeSessionRegistry {
         },
       }),
     );
-    if (toolName === "capture_view" && attachCaptureToConversation && isActionResultPayload(result)) {
-      const captureArtifact = result.artifacts.find((artifact) => artifact.kind === "image");
-      if (captureArtifact) {
-        const captureItem = await this.buildCaptureConversationItem(
-          record.status.target,
-          captureArtifact.path,
-          captureInspectionPrompt,
-        );
-        if (captureItem) {
-          ws.send(JSON.stringify({
-            type: "conversation.item.create",
-            item: captureItem,
-          }));
-        }
-      }
+    if (captureConversationItem) {
+      ws.send(JSON.stringify({
+        type: "conversation.item.create",
+        item: captureConversationItem,
+      }));
     }
     if (createFollowUpResponse) {
       ws.send(JSON.stringify({ type: "response.create" }));
@@ -1798,6 +2227,23 @@ export class RealtimeSessionRegistry {
       return;
     }
     record.connectedAtMs = Date.now();
+  }
+
+  private consumeCaptureUploadConsent(sessionId: string): void {
+    if (!this.captureUploadsEnabled) {
+      throw new Error(
+        "Viewport upload is disabled. The capture remains local unless ALLOW_CAPTURE_UPLOADS=true is explicitly configured.",
+      );
+    }
+    const record = this.requireSession(sessionId);
+    const grant = record.captureUploadConsent;
+    // Consume before any capture or upload work so one grant can authorize at most one attempt.
+    record.captureUploadConsent = null;
+    if (!grant || grant.expiresAtMs <= Date.now()) {
+      throw new Error(
+        "Viewport upload requires a fresh one-shot consent grant from an explicit user action. The capture remains local by default.",
+      );
+    }
   }
 
   private refreshSessionUsageGuardrails(sessionId: string): void {
@@ -1839,6 +2285,13 @@ export class RealtimeSessionRegistry {
         text: nextState.breachMessage,
         payload: this.requireSession(sessionId).status,
       });
+      if (!record.disconnectRequested) {
+        void this.disconnect(sessionId).catch((error) => {
+          console.warn(
+            `[realtime-guardrail-disconnect-warning] session=${sessionId} ${error instanceof Error ? error.message : String(error)}`,
+          );
+        });
+      }
       return;
     }
 
@@ -1891,6 +2344,15 @@ export class RealtimeSessionRegistry {
       text: summary,
       payload: { usageGuardrails: record.status.usageGuardrails },
     });
+  }
+
+  private async writeRunReceipt(input: CreateRunReceiptInput): Promise<void> {
+    try {
+      await this.receiptStateReady;
+      await this.receiptStore.create(input);
+    } catch (error) {
+      console.warn(`[run-receipt-warning] ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
 
   private decorateActionResult(result: ActionResult): ActionResult {
@@ -2099,9 +2561,28 @@ export class RealtimeSessionRegistry {
     target: TargetKind,
     filePath: string,
     inspectionPrompt?: string,
-  ): Promise<Record<string, unknown> | null> {
+  ): Promise<CaptureConversationAttachment> {
     try {
+      const stat = await fs.stat(filePath);
+      if (!stat.isFile()) {
+        return {
+          item: null,
+          warning: "Viewport capture remained local because the generated artifact is not a regular file. Nothing was sent to the model conversation.",
+        };
+      }
+      if (stat.size > MAX_CAPTURE_CONVERSATION_IMAGE_BYTES) {
+        return {
+          item: null,
+          warning: `Viewport capture remained local because it is ${formatCaptureImageBytes(stat.size)}, above the ${formatCaptureImageBytes(MAX_CAPTURE_CONVERSATION_IMAGE_BYTES)} conversation-attachment limit. Reduce the capture dimensions and approve the next viewport again.`,
+        };
+      }
       const bytes = await fs.readFile(filePath);
+      if (bytes.byteLength > MAX_CAPTURE_CONVERSATION_IMAGE_BYTES) {
+        return {
+          item: null,
+          warning: `Viewport capture remained local because it exceeded the ${formatCaptureImageBytes(MAX_CAPTURE_CONVERSATION_IMAGE_BYTES)} conversation-attachment limit while being read. Reduce the capture dimensions and approve the next viewport again.`,
+        };
+      }
       const mimeType = inferArtifactMimeType(filePath, "image");
       const base64 = bytes.toString("base64");
       const text = [
@@ -2110,21 +2591,26 @@ export class RealtimeSessionRegistry {
       ].join(" ");
 
       return {
-        type: "message",
-        role: "user",
-        content: [
-          {
-            type: "input_text",
-            text,
-          },
-          {
-            type: "input_image",
-            image_url: `data:${mimeType};base64,${base64}`,
-          },
-        ],
+        item: {
+          type: "message",
+          role: "user",
+          content: [
+            {
+              type: "input_text",
+              text,
+            },
+            {
+              type: "input_image",
+              image_url: `data:${mimeType};base64,${base64}`,
+            },
+          ],
+        },
       };
     } catch {
-      return null;
+      return {
+        item: null,
+        warning: "Viewport capture remained local because BioVoice could not read the generated image for attachment. Nothing was sent to the model conversation.",
+      };
     }
   }
 
@@ -2172,7 +2658,7 @@ export class RealtimeSessionRegistry {
   ) {
     const recipe = this.safeGetRecipe(recipeId);
     const recipeSummary = recipe ? buildPinnedRecipeSummary(recipe, target) : undefined;
-    const expertModeEnabled = advancedMode || this.expertCommandsEnabled;
+    const expertModeEnabled = advancedMode && this.expertCommandsEnabled;
     const reasoningModel = isRealtimeReasoningModel(this.realtimeModel);
     const session = {
       type: "realtime",
@@ -2287,6 +2773,24 @@ export class RealtimeSessionRegistry {
     }
 
     return openAiHeaders;
+  }
+
+  private async hangupRealtimeCall(callId: string): Promise<void> {
+    if (!this.openAiApiKey) {
+      return;
+    }
+    const response = await fetch(
+      `https://api.openai.com/v1/realtime/calls/${encodeURIComponent(callId)}/hangup`,
+      {
+        method: "POST",
+        headers: this.buildOpenAiHeaders(),
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+    if (!response.ok && response.status !== 404) {
+      const body = await response.text().catch(() => "");
+      throw new Error(`OpenAI Realtime hangup failed (${response.status}): ${body.slice(0, 200)}`);
+    }
   }
 
   private buildRealtimePromptField(): RealtimePromptConfig | undefined {
@@ -2450,6 +2954,14 @@ export class RealtimeSessionRegistry {
         console.warn(
           `[realtime-prune] session=${sessionId} status=${record.status.status} sideband=${record.status.sidebandStatus} ageMs=${now - record.lastActivityAt} callId=${record.callId || "none"}`,
         );
+        if (record.callId && !record.disconnectRequested) {
+          record.disconnectRequested = true;
+          void this.hangupRealtimeCall(record.callId).catch((error) => {
+            console.warn(
+              `[realtime-prune-hangup-warning] callId=${record.callId} ${error instanceof Error ? error.message : String(error)}`,
+            );
+          });
+        }
         this.disposeSession(sessionId);
       }
     }
@@ -2747,14 +3259,39 @@ function inferArtifactMimeType(filePath: string, kind: ActionResult["artifacts"]
   return kind === "image" ? "image/png" : "application/octet-stream";
 }
 
+function formatCaptureImageBytes(bytes: number): string {
+  const megabytes = bytes / (1024 * 1024);
+  return `${Math.ceil(megabytes * 10) / 10} MB`;
+}
+
 function assertToolActionsAllowed(actions: Array<Record<string, unknown>>, allowRawCommands: boolean): void {
-  if (allowRawCommands) {
+  const rawCommands = actions.filter((action) => action?.type === "raw_command");
+  if (!rawCommands.length) {
     return;
   }
 
-  if (actions.some((action) => action?.type === "raw_command")) {
+  if (!allowRawCommands) {
     throw new Error("Raw expert commands are disabled for this session. Enable Advanced Expert Commands before using raw_command.");
   }
+
+  if (rawCommands.some((action) => action.requiresConfirmation !== true)) {
+    throw new Error("Raw expert commands require explicit confirmation before execution.");
+  }
+}
+
+function shouldCheckpointActions(actions: Array<Record<string, unknown>>): boolean {
+  return actions.some((action) => action?.type !== "export");
+}
+
+function summarizeActions(actions: ReadonlyArray<Record<string, unknown>>): string {
+  const types = actions
+    .map((action) => typeof action?.type === "string" ? action.type : "action")
+    .slice(0, 8);
+  if (!types.length) {
+    return "BioVoice action run";
+  }
+  const extraCount = Math.max(0, actions.length - types.length);
+  return `Ran ${types.join(", ")}${extraCount ? ` and ${extraCount} more` : ""}`;
 }
 
 function extractToolNames(value: unknown): string[] {

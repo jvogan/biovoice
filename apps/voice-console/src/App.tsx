@@ -1,21 +1,30 @@
-import { lazy, Suspense, useEffect, useEffectEvent, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useEffectEvent, useRef, useState } from "react";
 import type { SessionUiEvent } from "../../../packages/runtime-and-adapters/src/realtime/session-events.js";
 import {
   getScientificWorkflowSpec,
   resolveScientificWorkflowRecipeId,
+  type ScientificLaunchInputs,
 } from "../../../packages/runtime-and-adapters/src/examples/scientific-workflows.js";
+import type { ScientificWorkflowKind } from "../../../packages/runtime-and-adapters/src/schemas/scientific.js";
 import {
   fetchConfig,
+  fetchDoctor,
   fetchExamples,
   fetchHealth,
   fetchOrganizationUsage,
+  fetchRunReceipts,
+  grantNextViewportShare,
   runRecipeWorkflow,
+  runScientificWorkflow,
+  undoLastTurn,
+  type DoctorResponse,
   type ManualActionResult,
   type ManualRecipeRunResponse,
   type OrganizationUsageSummaryResponse,
   type ResponseLanguageMode,
   type RealtimeSessionGuardrails,
   type RuntimeHealthResponse,
+  type RunReceiptSummary,
   updateSessionResponseLanguageMode,
   updateSessionRecipe,
   updateSessionTarget,
@@ -23,6 +32,7 @@ import {
 } from "./lib/api";
 import {
   buildScientificWorkflowLaunchCards,
+  buildScientificWorkflowInputs,
   formatScientificInputSummary,
   getScientificWorkflowFromRecipe,
   readScientificWorkflowQueryState,
@@ -47,6 +57,8 @@ const OpenMicConfirmDialog = lazy(() =>
   import("./components/OpenMicConfirmDialog").then((module) => ({ default: module.OpenMicConfirmDialog })),
 );
 import type {
+  AudioInputDeviceSummary,
+  AudioInputSourceKind,
   ArtifactSummary,
   ConnectionState,
   GuardrailsSnapshot,
@@ -59,6 +71,10 @@ import type {
 
 type TargetKind = "pymol" | "chimerax";
 type VoiceMode = "push_to_talk" | "open_mic";
+type UndoNotice = { tone: "success" | "error"; message: string };
+const DEFAULT_AUDIO_INPUT_DEVICE_ID = "default";
+const AUDIO_INPUT_STORAGE_KEY = "biovoice.audioInputDeviceId";
+const VIRTUAL_AUDIO_INPUT_PATTERN = /blackhole|loopback|soundflower|background music|audio hijack|rogue amoeba|obs|vb-audio|cable output|system audio|aggregate|multi-output/i;
 type RecipeManifest = {
   id: string;
   title: string;
@@ -132,15 +148,35 @@ export function App() {
   });
   const [realtimeReady, setRealtimeReady] = useState(false);
   const [usageReady, setUsageReady] = useState(false);
+  const [captureUploadsEnabled, setCaptureUploadsEnabled] = useState(false);
+  const [captureShareState, setCaptureShareState] = useState<"idle" | "busy" | "granted" | "error">("idle");
   const [realtimeCredentialValidated, setRealtimeCredentialValidated] = useState(false);
   const [usageScopeValidated, setUsageScopeValidated] = useState(false);
   const [runtimeHealth, setRuntimeHealth] = useState<RuntimeHealthResponse["runtime"] | null>(null);
+  const [managedScientificLaunch, setManagedScientificLaunch] = useState<{
+    target: TargetKind;
+    workflowId?: ScientificWorkflowKind;
+    scientificInputs: ScientificLaunchInputs;
+  } | null>(null);
+  const [manualScientificWorkflowId, setManualScientificWorkflowId] = useState<ScientificWorkflowKind | null>(null);
   const [organizationUsage, setOrganizationUsage] = useState<OrganizationUsageSummaryResponse | null>(null);
   const [organizationUsageError, setOrganizationUsageError] = useState<string | null>(null);
   const [manualRunError, setManualRunError] = useState<string | null>(null);
   const [manualPreviewArtifact, setManualPreviewArtifact] = useState<ArtifactSummary | null>(null);
   const [manualLogEntries, setManualLogEntries] = useState<LogLine[]>([]);
   const [dismissedError, setDismissedError] = useState<string | null>(null);
+  const [doctor, setDoctor] = useState<DoctorResponse | null>(null);
+  const [doctorLoading, setDoctorLoading] = useState(true);
+  const [doctorError, setDoctorError] = useState<string | null>(null);
+  const [runReceipts, setRunReceipts] = useState<RunReceiptSummary[]>([]);
+  const [receiptsLoading, setReceiptsLoading] = useState(false);
+  const [receiptsError, setReceiptsError] = useState<string | null>(null);
+  const [undoBusy, setUndoBusy] = useState(false);
+  const [undoNotice, setUndoNotice] = useState<UndoNotice | null>(null);
+  const [audioInputDevices, setAudioInputDevices] = useState<AudioInputDeviceSummary[]>(() => [
+    buildDefaultAudioInputDevice(),
+  ]);
+  const [selectedAudioInputDeviceId, setSelectedAudioInputDeviceId] = useState<string>(() => readStoredAudioInputDeviceId());
 
   // New-shell state
   const [isDarkMode, setIsDarkMode] = useState<boolean>(() =>
@@ -154,6 +190,14 @@ export function App() {
   const [quickWorkflowBusyId, setQuickWorkflowBusyId] = useState<string | null>(null);
   const [logClearIndex, setLogClearIndex] = useState(0);
   const lastStatusResponseLanguageModeRef = useRef<ResponseLanguageMode | null>(null);
+  const selectedAudioInputSource = resolveSelectedAudioInputSource(audioInputDevices, selectedAudioInputDeviceId);
+  const runtimeHealthMountedRef = useRef(true);
+  const previousConnectedRef = useRef(false);
+  const openMicConfirmedRef = useRef(false);
+  const operatorStateMountedRef = useRef(true);
+  const lastToolResultRefreshRef = useRef<string | null>(null);
+  const captureShareExpiryTimerRef = useRef<number | null>(null);
+  const lastCaptureToolCallRef = useRef<string | null>(null);
 
   const sessionSyncRef = useRef<{
     sessionId: string | null;
@@ -175,6 +219,8 @@ export function App() {
     responseLanguageMode,
     recipeId: selectedRecipeId,
     muted: false,
+    audioInputDeviceId: selectedAudioInputDeviceId === DEFAULT_AUDIO_INPUT_DEVICE_ID ? null : selectedAudioInputDeviceId,
+    audioInputSource: selectedAudioInputSource,
     openMicArmed,
     captureRawEvents: false,
     idleDisconnectSeconds: autoSleepEnabled
@@ -183,6 +229,81 @@ export function App() {
     idleWarningSeconds: realtimeIdleWarningSeconds,
     sessionGuardrails: realtimeSessionGuardrails,
   });
+
+  const refreshDoctorState = useCallback(async () => {
+    setDoctorLoading(true);
+    try {
+      const snapshot = await fetchDoctor(target);
+      if (operatorStateMountedRef.current) {
+        setDoctor(snapshot);
+        setDoctorError(null);
+      }
+    } catch (error) {
+      if (operatorStateMountedRef.current) {
+        setDoctorError(error instanceof Error ? error.message : String(error));
+      }
+    } finally {
+      if (operatorStateMountedRef.current) setDoctorLoading(false);
+    }
+  }, [target]);
+
+  const refreshRunReceipts = useCallback(async () => {
+    setReceiptsLoading(true);
+    setReceiptsError(null);
+    try {
+      const receipts = await fetchRunReceipts(20);
+      if (operatorStateMountedRef.current) setRunReceipts(receipts);
+    } catch (error) {
+      if (operatorStateMountedRef.current) {
+        setReceiptsError(error instanceof Error ? error.message : String(error));
+      }
+    } finally {
+      if (operatorStateMountedRef.current) setReceiptsLoading(false);
+    }
+  }, []);
+
+  const refreshAudioInputs = useEffectEvent(async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.enumerateDevices) {
+      setAudioInputDevices([buildDefaultAudioInputDevice()]);
+      return;
+    }
+
+    const mediaDevices = await navigator.mediaDevices.enumerateDevices();
+    const nextDevices = buildAudioInputDeviceSummaries(mediaDevices);
+    setAudioInputDevices(nextDevices);
+    setSelectedAudioInputDeviceId((current) => {
+      if (nextDevices.some((device) => device.deviceId === current)) {
+        return current;
+      }
+      writeStoredAudioInputDeviceId(DEFAULT_AUDIO_INPUT_DEVICE_ID);
+      return DEFAULT_AUDIO_INPUT_DEVICE_ID;
+    });
+  });
+
+  useEffect(() => {
+    void refreshAudioInputs().catch(() => {
+      setAudioInputDevices([buildDefaultAudioInputDevice()]);
+    });
+
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.addEventListener) {
+      return;
+    }
+
+    const handleDeviceChange = () => {
+      void refreshAudioInputs().catch(() => {});
+    };
+    navigator.mediaDevices.addEventListener("devicechange", handleDeviceChange);
+    return () => {
+      navigator.mediaDevices.removeEventListener("devicechange", handleDeviceChange);
+    };
+  }, [refreshAudioInputs]);
+
+  useEffect(() => {
+    if (!connection.connected) {
+      return;
+    }
+    void refreshAudioInputs().catch(() => {});
+  }, [connection.connected, refreshAudioInputs]);
 
   useEffect(() => {
     void fetchConfig()
@@ -197,9 +318,11 @@ export function App() {
         setRealtimeSessionGuardrails(config.realtimeSessionGuardrails);
         setRealtimeReady(config.realtimeReady);
         setUsageReady(config.usageReady);
+        setCaptureUploadsEnabled(config.captureUploadsEnabled);
         setRealtimeCredentialValidated(config.realtimeCredentialValidated);
         setUsageScopeValidated(config.usageScopeValidated);
         setRuntimeHealth(config.runtime);
+        setManagedScientificLaunch(config.managedScientificLaunch ?? null);
       })
       .catch((error) => {
         setLoadError(error instanceof Error ? error.message : String(error));
@@ -229,36 +352,77 @@ export function App() {
     void loadOrganizationUsage();
   }, [usageReady, usageScopeValidated]);
 
-  useEffect(() => {
-    let cancelled = false;
-    const refreshHealth = async () => {
-      try {
-        const health = await fetchHealth();
-        if (cancelled) return;
-        setRealtimeIdleWarningSeconds(health.realtimeIdleWarningSeconds);
-        setRealtimePttIdleDisconnectSeconds(health.realtimePttIdleDisconnectSeconds);
-        setRealtimeOpenMicIdleDisconnectSeconds(health.realtimeOpenMicIdleDisconnectSeconds);
-        setRealtimeSessionGuardrails(health.realtimeSessionGuardrails);
-        setRealtimeReady(health.realtimeReady);
-        setUsageReady(health.usageReady);
-        setRealtimeCredentialValidated(health.realtimeCredentialValidated);
-        setUsageScopeValidated(health.usageScopeValidated);
-        setRuntimeHealth(health.runtime);
-      } catch {
-        if (cancelled) return;
-      }
-    };
+  const refreshRuntimeHealth = useEffectEvent(async () => {
+    try {
+      const health = await fetchHealth();
+      if (!runtimeHealthMountedRef.current) return;
+      setRealtimeIdleWarningSeconds(health.realtimeIdleWarningSeconds);
+      setRealtimePttIdleDisconnectSeconds(health.realtimePttIdleDisconnectSeconds);
+      setRealtimeOpenMicIdleDisconnectSeconds(health.realtimeOpenMicIdleDisconnectSeconds);
+      setRealtimeSessionGuardrails(health.realtimeSessionGuardrails);
+      setRealtimeReady(health.realtimeReady);
+      setUsageReady(health.usageReady);
+      setRealtimeCredentialValidated(health.realtimeCredentialValidated);
+      setUsageScopeValidated(health.usageScopeValidated);
+      setRuntimeHealth(health.runtime);
+    } catch {
+      // Keep the last health snapshot visible until the next successful poll.
+    }
+  });
 
-    void refreshHealth();
+  useEffect(() => {
+    runtimeHealthMountedRef.current = true;
+    void refreshRuntimeHealth();
     const timer = window.setInterval(() => {
-      void refreshHealth();
+      void refreshRuntimeHealth();
     }, 10_000);
 
     return () => {
-      cancelled = true;
+      runtimeHealthMountedRef.current = false;
       window.clearInterval(timer);
     };
-  }, []);
+  }, [refreshRuntimeHealth]);
+
+  useEffect(() => {
+    operatorStateMountedRef.current = true;
+    void refreshDoctorState();
+    const timer = window.setInterval(() => {
+      void refreshDoctorState();
+    }, 20_000);
+    return () => {
+      operatorStateMountedRef.current = false;
+      window.clearInterval(timer);
+    };
+  }, [refreshDoctorState]);
+
+  useEffect(() => {
+    if (!settingsOpen || activeSettingsTab !== "runs") return;
+    void refreshRunReceipts();
+  }, [activeSettingsTab, refreshRunReceipts, settingsOpen]);
+
+  useEffect(() => {
+    const wasConnected = previousConnectedRef.current;
+    previousConnectedRef.current = connection.connected;
+    if (!wasConnected || connection.connected) {
+      return;
+    }
+
+    setRuntimeHealth((current) => {
+      if (!current) {
+        return current;
+      }
+      return {
+        ...current,
+        sessions: {
+          ...current.sessions,
+          total: Math.max(0, current.sessions.total - 1),
+          active: Math.max(0, current.sessions.active - 1),
+          connected: Math.max(0, current.sessions.connected - 1),
+        },
+      };
+    });
+    void refreshRuntimeHealth();
+  }, [connection.connected, refreshRuntimeHealth]);
 
   useEffect(() => {
     if (!examples.length) return;
@@ -360,6 +524,15 @@ export function App() {
   }, [connection.sessionId]);
 
   useEffect(() => {
+    if (captureShareExpiryTimerRef.current !== null) {
+      window.clearTimeout(captureShareExpiryTimerRef.current);
+      captureShareExpiryTimerRef.current = null;
+    }
+    lastCaptureToolCallRef.current = null;
+    setCaptureShareState("idle");
+  }, [connection.sessionId]);
+
+  useEffect(() => {
     if (!connection.sessionId) return;
     if (sessionSyncRef.current.sessionId === connection.sessionId && sessionSyncRef.current.skipTarget) {
       sessionSyncRef.current.skipTarget = false;
@@ -412,17 +585,78 @@ export function App() {
     void updateSessionRecipe(connection.sessionId, connection.sessionAccessToken, selectedRecipeId).catch(() => {});
   }, [connection.sessionAccessToken, connection.sessionId, selectedRecipeId]);
 
+  const latestToolResultId = (() => {
+    for (let index = connection.events.length - 1; index >= 0; index -= 1) {
+      if (connection.events[index]?.kind === "tool_result") return connection.events[index]!.id;
+    }
+    return null;
+  })();
+
+  const latestCaptureAttachmentCallId = (() => {
+    for (let index = connection.events.length - 1; index >= 0; index -= 1) {
+      const event = connection.events[index];
+      if (event?.kind !== "tool_call" || !event.payload || typeof event.payload !== "object") continue;
+      const payload = event.payload as { toolName?: unknown; argumentsJson?: unknown };
+      if (payload.toolName !== "capture_view" || typeof payload.argumentsJson !== "string") continue;
+      try {
+        const args = JSON.parse(payload.argumentsJson) as { attachToConversation?: unknown };
+        if (args.attachToConversation === true) return event.id;
+      } catch {
+        // The server will reject malformed tool arguments without consuming consent.
+      }
+    }
+    return null;
+  })();
+
+  useEffect(() => {
+    if (!latestToolResultId || lastToolResultRefreshRef.current === latestToolResultId) return;
+    lastToolResultRefreshRef.current = latestToolResultId;
+    void refreshDoctorState();
+    void refreshRunReceipts();
+  }, [latestToolResultId, refreshDoctorState, refreshRunReceipts]);
+
+  useEffect(() => {
+    if (!latestCaptureAttachmentCallId || lastCaptureToolCallRef.current === latestCaptureAttachmentCallId) return;
+    lastCaptureToolCallRef.current = latestCaptureAttachmentCallId;
+    if (captureShareExpiryTimerRef.current !== null) {
+      window.clearTimeout(captureShareExpiryTimerRef.current);
+      captureShareExpiryTimerRef.current = null;
+    }
+    setCaptureShareState("idle");
+  }, [latestCaptureAttachmentCallId]);
+
+  useEffect(() => {
+    setUndoNotice(null);
+  }, [target]);
+
   const visibleExamples = examples.filter((recipe) => recipe.apps.includes(target));
   const selectedRecipe = visibleExamples.find((recipe) => recipe.id === selectedRecipeId) ?? null;
   const stageArtifactPreview = findLatestStageArtifactPreview(connection.events);
   const latestWidgetAction = summarizeLatestWidgetAction(connection.events);
+  const undoAvailable = !doctorError && doctor?.targets[target].undoAvailable === true;
+  const undoBlockedByActiveWork = quickWorkflowBusyId !== null
+    || connection.status?.toolBusy === true
+    || ["executing", "confirming"].includes(connection.phase);
+  const undoControlAvailable = undoAvailable && !undoBlockedByActiveWork;
+  const undoDisabledReason = undoBlockedByActiveWork
+    ? "Wait for the current turn to finish"
+    : doctorLoading && !doctor
+      ? "Checking for a scene checkpoint"
+      : doctorError
+        ? "Undo status unavailable"
+        : doctor?.targets[target].ready === false
+          ? `${target === "pymol" ? "PyMOL" : "ChimeraX"} is not ready`
+          : "Nothing to undo";
   const connectBusy = !connection.connected && (connection.phase === "arming" || connection.phase === "connecting");
   const targetRuntimeReady = target === "pymol" ? runtimeHealth?.targets.pymol.ready : runtimeHealth?.targets.chimerax.ready;
   const targetUnavailable = targetRuntimeReady === false;
   const activeRealtimeSessionCount =
-    (runtimeHealth?.sessions.awaitingCall ?? 0)
-    + (runtimeHealth?.sessions.connecting ?? 0)
-    + (runtimeHealth?.sessions.connected ?? 0);
+    runtimeHealth?.sessions.active
+    ?? (
+      (runtimeHealth?.sessions.awaitingCall ?? 0)
+      + (runtimeHealth?.sessions.connecting ?? 0)
+      + (runtimeHealth?.sessions.connected ?? 0)
+    );
   const activeSessionCapReached =
     !connection.connected
     && configLoaded
@@ -442,19 +676,30 @@ export function App() {
   const realtimeKeyLabel = !configLoaded ? "LOADING" : realtimeReady ? "SET" : "MISSING";
   const usageKeyLabel = !configLoaded ? "LOADING" : usageReady ? "SET" : "MISSING";
   const scientificQueryState = initialQueryScientific.current;
+  const managedInputs = managedScientificLaunch?.target === target
+    ? managedScientificLaunch.scientificInputs
+    : undefined;
+  const scientificInputs: ScientificLaunchInputs = {
+    ...(managedInputs ?? {}),
+    ...scientificQueryState.scientificInputs,
+  };
+  const resolvedScientificWorkflowId: ScientificWorkflowKind | undefined = scientificQueryState.workflowId
+    ?? (managedScientificLaunch?.target === target ? managedScientificLaunch.workflowId : undefined)
+    ?? getScientificWorkflowFromRecipe(selectedRecipe?.id)
+    ?? undefined;
   const scientificLaunchCards: ScientificWorkflowLaunchCard[] = buildScientificWorkflowLaunchCards({
     target,
     baseUrl: publicBaseUrl,
     recipes: visibleExamples,
-    workflowId: scientificQueryState.workflowId ?? getScientificWorkflowFromRecipe(selectedRecipe?.id) ?? undefined,
-    scientificInputs: scientificQueryState.scientificInputs,
+    workflowId: resolvedScientificWorkflowId,
+    scientificInputs,
   });
-  const activeScientificWorkflowId = scientificQueryState.workflowId ?? getScientificWorkflowFromRecipe(selectedRecipe?.id) ?? null;
+  const activeScientificWorkflowId = manualScientificWorkflowId ?? resolvedScientificWorkflowId ?? null;
   const activeScientificWorkflowCard = activeScientificWorkflowId
     ? scientificLaunchCards.find((card) => card.id === activeScientificWorkflowId) ?? null
     : null;
-  const scientificInputSummary = formatScientificInputSummary(scientificQueryState.scientificInputs);
-  const scientificInputsPinned = hasScientificInputs(scientificQueryState.scientificInputs);
+  const scientificInputSummary = formatScientificInputSummary(scientificInputs);
+  const scientificInputsPinned = hasScientificInputs(scientificInputs);
   const activeIdleDisconnectSeconds = resolveIdleDisconnectSeconds(
     voiceMode,
     realtimePttIdleDisconnectSeconds,
@@ -494,7 +739,7 @@ export function App() {
       ? "Session event stream stalled. Voice may still be live; disconnect and reconnect if you want to avoid blind spend."
       : null)
     ?? (activeSessionCapReached
-      ? "Realtime session limit reached. Disconnect another session or wait for a stale setup attempt to expire before starting a new call."
+      ? "Local Realtime slots are full, not a length timer. End another session or wait for stale setup cleanup."
       : null)
     ?? (connection.idleWarningActive
       ? `Idle disconnect in ${idleCountdownLabel}. Start a new turn or pause the session if you want to keep it alive.`
@@ -536,6 +781,7 @@ export function App() {
 
   function enableOpenMicAfterConfirmation() {
     setOpenMicConfirmOpen(false);
+    openMicConfirmedRef.current = true;
     setVoiceMode("open_mic");
     setOpenMicArmed(true);
   }
@@ -547,7 +793,7 @@ export function App() {
       return;
     }
 
-    if (voiceMode === "open_mic") {
+    if (!openMicConfirmationRequired(voiceMode, openMicConfirmedRef.current)) {
       setOpenMicArmed(true);
       return;
     }
@@ -568,10 +814,7 @@ export function App() {
       if (!connection.ready || ["executing", "confirming", "error"].includes(connection.phase)) {
         return;
       }
-      if (voiceMode !== "open_mic") {
-        setVoiceMode("open_mic");
-      }
-      setOpenMicArmed(true);
+      requestOpenMic();
       return;
     }
 
@@ -581,12 +824,55 @@ export function App() {
       return;
     }
 
-    if (voiceMode !== "open_mic") {
+    if (openMicConfirmationRequired(voiceMode, openMicConfirmedRef.current)) {
       requestOpenMic();
       return;
     }
 
     setOpenMicArmed((value) => !value);
+  }
+
+  function handleAudioInputDeviceChange(deviceId: string) {
+    if (connection.connected || connectBusy) {
+      return;
+    }
+    const nextDeviceId = audioInputDevices.some((device) => device.deviceId === deviceId)
+      ? deviceId
+      : DEFAULT_AUDIO_INPUT_DEVICE_ID;
+    setSelectedAudioInputDeviceId(nextDeviceId);
+    writeStoredAudioInputDeviceId(nextDeviceId);
+  }
+
+  async function handleUndoLastTurn(): Promise<void> {
+    if (!undoControlAvailable || undoBusy) return;
+    setUndoBusy(true);
+    setUndoNotice(null);
+    try {
+      const result = await undoLastTurn(target);
+      if (result.error) throw new Error(result.error);
+      const targetLabel = target === "pymol" ? "PyMOL" : "ChimeraX";
+      const message = `Restored ${targetLabel} to the scene before the last turn.`;
+      const completedAt = new Date();
+      setUndoNotice({ tone: "success", message });
+      setManualLogEntries((previous) => [
+        ...previous,
+        {
+          id: `undo-${completedAt.getTime()}`,
+          timestamp: completedAt,
+          type: "success" as const,
+          message,
+          details: result.warnings.length > 0 ? result.warnings.join(" · ") : undefined,
+        },
+      ].slice(-20));
+    } catch (error) {
+      setUndoNotice({
+        tone: "error",
+        message: error instanceof Error ? error.message : String(error),
+      });
+    } finally {
+      await Promise.allSettled([refreshDoctorState(), refreshRunReceipts()]);
+      if (operatorStateMountedRef.current) setUndoBusy(false);
+    }
   }
 
   async function loadOrganizationUsage(): Promise<void> {
@@ -607,6 +893,8 @@ export function App() {
           <Suspense fallback={<div className="widget-shell-loading" aria-hidden="true" />}>
           <VoiceWidget
             autoSleepEnabled={autoSleepEnabled}
+            audioInputDevices={audioInputDevices}
+            audioInputDisabled={connection.connected || connectBusy}
             connectBusy={connectBusy}
             connectDisabled={connectDisabled}
             connected={connection.connected}
@@ -630,7 +918,12 @@ export function App() {
             onPushToTalkEnd={() => connection.endPushToTalk()}
             onPushToTalkStart={() => connection.beginPushToTalk()}
             overlayMode={overlayMode}
+            onAudioInputDeviceChange={handleAudioInputDeviceChange}
             onToggleOpenMic={handleWidgetOpenMicToggle}
+            onUndo={() => { void handleUndoLastTurn(); }}
+            undoAvailable={undoControlAvailable}
+            undoBusy={undoBusy}
+            undoFeedback={undoNotice}
             onToggleTarget={() => setTarget((current) => (current === "pymol" ? "chimerax" : "pymol"))}
             openMicArmed={openMicArmed}
             phase={connection.phase}
@@ -638,6 +931,7 @@ export function App() {
             sessionPaused={connection.sessionPaused}
             sessionNotice={sessionNoticeMessage}
             sessionNoticeTone={sessionNoticeTone}
+            selectedAudioInputDeviceId={selectedAudioInputDeviceId}
             target={target}
             targetReady={!targetUnavailable}
             voiceMode={voiceMode}
@@ -814,6 +1108,32 @@ export function App() {
     });
   };
 
+  const handleGrantNextViewportShare = async () => {
+    if (!connection.sessionId || !connection.sessionAccessToken) return;
+    const grantedSessionId = connection.sessionId;
+    if (captureShareExpiryTimerRef.current !== null) {
+      window.clearTimeout(captureShareExpiryTimerRef.current);
+      captureShareExpiryTimerRef.current = null;
+    }
+    setCaptureShareState("busy");
+    try {
+      const grant = await grantNextViewportShare(connection.sessionId, connection.sessionAccessToken);
+      if (sessionSyncRef.current.sessionId !== grantedSessionId) return;
+      setCaptureShareState("granted");
+      const delayMs = Math.max(0, Date.parse(grant.expiresAt) - Date.now());
+      captureShareExpiryTimerRef.current = window.setTimeout(() => {
+        captureShareExpiryTimerRef.current = null;
+        if (sessionSyncRef.current.sessionId === grantedSessionId) {
+          setCaptureShareState((current) => current === "granted" ? "idle" : current);
+        }
+      }, delayMs);
+    } catch {
+      if (sessionSyncRef.current.sessionId === grantedSessionId) {
+        setCaptureShareState("error");
+      }
+    }
+  };
+
   const handleClearLog = () => {
     setLogClearIndex(connection.events.length);
     setManualLogEntries([]);
@@ -822,6 +1142,7 @@ export function App() {
   const handleOpenSettings = () => {
     setSettingsDrawerLoaded(true);
     setSettingsOpen(true);
+    void refreshDoctorState();
   };
 
   const handleLaunchQuickWorkflow = async (workflow: RecipeSummary) => {
@@ -848,6 +1169,7 @@ export function App() {
         ...previous,
         buildManualWorkflowSuccessLogEntry(workflow, result, completedAt),
       ].slice(-20));
+      await Promise.allSettled([refreshDoctorState(), refreshRunReceipts()]);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       const failedAt = new Date();
@@ -855,6 +1177,54 @@ export function App() {
       setManualLogEntries((previous) => [
         ...previous,
         buildManualWorkflowFailureLogEntry(workflow, message, failedAt),
+      ].slice(-20));
+    } finally {
+      setQuickWorkflowBusyId(null);
+    }
+  };
+
+  const handleLaunchScientificWorkflow = async (workflowId: string, dryRun: boolean) => {
+    const card = scientificLaunchCards.find((candidate) => candidate.id === workflowId);
+    if (!card) return;
+    setQuickWorkflowBusyId(workflowId);
+    setManualRunError(null);
+    try {
+      const result = await runScientificWorkflow({
+        target,
+        workflow: card.id,
+        recipeId: card.bestRecipeId,
+        dryRun,
+        presentationMode: "demo",
+        inputs: buildScientificWorkflowInputs(card.id, scientificInputs),
+      });
+      const completedAt = new Date();
+      const actionResult: ManualActionResult = result;
+      const latestImageArtifact = findLatestImageArtifactInManualRun(actionResult);
+      if (latestImageArtifact) {
+        setManualPreviewArtifact({
+          id: latestImageArtifact.path,
+          kind: latestImageArtifact.kind,
+          url: latestImageArtifact.url,
+          label: latestImageArtifact.label,
+          timestamp: completedAt.toISOString(),
+        });
+      }
+      setManualScientificWorkflowId(card.id);
+      setManualLogEntries((previous) => [
+        ...previous,
+        buildManualWorkflowSuccessLogEntry({
+          id: workflowId,
+          title: `${card.title}${dryRun ? " dry run" : ""}`,
+        }, actionResult, completedAt),
+      ].slice(-20));
+      await Promise.allSettled([refreshDoctorState(), refreshRunReceipts()]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      const failedAt = new Date();
+      setManualRunError(message);
+      setManualLogEntries((previous) => [
+        ...previous,
+        buildManualWorkflowFailureLogEntry({ id: workflowId, title: card.title }, message, failedAt),
       ].slice(-20));
     } finally {
       setQuickWorkflowBusyId(null);
@@ -892,9 +1262,26 @@ export function App() {
         isDarkMode={isDarkMode}
         onThemeToggle={handleThemeToggle}
         onSettingsClick={handleOpenSettings}
+        undoAvailable={undoControlAvailable}
+        undoBusy={undoBusy}
+        undoDisabledReason={undoDisabledReason}
+        onUndo={() => { void handleUndoLastTurn(); }}
       />
 
       <ErrorBanner message={bannerMessage} onDismiss={dismissBanner} />
+      {undoNotice ? (
+        <div
+          className={`mx-6 mt-4 rounded-xl border px-4 py-2.5 text-sm ${
+            undoNotice.tone === "success"
+              ? "border-emerald-300/70 bg-emerald-50/80 text-emerald-800 dark:border-emerald-800/70 dark:bg-emerald-950/30 dark:text-emerald-200"
+              : "border-rose-300/70 bg-rose-50/80 text-rose-800 dark:border-rose-800/70 dark:bg-rose-950/30 dark:text-rose-200"
+          }`}
+          role={undoNotice.tone === "error" ? "alert" : "status"}
+          aria-live="polite"
+        >
+          {undoNotice.message}
+        </div>
+      ) : null}
       {sessionNoticeMessage ? (
         <div className="mx-6 mt-4 rounded-2xl border border-amber-300/70 dark:border-amber-700/50 bg-amber-50/80 dark:bg-amber-950/30 px-4 py-3 text-sm leading-relaxed text-amber-900 dark:text-amber-100">
           {sessionNoticeMessage}
@@ -911,6 +1298,10 @@ export function App() {
             onVoiceModeChange={setVoiceMode}
             responseLanguageMode={responseLanguageMode}
             onResponseLanguageModeChange={setResponseLanguageMode}
+            audioInputDevices={audioInputDevices}
+            selectedAudioInputDeviceId={selectedAudioInputDeviceId}
+            onAudioInputDeviceChange={handleAudioInputDeviceChange}
+            audioInputDisabled={connection.connected || connectBusy}
             transcript={transcriptForStage}
             onPushToTalkStart={() => connection.beginPushToTalk()}
             onPushToTalkEnd={() => connection.endPushToTalk()}
@@ -918,6 +1309,9 @@ export function App() {
             openMicArmed={openMicArmed}
             onToggleOpenMic={handleWidgetOpenMicToggle}
             hint={widgetHint}
+            captureSharingEnabled={captureUploadsEnabled}
+            captureShareState={captureShareState}
+            onGrantNextViewportShare={() => { void handleGrantNextViewportShare(); }}
           />
 
           <QuickWorkflows
@@ -945,6 +1339,15 @@ export function App() {
             usage={usageSnapshot}
             activeTab={activeSettingsTab}
             onTabChange={setActiveSettingsTab}
+            doctor={doctor}
+            doctorLoading={doctorLoading}
+            doctorError={doctorError}
+            doctorTarget={target}
+            onRefreshDoctor={() => { void refreshDoctorState(); }}
+            receipts={runReceipts}
+            receiptsLoading={receiptsLoading}
+            receiptsError={receiptsError}
+            onRefreshReceipts={() => { void refreshRunReceipts(); }}
             workflowsPanelProps={{
               target,
               recipes: quickWorkflows.map((recipe) => ({
@@ -962,6 +1365,9 @@ export function App() {
                   void handleLaunchQuickWorkflow(workflow);
                 }
               },
+              onLaunchScientificWorkflow: (workflowId, dryRun) => {
+                void handleLaunchScientificWorkflow(workflowId, dryRun);
+              },
               scientificLaunchCards: scientificLaunchCards.map((card) => ({
                 id: card.id,
                 title: card.title,
@@ -971,6 +1377,10 @@ export function App() {
                 bestRecipeId: card.bestRecipeId,
                 inputHints: card.inputHints,
                 voiceStarter: card.voiceStarter,
+                evidenceLevel: card.evidenceLevel,
+                assumptions: card.assumptions,
+                inputsReady: card.inputsReady,
+                inputMessage: card.inputMessage,
               })),
               activeScientificWorkflowId,
               scientificInputSummary,
@@ -995,7 +1405,11 @@ export function App() {
   );
 }
 
-function hasScientificInputs(inputs: { uniprot?: string; model?: string; experimental?: string; pae?: string; map?: string; bundle?: string; scorefile?: string; topN?: number } | undefined): boolean {
+export function openMicConfirmationRequired(voiceMode: VoiceMode, confirmedThisPage: boolean): boolean {
+  return voiceMode !== "open_mic" || !confirmedThisPage;
+}
+
+function hasScientificInputs(inputs: ScientificLaunchInputs | undefined): boolean {
   if (!inputs) {
     return false;
   }
@@ -1008,6 +1422,11 @@ function hasScientificInputs(inputs: { uniprot?: string; model?: string; experim
     inputs.map ||
     inputs.bundle ||
     inputs.scorefile ||
+    inputs.experimentalPdbId ||
+    inputs.emdbId ||
+    inputs.mutations?.length ||
+    inputs.comparison ||
+    inputs.ligand ||
     typeof inputs.topN === "number",
   );
 }
@@ -1256,6 +1675,85 @@ export function chooseLatestArtifactPreview(
   const stageTimestamp = stageArtifact.timestamp ? Date.parse(stageArtifact.timestamp) : 0;
   const manualTimestamp = manualArtifact.timestamp ? Date.parse(manualArtifact.timestamp) : 0;
   return manualTimestamp >= stageTimestamp ? manualArtifact : stageArtifact;
+}
+
+function buildDefaultAudioInputDevice(): AudioInputDeviceSummary {
+  return {
+    deviceId: DEFAULT_AUDIO_INPUT_DEVICE_ID,
+    label: "System Default",
+    source: "default",
+  };
+}
+
+function buildAudioInputDeviceSummaries(mediaDevices: MediaDeviceInfo[]): AudioInputDeviceSummary[] {
+  const devices: AudioInputDeviceSummary[] = [buildDefaultAudioInputDevice()];
+  const seen = new Set<string>([DEFAULT_AUDIO_INPUT_DEVICE_ID]);
+  let unnamedIndex = 1;
+
+  for (const device of mediaDevices) {
+    if (device.kind !== "audioinput") {
+      continue;
+    }
+    const deviceId = device.deviceId.trim();
+    if (!deviceId || seen.has(deviceId)) {
+      continue;
+    }
+    seen.add(deviceId);
+
+    const fallbackLabel = deviceId === "communications" ? "Communications Default" : `Microphone ${unnamedIndex}`;
+    const label = device.label.trim() || fallbackLabel;
+    if (!device.label.trim()) {
+      unnamedIndex += 1;
+    }
+
+    devices.push({
+      deviceId,
+      label,
+      source: inferAudioInputSource(label, deviceId),
+    });
+  }
+
+  return devices;
+}
+
+function inferAudioInputSource(label: string, deviceId: string): AudioInputSourceKind {
+  if (deviceId === DEFAULT_AUDIO_INPUT_DEVICE_ID) {
+    return "default";
+  }
+  return VIRTUAL_AUDIO_INPUT_PATTERN.test(label) ? "system" : "microphone";
+}
+
+function resolveSelectedAudioInputSource(
+  devices: AudioInputDeviceSummary[],
+  selectedDeviceId: string,
+): AudioInputSourceKind {
+  return devices.find((device) => device.deviceId === selectedDeviceId)?.source ?? "default";
+}
+
+function readStoredAudioInputDeviceId(): string {
+  if (typeof window === "undefined") {
+    return DEFAULT_AUDIO_INPUT_DEVICE_ID;
+  }
+  try {
+    return window.localStorage.getItem(AUDIO_INPUT_STORAGE_KEY) || DEFAULT_AUDIO_INPUT_DEVICE_ID;
+  } catch {
+    return DEFAULT_AUDIO_INPUT_DEVICE_ID;
+  }
+}
+
+function writeStoredAudioInputDeviceId(deviceId: string): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+  try {
+    if (deviceId === DEFAULT_AUDIO_INPUT_DEVICE_ID) {
+      window.localStorage.removeItem(AUDIO_INPUT_STORAGE_KEY);
+      return;
+    }
+    window.localStorage.setItem(AUDIO_INPUT_STORAGE_KEY, deviceId);
+  } catch {
+    // Ignore local storage failures; the selected input still applies in memory.
+  }
 }
 
 function isInteractiveTarget(target: EventTarget | null): boolean {

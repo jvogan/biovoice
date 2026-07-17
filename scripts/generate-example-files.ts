@@ -1,6 +1,6 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { compileRecipeStepDoc, getExampleCatalog, getScientificWorkflowCatalog } from "../packages/runtime-and-adapters/src/examples/index.js";
+import { compileRecipeStepDoc, getExampleCatalog, getScientificLaunchCatalog } from "../packages/runtime-and-adapters/src/examples/index.js";
 import { examplesDir, projectRoot } from "../packages/runtime-and-adapters/src/utils/paths.js";
 
 /** Convert an absolute path to a project-root-relative path for generated docs. */
@@ -94,14 +94,14 @@ function buildExamplesIndex(catalog: ReturnType<typeof getExampleCatalog>) {
     "",
     "If you are a **developer or AI engineer** studying the Realtime API tool-calling pattern, start with:",
     "",
-    "- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 9 function tools in the catalog, selector schema, database asset resolution, state grounding, and workflow compilation",
+    "- [`docs/realtime-tool-calling.md`](../docs/realtime-tool-calling.md) - the 11 function tools in the catalog (10 in each target-specific session), selector schema, database asset resolution, state grounding, and workflow compilation",
     "- [`tool-playbooks/`](./tool-playbooks/) - the atomic PyMOL and ChimeraX action surface available to the model",
-    "- [`scientific-workflows/`](./scientific-workflows/) - the task-level AlphaFold / Rosetta catalog exposed behind `run_scientific_workflow`",
+    "- [`scientific-workflows/`](./scientific-workflows/) - the task-level AlphaFold, Rosetta, and variant-review catalog exposed behind `run_scientific_workflow`",
     "- The source of truth: [`packages/runtime-and-adapters/src/realtime/tool-definitions.ts`](../packages/runtime-and-adapters/src/realtime/tool-definitions.ts)",
     "",
     "## Structure",
     "- `start-here/`: concise operator quick reference",
-    "- `scientific-workflows/`: task-first AlphaFold and Rosetta launch catalog",
+    "- `scientific-workflows/`: task-first AlphaFold, Rosetta, and variant-review launch catalog",
     "- `workflow-recipes/`: full demo workflows for both apps",
     "- `prompt-library/`: curated utterance packs and follow-up prompts",
     "- `tool-playbooks/`: what the structured tool surface can do",
@@ -152,16 +152,16 @@ function buildStartHereDoc(catalog: ReturnType<typeof getExampleCatalog>) {
     "",
     "## Rehearse Without Voice",
     "1. Start with `npm run quickstart:pymol` or `npm run quickstart:chimerax`.",
-    "2. Choose a recipe and run `Run First Step` or `Dry Run Workflow` before connecting voice.",
-    "3. Use `Capture Current View` and `Reset Target` until the scene looks right.",
-    "4. Or run a recipe straight from the terminal with `npm run rehearse:workflow -- <recipeId> --target <pymol|chimerax> --capture`.",
+    "2. Open `Settings` → `Workflows`. Scientific cards provide `Dry run` and `Run`; recipe cards provide `Run`.",
+    "3. For a fully non-mutating check, run `npm run rehearse:workflow -- <workflowId|recipeId> --target <pymol|chimerax> --dry-run`.",
+    "4. Add `--capture` to a terminal rehearsal when you also want a local viewport image.",
     "",
     "## First Live Voice Test",
     "1. Confirm `OPENAI_API_KEY` is set in `.env`.",
     "2. Start with `npm run quickstart:pymol` or `npm run quickstart:chimerax`. Do not use audience mode for the first live test.",
     "3. In the app, stay in `Push To Talk`.",
     "4. Use the first line from the recipe `Voice Pack` before freestyle speech.",
-    "5. For AlphaFold or Rosetta tasks, choose a scientific launch card first so the right workflow and inputs are already pinned.",
+    "5. For AlphaFold, Rosetta, or variant-review tasks, choose a scientific workflow card first so the right workflow and inputs are already pinned.",
     "6. Switch to `Always On` only after one clean turn in a quiet room.",
     "",
     "## Cost And Silence",
@@ -173,15 +173,17 @@ function buildStartHereDoc(catalog: ReturnType<typeof getExampleCatalog>) {
     "## First Recipes To Try",
     starterRecipes,
     "",
-    "## Scientific Launch Cards",
-    "- Open the `Scientific Launch` rail in the UI to start from the task instead of the app.",
+    "## Scientific Workflow Cards",
+    "- Open `Settings` → `Workflows` in the full console to start from the scientific task instead of the target app.",
     "- For AlphaFold confidence or overlay stories, pin `--uniprot`, `--model`, and optionally `--pae`.",
     "- For Rosetta review stories, pin `--bundle`, `--scorefile`, and optionally `--top-n`.",
+    "- For variant environment reviews, pin `--model` or `--uniprot` plus one or more `--mutation` values such as `A:H58Y`.",
     "- The same flags work with the agent path: `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> ...`.",
     "",
     "## Bring Your Own Files",
     "- AlphaFold: local `.pdb` or `.cif`, optional PAE JSON, optional experimental structure, optional map.",
     "- Rosetta: bundle directory, candidate models, `score.sc`, and an optional reference scaffold.",
+    "- Variant review: a local model or UniProt accession, explicit mutation sites, and optional comparison structure or ligand code.",
     "",
     "## Demo Controls",
     "- `Space`: push to talk",
@@ -194,16 +196,14 @@ function buildStartHereDoc(catalog: ReturnType<typeof getExampleCatalog>) {
 }
 
 function buildScientificWorkflowsDoc() {
-  const workflows = getScientificWorkflowCatalog();
+  const workflows = getScientificLaunchCatalog();
 
   const sections = workflows.map((workflow) => {
     const candidateLines = workflow.candidates
       .map((candidate) => `- **${candidate.target}**: \`${candidate.recipeId}\` (${candidate.score}) - ${candidate.reason}`)
       .join("\n");
     const inputHints = workflow.inputHints.map((hint) => `- \`${hint}\``).join("\n");
-    const launchExample = workflow.id.startsWith("alpha")
-      ? `npm run agent:start -- ${workflow.defaultTarget} --workflow ${workflow.id} --uniprot P12345 --model ./model.pdb`
-      : `npm run agent:start -- ${workflow.defaultTarget} --workflow ${workflow.id} --bundle ./bundle --scorefile ./score.sc --top-n 5`;
+    const launchExample = buildScientificLaunchExample(workflow.id, workflow.defaultTarget);
 
     return [
       `## ${workflow.title}`,
@@ -231,7 +231,7 @@ function buildScientificWorkflowsDoc() {
   return [
     "# Scientific Workflows",
     "",
-    "This catalog is the task-first launch layer for AlphaFold and Rosetta work.",
+    "This catalog is the task-first launch layer for AlphaFold, Rosetta, and residue-variant environment review work.",
     "",
     "If you want a guided newcomer walkthrough first, start with:",
     "",
@@ -239,11 +239,11 @@ function buildScientificWorkflowsDoc() {
     "- [`docs/tutorial-rosetta.md`](../../docs/tutorial-rosetta.md)",
     "- [`docs/tutorial-cryo-em.md`](../../docs/tutorial-cryo-em.md)",
     "",
-    "Use it from the UI `Scientific Launch` rail, or pass the workflow explicitly to the agent start path.",
+    "Use it from `Settings` → `Workflows` in the full console, or pass the workflow explicitly to the agent start path.",
     "",
     "## Common Launch Pattern",
     "- `npm run agent:start -- <pymol|chimerax> --workflow <workflowId> [scientific inputs]`",
-    "- Examples: `--uniprot`, `--model`, `--experimental`, `--pae`, `--map`, `--bundle`, `--scorefile`, `--top-n`",
+    "- Examples: `--uniprot`, `--model`, `--experimental`, `--pae`, `--map`, `--bundle`, `--scorefile`, `--top-n`, `--mutation`, `--comparison`, `--ligand`",
     "- Keep `Push To Talk` as the default until the first clean live turn is complete.",
     "",
     "## Validated Local Showcases",
@@ -263,6 +263,34 @@ function buildScientificWorkflowsDoc() {
     "",
     ...sections,
   ].join("\n");
+}
+
+function buildScientificLaunchExample(workflowId: string, target: "pymol" | "chimerax"): string {
+  const prefix = `npm run agent:start -- ${target} --workflow ${workflowId}`;
+  switch (workflowId) {
+    case "alphafold_confidence_review":
+      return `${prefix} --uniprot P69905`;
+    case "alphafold_vs_experiment_overlay":
+      return `${prefix} --uniprot P69905 --experimental-pdb-id 4HHB --structure-format pdb`;
+    case "alphafold_multimer_interface_review":
+      return `${prefix} --model ./multimer.cif`;
+    case "alphafold_pae_guided_triage":
+      return `${prefix} --uniprot P69905`;
+    case "alphafold_to_cryo_handoff":
+      return `${prefix} --uniprot P69905 --emdb-id EMD-37575`;
+    case "rosetta_scaffold_design_review":
+      return `${prefix} --bundle ./design-bundle --model ./reference-scaffold.pdb`;
+    case "rosetta_interface_packing_review":
+      return `${prefix} --bundle ./multichain-design-bundle`;
+    case "rosetta_ligand_redesign_review":
+      return `${prefix} --bundle ./design-bundle --ligand HEM`;
+    case "rosetta_top_design_compare":
+      return `${prefix} --bundle ./design-bundle --scorefile ./score.sc --top-n 5`;
+    case "variant_environment_review":
+      return `${prefix} --model ./model.pdb --mutation A:H58Y`;
+    default:
+      throw new Error(`No scientific launch example is defined for ${workflowId}.`);
+  }
 }
 
 function buildPromptLibraryDoc(catalog: ReturnType<typeof getExampleCatalog>) {
@@ -320,7 +348,7 @@ function buildTroubleshootingDoc() {
     "",
     "## Recovery",
     "- Use the built-in recipe steps to recover a complex demo without restyling the scene manually.",
-    "- Use `Reset Target` when you want a clean presentation baseline without restarting the app.",
+    "- Use the header `Undo` control to restore the scene before the last action bundle, or restart with `--clean-target` for a fresh presentation baseline.",
     "- Use `Cancel Turn` if a spoken instruction starts to drift before the tool call executes.",
   ].join("\n");
 }

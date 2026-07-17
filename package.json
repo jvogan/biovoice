@@ -112,10 +112,12 @@
     "agent:restart:chimerax": "tsx scripts/agent-runtime.ts restart chimerax",
     "agent:status": "tsx scripts/agent-runtime.ts status",
     "agent:stop": "tsx scripts/agent-runtime.ts stop",
+    "biovoice": "tsx scripts/biovoice.ts",
     "smoke:pymol": "tsx scripts/smoke-pymol.ts",
     "smoke:chimerax": "tsx scripts/smoke-chimerax.ts",
     "smoke:browser:launch": "tsx scripts/smoke-browser-launch.ts",
     "verify:examples": "tsx scripts/verify-examples.ts",
+    "verify:voice-evals": "tsx scripts/verify-voice-evals.ts",
     "verify:launch": "tsx scripts/verify-launch.ts",
     "verify:showcases": "tsx scripts/verify-showcases.ts",
     "generate:examples": "tsx scripts/generate-example-files.ts",
@@ -134,7 +136,7 @@
     "motion": "^12.38.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
-    "ws": "^8.18.3",
+    "ws": "^8.21.1",
     "zod": "^4.1.12"
   },
   "devDependencies": {

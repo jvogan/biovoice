@@ -235,9 +235,10 @@ describe("realtime tool definitions", () => {
     expect(tool.parameters.properties.workflow.enum).toEqual(expect.arrayContaining([
       "alphafold_vs_experiment_overlay",
       "rosetta_top_design_compare",
+      "variant_environment_review",
     ]));
     expect(tool.parameters.properties.presentationMode.enum).toEqual(["analysis", "demo", "publication"]);
-    expect(tool.parameters.properties.inputs.oneOf).toHaveLength(2);
+    expect(tool.parameters.properties.inputs.oneOf).toHaveLength(3);
     const alphaFoldInputs = tool.parameters.properties.inputs.oneOf.find((candidate) => "uniprotId" in candidate.properties);
     const rosettaInputs = tool.parameters.properties.inputs.oneOf.find((candidate) => "scorefilePath" in candidate.properties);
     expect(alphaFoldInputs?.properties).toEqual(expect.objectContaining({
@@ -250,6 +251,27 @@ describe("realtime tool definitions", () => {
       candidatePaths: expect.any(Object),
       scorefilePath: expect.any(Object),
     }));
+    const variantInputs = tool.parameters.properties.inputs.oneOf.find((candidate) => "mutations" in candidate.properties);
+    expect(variantInputs?.properties).toEqual(expect.objectContaining({
+      modelPath: expect.any(Object),
+      mutations: expect.any(Object),
+      comparisonPath: expect.any(Object),
+      ligandCode: expect.any(Object),
+    }));
+  });
+
+  it("exposes one-level undo as a shared target-aware tool", () => {
+    const tool = getTool("undo_last_action", "pymol") as unknown as {
+      description: string;
+      parameters: {
+        required: string[];
+        properties: { target: { enum: string[] } };
+      };
+    };
+
+    expect(tool.description).toContain("one-level undo");
+    expect(tool.parameters.required).toEqual(["target"]);
+    expect(tool.parameters.properties.target.enum).toEqual(["pymol", "chimerax"]);
   });
 
   it("exposes capture_view as a shared visual inspection tool", () => {
@@ -267,7 +289,10 @@ describe("realtime tool definitions", () => {
     expect(tool.parameters.required).toEqual(["target"]);
     expect(tool.parameters.properties.target.enum).toEqual(["pymol", "chimerax"]);
     expect(tool.parameters.properties).toHaveProperty("inspectionPrompt");
-    expect(tool.parameters.properties).toHaveProperty("attachToConversation");
+    expect(tool.parameters.properties.attachToConversation).toEqual(expect.objectContaining({
+      default: false,
+      description: expect.stringContaining("explicit user consent"),
+    }));
   });
 
   it("exposes the scientific asset resolver as a shared database-fetch tool", () => {

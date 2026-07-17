@@ -1,6 +1,13 @@
 export type TargetKind = "pymol" | "chimerax";
 export type VoiceMode = "push_to_talk" | "open_mic";
 export type ResponseLanguageMode = "standard" | "klingon";
+export type AudioInputSourceKind = "default" | "microphone" | "system";
+
+export interface AudioInputDeviceSummary {
+  deviceId: string;
+  label: string;
+  source: AudioInputSourceKind;
+}
 
 export type ConnectionPhase =
   | "idle"
@@ -80,4 +87,4 @@ export interface UsageSnapshot {
   totalTokens?: number;
 }
 
-export type SettingsTab = "runtime" | "workflows" | "usage";
+export type SettingsTab = "runtime" | "workflows" | "runs" | "usage";

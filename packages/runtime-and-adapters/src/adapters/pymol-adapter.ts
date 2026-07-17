@@ -4,7 +4,13 @@ import { spawn } from "node:child_process";
 import { actionResultSchema, type ActionResult, type PymolAction } from "../schemas/index.js";
 import { CommandQueue } from "../utils/command-queue.js";
 import { normalizePymolColorSpec } from "../utils/colors.js";
-import { defaultExportPath, ensureAllowedExportPath, quoteCommandValue, resolveLocalStructureInputPath } from "../utils/path-policy.js";
+import {
+  defaultExportPath,
+  ensureAllowedExportPath,
+  ensureAllowedStructureInputPath,
+  quoteCommandValue,
+  resolveLocalStructureInputPath,
+} from "../utils/path-policy.js";
 import { isProcessLockActive, withProcessLock } from "../utils/process-lock.js";
 import { compilePymolSelection, selectorUsesReference, type SelectorReferenceMap } from "../utils/selectors.js";
 import { buildPymolReferenceSummary, type ReferenceHint, type SceneAnnotation } from "../utils/semantic-handles.js";
@@ -156,17 +162,27 @@ export class PymolAdapter {
     });
   }
 
-  async execute(actions: PymolAction[], dryRun = false, allowExpertRawCommands = this.enableExpertRawCommands): Promise<ActionResult> {
+  async execute(
+    actions: PymolAction[],
+    dryRun = false,
+    allowExpertRawCommands = this.enableExpertRawCommands,
+    checkpointPath?: string,
+  ): Promise<ActionResult> {
     const lockBudgetMs = Math.max(this.renderTimeoutMs * 3 + 60_000, 120_000);
     return this.queue.enqueue(async () => {
       const run = async () => {
         const startedAt = Date.now();
         const preparedActions = materializePymolActions(actions);
+        const rpcUrl = dryRun ? null : await this.ensureReady();
+        if (!dryRun && checkpointPath) {
+          const safeCheckpointPath = ensureAllowedExportPath(checkpointPath);
+          await fs.mkdir(path.dirname(safeCheckpointPath), { recursive: true });
+          await this.callDo(rpcUrl!, `save ${quoteCommandValue(safeCheckpointPath)}`, this.renderTimeoutMs);
+        }
         if (preparedActions.some((action) => action.type === "reset_workspace")) {
           this.clearWorkflowContext();
           this.clearTransientSceneState();
         }
-        const rpcUrl = dryRun ? null : await this.ensureReady();
         const referenceHints = await this.resolveReferenceHintsForActions(preparedActions, rpcUrl);
         const commands = preparedActions.flatMap((action) => compilePymolAction(action, referenceHints, allowExpertRawCommands));
         const commandBatches = createPymolCommandBatches(commands, this.timeoutMs, this.renderTimeoutMs, {
@@ -265,6 +281,37 @@ export class PymolAdapter {
         },
       );
     });
+  }
+
+  async restoreCheckpoint(checkpointPath: string): Promise<ActionResult> {
+    const safeCheckpointPath = ensureAllowedStructureInputPath(checkpointPath, "PyMOL checkpoint");
+    const lockBudgetMs = Math.max(this.renderTimeoutMs * 3 + 60_000, 120_000);
+    return this.queue.enqueue(() => withProcessLock(
+      "pymol.command",
+      lockBudgetMs,
+      async () => {
+        const rpcUrl = await this.ensureReady();
+        const command = `load ${quoteCommandValue(safeCheckpointPath)}`;
+        await this.callDo(rpcUrl, command, this.renderTimeoutMs);
+        this.clearWorkflowContext();
+        this.clearTransientSceneState();
+        this.noteSuccessfulCommandExecution();
+        const state = await this.collectStateSummary(rpcUrl);
+        return actionResultSchema.parse({
+          target: "pymol",
+          commandsExecuted: [command],
+          logs: ["Restored the previous PyMOL checkpoint."],
+          artifacts: [],
+          metrics: [],
+          warnings: [],
+          state,
+        });
+      },
+      {
+        staleAfterMs: lockBudgetMs,
+        pollMs: 250,
+      },
+    ));
   }
 
   async getStateSummary(): Promise<Record<string, unknown>> {

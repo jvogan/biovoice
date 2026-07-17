@@ -44,6 +44,18 @@ describe("action envelopes", () => {
     expect(parsed.actions).toHaveLength(8);
   });
 
+  it("rejects empty or incomplete structured selectors", () => {
+    expect(pymolEnvelopeSchema.safeParse({
+      target: "pymol",
+      actions: [{ type: "show", representations: ["cartoon"], selection: {} }],
+    }).success).toBe(false);
+
+    expect(chimeraXEnvelopeSchema.safeParse({
+      target: "chimerax",
+      actions: [{ type: "style", atoms: "stick", selection: { around: "#1:HEM" } }],
+    }).success).toBe(false);
+  });
+
   it("accepts capture view requests and rich action result payloads", () => {
     const capture = captureViewRequestSchema.parse({
       target: "chimerax",
@@ -128,6 +140,52 @@ describe("action envelopes", () => {
       uniprotId: "Q9H255",
       useAfdbPae: true,
     });
+  });
+
+  it("requires loadable Rosetta structures and workflow-specific review context", () => {
+    expect(scientificWorkflowRequestSchema.safeParse({
+      target: "pymol",
+      workflow: "rosetta_top_design_compare",
+      inputs: { scorefilePath: "scores.sc" },
+    }).success).toBe(false);
+
+    expect(scientificWorkflowRequestSchema.safeParse({
+      target: "pymol",
+      workflow: "rosetta_ligand_redesign_review",
+      inputs: { bundlePath: "designs" },
+    }).success).toBe(false);
+
+    expect(scientificWorkflowRequestSchema.safeParse({
+      target: "pymol",
+      workflow: "rosetta_ligand_redesign_review",
+      inputs: { bundlePath: "designs", ligandCode: "HEM" },
+    }).success).toBe(true);
+  });
+
+  it("requires a local multimer model instead of treating a UniProt monomer as a multimer", () => {
+    expect(scientificWorkflowRequestSchema.safeParse({
+      target: "chimerax",
+      workflow: "alphafold_multimer_interface_review",
+      inputs: { uniprotId: "P69905" },
+    }).success).toBe(false);
+
+    expect(scientificWorkflowRequestSchema.safeParse({
+      target: "chimerax",
+      workflow: "alphafold_multimer_interface_review",
+      inputs: { modelPath: "multimer.cif" },
+    }).success).toBe(true);
+  });
+
+  it("requires literal ligand component identifiers", () => {
+    expect(scientificWorkflowRequestSchema.safeParse({
+      target: "pymol",
+      workflow: "variant_environment_review",
+      inputs: {
+        modelPath: "model.pdb",
+        mutations: [{ position: "58", chain: "A" }],
+        ligandCode: "*",
+      },
+    }).success).toBe(false);
   });
 
   it("accepts database-backed scientific asset resolver requests", () => {
