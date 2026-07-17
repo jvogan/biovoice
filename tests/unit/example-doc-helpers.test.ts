@@ -99,12 +99,15 @@ describe("example doc helpers", () => {
     ], true)).rejects.toThrow(/does not exist/i);
 
     const liveChimeraXAdapterWithDocOption = new ChimeraXAdapter({
-      port: 60_958,
+      port: 65_535,
       timeoutMs: 30_000,
       autolaunch: false,
       allowMissingLocalInputsForDocumentation: true,
     });
-    liveChimeraXAdapterWithDocOption.ensureReady = async () => "http://127.0.0.1:60958";
+    liveChimeraXAdapterWithDocOption.ensureReady = async () => "http://127.0.0.1:65535";
+    (liveChimeraXAdapterWithDocOption as unknown as {
+      runCommands: () => Promise<{ error: null; "log messages": Record<string, never> }>;
+    }).runCommands = async () => ({ error: null, "log messages": {} });
     await expect(liveChimeraXAdapterWithDocOption.execute([
       { type: "open", source: "local", path: missingPath },
     ])).rejects.toThrow(/does not exist/i);
